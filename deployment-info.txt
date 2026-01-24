@@ -1,0 +1,33 @@
+Railway Deployment - MathQuest Worlds
+
+Platform:      Railway
+Environment:   Production
+URL:           https://mathquest-worlds-production.up.railway.app
+Project ID:    e7e98b29-bcee-4e85-931c-ea5bc9382a11
+Service ID:    10779ccc-a491-422e-9a57-1dacea85c20a
+Deployment ID: 34ca403e-69be-4b9e-9bf0-3c2d50a2623b
+Status:        SUCCESS
+Deployed:      Fri Jan 23 07:41:29 CST 2026
+Node Version:  20.x (via nixpacks.toml)
+
+Configuration Changes:
+- Added engines field to package.json (node >= 20.9.0)
+- Created nixpacks.toml to specify nodejs_20
+
+Verification:
+✅ Security check passed
+✅ Build completed successfully
+✅ Deployment succeeded
+✅ URL accessible (HTTP 200)
+✅ Next.js app running
+
+Health Check:
+- HTTP Status: 200 OK
+- Server: railway-edge
+- Powered by: Next.js
+- Cache: Working (x-nextjs-cache: HIT)
+
+Next Steps:
+- Visit: https://mathquest-worlds-production.up.railway.app
+- View logs: railway logs
+- Monitor: railway status

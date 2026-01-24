@@ -1,26 +1,414 @@
 @import "tailwindcss";
 
+/* Custom breakpoints for Tailwind v4 */
+@theme {
+  --breakpoint-xs: 475px;
+  --breakpoint-ipad: 768px;
+  --breakpoint-ipad-land: 1024px;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Safe area insets for notched devices (iPhone X+, newer iPads) */
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+  /* Game theme colors */
+  --jungle-primary: #2D5016;
+  --jungle-secondary: #8BC34A;
+  --jungle-accent: #FFD700;
+
+  --space-primary: #1A1A2E;
+  --space-secondary: #7B68EE;
+  --space-accent: #FFD700;
+
+  --ocean-primary: #006994;
+  --ocean-secondary: #40E0D0;
+  --ocean-accent: #FF69B4;
+
+  --fairy-primary: #9B59B6;
+  --fairy-secondary: #F8BBD9;
+  --fairy-accent: #FFD700;
+
+  --dino-primary: #8B4513;
+  --dino-secondary: #FF6B35;
+  --dino-accent: #32CD32;
+
+  --candy-primary: #FF1493;
+  --candy-secondary: #00BFFF;
+  --candy-accent: #FFD700;
+
+  /* UI Colors */
+  --star-gold: #FFD700;
+  --success-green: #4CAF50;
+  --retry-blue: #2196F3;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-fredoka: var(--font-fredoka);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Global styles */
+body {
+  font-family: var(--font-fredoka), 'Comic Sans MS', cursive, sans-serif;
+  background: linear-gradient(180deg, #87CEEB 0%, #98FB98 50%, #228B22 100%);
+  min-height: 100vh;
+  overflow-x: hidden;
+  /* Apply safe area padding for notched devices */
+  padding-top: var(--safe-area-inset-top);
+  padding-bottom: var(--safe-area-inset-bottom);
+  padding-left: var(--safe-area-inset-left);
+  padding-right: var(--safe-area-inset-right);
+}
+
+/* Prevent text selection for game elements */
+.game-element {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Kid-friendly button styles */
+.btn-primary {
+  @apply px-8 py-4 bg-gradient-to-b from-yellow-400 to-orange-500
+         text-white font-bold text-xl rounded-full shadow-lg
+         transform transition-all duration-150
+         hover:scale-105 hover:shadow-xl active:scale-95
+         border-4 border-yellow-300;
+}
+
+.btn-secondary {
+  @apply px-6 py-3 bg-gradient-to-b from-blue-400 to-blue-600
+         text-white font-bold text-lg rounded-full shadow-lg
+         transform transition-all duration-150
+         hover:scale-105 hover:shadow-xl active:scale-95
+         border-4 border-blue-300;
+}
+
+.btn-success {
+  @apply px-6 py-3 bg-gradient-to-b from-green-400 to-green-600
+         text-white font-bold text-lg rounded-full shadow-lg
+         transform transition-all duration-150
+         hover:scale-105 hover:shadow-xl active:scale-95
+         border-4 border-green-300;
+}
+
+/* Card styles */
+.game-card {
+  @apply bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-2xl
+         border-4 border-white/50;
+}
+
+/* Parallax container */
+.parallax-container {
+  position: relative;
+  overflow: hidden;
+  perspective: 1000px;
+}
+
+.parallax-layer {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+}
+
+.parallax-back {
+  transform: translateZ(-100px) scale(1.1);
+}
+
+.parallax-mid {
+  transform: translateZ(-50px) scale(1.05);
+}
+
+.parallax-front {
+  transform: translateZ(0);
+}
+
+/* Star animations */
+@keyframes starPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.8; }
+}
+
+.star-pulse {
+  animation: starPulse 1s ease-in-out infinite;
+}
+
+@keyframes starBurst {
+  0% { transform: scale(0) rotate(0deg); opacity: 0; }
+  50% { transform: scale(1.5) rotate(180deg); opacity: 1; }
+  100% { transform: scale(1) rotate(360deg); opacity: 1; }
+}
+
+.star-burst {
+  animation: starBurst 0.6s ease-out forwards;
+}
+
+/* Bounce animation */
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
+
+.bounce-animation {
+  animation: bounce 0.5s ease-in-out;
+}
+
+/* Float animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-10px) rotate(2deg); }
+  75% { transform: translateY(5px) rotate(-2deg); }
+}
+
+.float-animation {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Sparkle effect */
+@keyframes sparkle {
+  0%, 100% { opacity: 0; transform: scale(0); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.sparkle {
+  animation: sparkle 1.5s ease-in-out infinite;
+}
+
+/* Shake animation for wrong answers */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+.shake-animation {
+  animation: shake 0.3s ease-in-out;
+}
+
+/* Rainbow text */
+.rainbow-text {
+  background: linear-gradient(90deg,
+    #FF0000, #FF7F00, #FFFF00, #00FF00, #0000FF, #4B0082, #9400D3, #FF0000);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: rainbowShift 3s linear infinite;
+}
+
+@keyframes rainbowShift {
+  0% { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+/* Glow effects */
+.glow-gold {
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.6),
+              0 0 40px rgba(255, 215, 0, 0.4),
+              0 0 60px rgba(255, 215, 0, 0.2);
+}
+
+.glow-blue {
+  box-shadow: 0 0 20px rgba(33, 150, 243, 0.6),
+              0 0 40px rgba(33, 150, 243, 0.4);
+}
+
+.glow-green {
+  box-shadow: 0 0 20px rgba(76, 175, 80, 0.6),
+              0 0 40px rgba(76, 175, 80, 0.4);
+}
+
+/* Confetti animation */
+@keyframes confettiFall {
+  0% {
+    transform: translateY(-100vh) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.confetti {
+  position: fixed;
+  animation: confettiFall 3s ease-in-out forwards;
+}
+
+/* Character layer system */
+.character-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.character-container {
+  position: relative;
+  width: 200px;
+  height: 300px;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .btn-primary {
+    @apply px-6 py-3 text-lg;
+  }
+
+  .game-card {
+    @apply p-4 rounded-2xl;
+  }
+
+  .character-container {
+    width: 150px;
+    height: 225px;
+  }
+}
+
+/* iPad Portrait styles (768px - 1024px) */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .game-card {
+    padding: 2rem;
+  }
+
+  .btn-primary {
+    font-size: 1.5rem;
+    padding: 1.25rem 2rem;
+  }
+
+  .btn-secondary,
+  .btn-success {
+    font-size: 1.25rem;
+    padding: 1rem 1.5rem;
+  }
+
+  .character-container {
+    width: 180px;
+    height: 270px;
+  }
+
+  /* Larger touch targets for iPad */
+  .tap-target {
+    min-width: 56px;
+    min-height: 56px;
+  }
+
+  .counting-object {
+    font-size: 2.5rem;
+  }
+}
+
+/* iPad Landscape styles (1024px+) */
+@media (min-width: 1024px) and (max-width: 1366px) and (hover: none) {
+  .game-card {
+    padding: 2.5rem;
+  }
+
+  .btn-primary {
+    font-size: 1.75rem;
+  }
+}
+
+/* Touch event handling for game interactions */
+.game-interactive {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Draggable items for touch-based games */
+.draggable-item {
+  touch-action: none;
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.draggable-item:active {
+  cursor: grabbing;
+}
+
+/* iOS momentum scrolling for scroll containers */
+.scroll-container {
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+/* Prevent double-tap zoom on interactive elements */
+.no-zoom {
+  touch-action: manipulation;
+}
+
+/* Smooth scrolling for game lists */
+.game-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+}
+
+/* Touch-friendly tap targets */
+.tap-target {
+  min-width: 48px;
+  min-height: 48px;
+}
+
+/* Counting object grid */
+.counting-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  padding: 16px;
+}
+
+.counting-object {
+  font-size: 2rem;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.counting-object:hover {
+  transform: scale(1.2);
+}
+
+.counting-object.counted {
+  opacity: 0.5;
+  transform: scale(0.9);
+}
+
+/* World backgrounds */
+.world-jungle {
+  background: linear-gradient(180deg, #87CEEB 0%, #98FB98 50%, #228B22 100%);
+}
+
+.world-space {
+  background: linear-gradient(180deg, #0D0D1A 0%, #1A1A2E 50%, #2D2D5E 100%);
+}
+
+.world-ocean {
+  background: linear-gradient(180deg, #87CEEB 0%, #00CED1 50%, #006994 100%);
+}
+
+.world-fairy {
+  background: linear-gradient(180deg, #FFB6C1 0%, #DDA0DD 50%, #9B59B6 100%);
+}
+
+.world-dino {
+  background: linear-gradient(180deg, #FF6B35 0%, #CD853F 50%, #8B4513 100%);
+}
+
+.world-candy {
+  background: linear-gradient(180deg, #FFB6C1 0%, #FF69B4 50%, #FF1493 100%);
+}
+
+.world-rainbow {
+  background: linear-gradient(180deg,
+    #FF0000 0%, #FF7F00 17%, #FFFF00 33%,
+    #00FF00 50%, #0000FF 67%, #4B0082 83%, #9400D3 100%);
 }
