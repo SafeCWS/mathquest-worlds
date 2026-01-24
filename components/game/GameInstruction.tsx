@@ -112,6 +112,27 @@ const GAME_INSTRUCTIONS: Record<string, { title: string; instruction: string; de
     title: 'Math Time!',
     instruction: 'Pick the right answer!',
     demo: '👆 ✓'
+  },
+  // Enhanced Toca Boca-style drag games
+  basketCounting: {
+    title: 'Fill the Basket!',
+    instruction: 'Drag items into the basket!',
+    demo: '👆 ➡️ 🧺'
+  },
+  numberLineDrag: {
+    title: 'Number Line!',
+    instruction: 'Drag to the right number!',
+    demo: '👆 ➡️ 🔢'
+  },
+  sortingDrag: {
+    title: 'Sort Them!',
+    instruction: 'Drag to put in order!',
+    demo: '3️⃣ ➡️ 1️⃣2️⃣3️⃣'
+  },
+  matchDrag: {
+    title: 'Match It!',
+    instruction: 'Drag to the right answer!',
+    demo: '👆 ➡️ ✅'
   }
 }
 
@@ -136,7 +157,12 @@ const GAME_ICONS: Record<string, string> = {
   catNap: '😴',
   catTower: '🗼',
   kittyDance: '💃',
-  standard: '⭐'
+  standard: '⭐',
+  // Enhanced Toca Boca-style drag games
+  basketCounting: '🧺',
+  numberLineDrag: '📏',
+  sortingDrag: '🔢',
+  matchDrag: '🎯'
 }
 
 export function GameInstruction({ gameType, emoji, onStart, show }: GameInstructionProps) {

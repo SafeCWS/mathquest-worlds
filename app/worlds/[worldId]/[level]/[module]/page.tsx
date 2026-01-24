@@ -29,6 +29,12 @@ import {
   CatTowerGame,
   KittyDanceGame
 } from '@/components/game/cat-world/CatGames'
+import {
+  BasketCountingGame,
+  NumberLineDragGame,
+  SortingDragGame,
+  MatchDragGame
+} from '@/components/game/DragDropGames'
 import { getLevelById, getModuleById, getRandomMessage, GameType } from '@/lib/constants/levels'
 import { getWorldGameType } from '@/lib/utils/worldGameTypes'
 import { generateProblems } from '@/lib/math/problemGenerator'
@@ -663,6 +669,55 @@ export default function GamePage() {
             options={safeOptions}
             onCorrect={() => handleCorrect()}
             onWrong={() => handleWrong()}
+          />
+        )
+
+      // Enhanced Toca Boca-style drag games
+      case 'basketCounting':
+        return (
+          <BasketCountingGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+            emoji={emoji}
+          />
+        )
+
+      case 'numberLineDrag':
+        return (
+          <NumberLineDragGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+            emoji={emoji}
+          />
+        )
+
+      case 'sortingDrag':
+        return (
+          <SortingDragGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+            emoji={emoji}
+          />
+        )
+
+      case 'matchDrag':
+        return (
+          <MatchDragGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+            emoji={emoji}
           />
         )
 

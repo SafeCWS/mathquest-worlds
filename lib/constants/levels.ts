@@ -26,6 +26,11 @@ export type GameType =
   | 'catNap'
   | 'catTower'
   | 'kittyDance'
+  // Enhanced Toca Boca-style drag games!
+  | 'basketCounting'
+  | 'numberLineDrag'
+  | 'sortingDrag'
+  | 'matchDrag'
 
 export interface Level {
   id: number

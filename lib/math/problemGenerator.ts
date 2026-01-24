@@ -61,6 +61,34 @@ const WORLD_OBJECTS: Record<string, string[][]> = {
 let sessionUsedObjects: Set<string> = new Set()
 let lastObjectIndex = 0
 
+// Session-based problem tracker to prevent commutative duplicates (2+1 vs 1+2)
+// Stores canonical form: "operation:min:max" where min <= max
+let sessionUsedProblems: Set<string> = new Set()
+
+// Get canonical form of a problem (normalizes commutative operations)
+function getCanonicalForm(operation: MathOperation, num1: number, num2: number): string {
+  // For commutative operations (addition, multiplication), always put smaller number first
+  if (operation === 'addition' || operation === 'multiplication') {
+    const min = Math.min(num1, num2)
+    const max = Math.max(num1, num2)
+    return `${operation}:${min}:${max}`
+  }
+  // For non-commutative operations (subtraction), order matters
+  return `${operation}:${num1}:${num2}`
+}
+
+// Check if this problem (or its commutative equivalent) was already used
+function isProblemUsed(operation: MathOperation, num1: number, num2: number): boolean {
+  const canonical = getCanonicalForm(operation, num1, num2)
+  return sessionUsedProblems.has(canonical)
+}
+
+// Mark a problem as used
+function markProblemUsed(operation: MathOperation, num1: number, num2: number): void {
+  const canonical = getCanonicalForm(operation, num1, num2)
+  sessionUsedProblems.add(canonical)
+}
+
 // Get a unique object that hasn't been used this session
 function getUniqueObject(worldId: string): string {
   const worldGroups = WORLD_OBJECTS[worldId] || WORLD_OBJECTS.jungle
@@ -180,6 +208,7 @@ function generateCountingProblem(
 }
 
 // Generate a single addition problem with UNIQUE objects!
+// Now prevents commutative duplicates (2+1 won't appear if 1+2 was already used)
 function generateAdditionProblem(
   id: number,
   min: number,
@@ -188,8 +217,19 @@ function generateAdditionProblem(
   worldId: string
 ): MathProblem {
   // For single digit, keep both numbers small
-  const num1 = randomInt(min, Math.min(max, 9))
-  const num2 = randomInt(min, Math.min(max - num1, 9))
+  // Retry up to 20 times to find a unique (non-duplicate) problem
+  let num1: number, num2: number, attempts = 0
+  const maxNum = Math.min(max, 9)
+
+  do {
+    num1 = randomInt(min, maxNum)
+    num2 = randomInt(min, Math.min(max - num1, maxNum))
+    attempts++
+  } while (isProblemUsed('addition', num1, num2) && attempts < 20)
+
+  // Mark this problem as used (canonical form handles 2+1 vs 1+2)
+  markProblemUsed('addition', num1, num2)
+
   const answer = num1 + num2
 
   // For addition, wrong answers should be reasonable (1 to max sum range)
@@ -247,6 +287,7 @@ function generateSubtractionProblem(
 }
 
 // Generate a single multiplication problem
+// Now prevents commutative duplicates (3×5 won't appear if 5×3 was already used)
 function generateMultiplicationProblem(
   id: number,
   min: number,
@@ -271,8 +312,18 @@ function generateMultiplicationProblem(
       multiplier = [2, 5, 10][randomInt(0, 2)] // Mixed
   }
 
-  const num1 = randomInt(min, max)
+  // Retry up to 20 times to find a unique (non-duplicate) problem
+  let num1: number, attempts = 0
   const num2 = multiplier
+
+  do {
+    num1 = randomInt(min, max)
+    attempts++
+  } while (isProblemUsed('multiplication', num1, num2) && attempts < 20)
+
+  // Mark this problem as used (canonical form handles 3×5 vs 5×3)
+  markProblemUsed('multiplication', num1, num2)
+
   const answer = num1 * num2
 
   // For multiplication, reasonable range based on the times table
@@ -302,6 +353,7 @@ function generateMultiplicationProblem(
 }
 
 // Main generator function - NOW WITH NO REPEATS!
+// Also prevents commutative duplicates (2+1 won't appear with 1+2)
 export function generateProblems(
   worldId: string,
   operation: MathOperation,
@@ -309,6 +361,7 @@ export function generateProblems(
 ): MathProblem[] {
   // Reset session tracking for fresh game
   sessionUsedObjects.clear()
+  sessionUsedProblems.clear() // Reset commutative duplicate tracker
   lastObjectIndex = Math.floor(Math.random() * 20)
 
   const problems: MathProblem[] = []
@@ -393,6 +446,7 @@ export function generateProblems(
 }
 
 // Generate practice problems (quick play)
+// Also prevents commutative duplicates
 export function generatePracticeProblems(
   worldId: string,
   operation: MathOperation,
@@ -401,6 +455,7 @@ export function generatePracticeProblems(
 ): MathProblem[] {
   // Reset session tracking
   sessionUsedObjects.clear()
+  sessionUsedProblems.clear() // Reset commutative duplicate tracker
 
   const difficultyRanges = {
     easy: { min: 1, max: 5 },

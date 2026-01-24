@@ -10,7 +10,7 @@ export type { GameType }
 
 // Games grouped by interaction style - using only valid GameTypes from levels.ts
 const TAP_GAMES: GameType[] = ['bubblePop', 'whackMole', 'balloonOrder', 'race', 'rocketLaunch']
-const DRAG_GAMES: GameType[] = ['feedAnimal', 'fishing', 'treasureHunt', 'puzzle']
+const DRAG_GAMES: GameType[] = ['feedAnimal', 'fishing', 'treasureHunt', 'puzzle', 'basketCounting', 'numberLineDrag', 'sortingDrag', 'matchDrag']
 const MIXED_GAMES: GameType[] = [...TAP_GAMES, ...DRAG_GAMES, 'bouncingBall', 'shuffle', 'memoryFlip']
 
 export interface ShuffledQuestion {
