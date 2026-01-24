@@ -7,7 +7,7 @@ interface AnimatedAnswerProps {
   answer: number | string
   isCorrect?: boolean
   isSelected?: boolean
-  onClick?: () => void
+  onClick?: (e?: React.MouseEvent<HTMLButtonElement>) => void
   disabled?: boolean
   worldColors?: {
     primary: string
