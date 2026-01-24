@@ -128,6 +128,27 @@ const GAME_INSTRUCTIONS: Record<string, { title: string; instruction: string; de
     instruction: 'Tap to collect the right number of stars!',
     demo: '⭐⭐⭐ = 3'
   },
+  // Ocean Kingdom Games
+  bubbleCount: {
+    title: 'Count the Bubbles!',
+    instruction: 'Count bubbles rising from the ocean floor!',
+    demo: '🫧🫧🫧 = ?'
+  },
+  fishSchool: {
+    title: 'Fish School!',
+    instruction: 'Count the fish swimming together!',
+    demo: '🐠🐟🐡 = ?'
+  },
+  treasureChest: {
+    title: 'Find the Treasure!',
+    instruction: 'Pick the chest with the right answer!',
+    demo: '🧰 💰 🪙'
+  },
+  seashellSort: {
+    title: 'Sort the Seashells!',
+    instruction: 'Tap shells from smallest to biggest!',
+    demo: '1️⃣ ➡️ 2️⃣ ➡️ 3️⃣'
+  },
   // Default/standard
   standard: {
     title: 'Math Time!',
@@ -183,6 +204,11 @@ const GAME_ICONS: Record<string, string> = {
   planetHop: '🪐',
   alienFeeding: '👽',
   starCollector: '⭐',
+  // Ocean Kingdom Games
+  bubbleCount: '🫧',
+  fishSchool: '🐠',
+  treasureChest: '🧰',
+  seashellSort: '🐚',
   standard: '⭐',
   // Enhanced Toca Boca-style drag games
   basketCounting: '🧺',

@@ -793,6 +793,202 @@ class WebAudioSoundManager {
     this.playTone(523, 0.05, 'sine', 0.2)
   }
 
+  // ===== COMBO & STREAK SOUNDS =====
+
+  // Small combo (3 correct in a row)
+  playCombo3() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    // Quick ascending burst
+    const combo = [440, 523, 659]
+    combo.forEach((freq, i) => {
+      setTimeout(() => {
+        this.playTone(freq, 0.1, 'sine', 0.18)
+      }, i * 60)
+    })
+    setTimeout(() => this.playTone(784, 0.15, 'sine', 0.15), 200)
+  }
+
+  // Medium combo (5 correct)
+  playCombo5() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    const combo = [392, 440, 523, 659, 784]
+    combo.forEach((freq, i) => {
+      setTimeout(() => {
+        this.playTone(freq, 0.1, 'square', 0.15)
+      }, i * 50)
+    })
+    // Power-up sound
+    setTimeout(() => {
+      this.playTone(1047, 0.2, 'sine', 0.2)
+      this.playSparkleRain()
+    }, 280)
+  }
+
+  // Big combo (10 correct!)
+  playCombo10() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    // Epic combo sound
+    const epic = [262, 330, 392, 440, 523, 587, 659, 784, 880, 1047]
+    epic.forEach((freq, i) => {
+      setTimeout(() => {
+        this.playTone(freq, 0.12, 'triangle', 0.15 + i * 0.01)
+      }, i * 40)
+    })
+    // Massive finale
+    setTimeout(() => {
+      this.playVictoryFanfare()
+    }, 500)
+  }
+
+  // ===== TAP VARIATIONS (for variety in gameplay) =====
+
+  playTapVariant1() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    this.playTone(440, 0.05, 'sine', 0.18)
+    setTimeout(() => this.playTone(523, 0.04, 'sine', 0.12), 40)
+  }
+
+  playTapVariant2() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    this.playTone(659, 0.06, 'triangle', 0.15)
+  }
+
+  playTapVariant3() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    this.playTone(784, 0.04, 'sine', 0.2)
+    setTimeout(() => this.playTone(880, 0.03, 'sine', 0.15), 30)
+  }
+
+  // Random tap sound for variety
+  playTapRandom() {
+    const variants = [
+      () => this.playAnswerTap(),
+      () => this.playTapVariant1(),
+      () => this.playTapVariant2(),
+      () => this.playTapVariant3()
+    ]
+    variants[Math.floor(Math.random() * variants.length)]()
+  }
+
+  // ===== NUMBER TRANSITION SOUNDS =====
+
+  // Count up sound (for number animations)
+  playCountUp() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    this.playTone(400 + Math.random() * 200, 0.05, 'sine', 0.15)
+  }
+
+  // Count down sound
+  playCountDown() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    this.playTone(600 - Math.random() * 200, 0.05, 'sine', 0.15)
+  }
+
+  // Number reveal (when problem appears)
+  playNumberReveal() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    // Rising reveal sound
+    const reveal = [300, 400, 500, 600]
+    reveal.forEach((freq, i) => {
+      setTimeout(() => {
+        this.playTone(freq, 0.08, 'sine', 0.1)
+      }, i * 40)
+    })
+  }
+
+  // ===== MILESTONE CELEBRATION SOUNDS =====
+
+  // First problem of the day
+  playWelcomeBack() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    // Warm welcome melody
+    const welcome = [523, 659, 784, 1047]
+    welcome.forEach((freq, i) => {
+      setTimeout(() => {
+        this.playTone(freq, 0.2, 'sine', 0.15)
+      }, i * 150)
+    })
+    setTimeout(() => this.playHappyJingle(), 700)
+  }
+
+  // 10 problems completed
+  playMilestone10() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    // Building excitement
+    for (let i = 0; i < 10; i++) {
+      setTimeout(() => {
+        this.playTone(300 + i * 80, 0.08, 'square', 0.12)
+      }, i * 50)
+    }
+    setTimeout(() => this.playVictoryFanfare(), 600)
+  }
+
+  // 25 problems milestone
+  playMilestone25() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    // Epic achievement
+    this.playDailyBonus()
+    setTimeout(() => this.playAchievementUnlock(), 800)
+  }
+
+  // 50 problems - half century!
+  playMilestone50() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    // Legendary fanfare
+    this.playVictoryFanfare()
+    setTimeout(() => this.playSparkleRain(), 500)
+    setTimeout(() => this.playVictoryFanfare2(), 1000)
+    setTimeout(() => this.playCelebration(), 1500)
+  }
+
+  // ===== ENCOURAGING SOUNDS =====
+
+  // Almost there! (when close to completing level)
+  playAlmostThere() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    const encourage = [392, 440, 494, 523]
+    encourage.forEach((freq, i) => {
+      setTimeout(() => {
+        this.playTone(freq, 0.15, 'triangle', 0.15)
+      }, i * 100)
+    })
+  }
+
+  // Try again (gentle, not discouraging)
+  playTryAgain() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    // Upbeat, not sad
+    this.playTone(330, 0.15, 'sine', 0.15)
+    setTimeout(() => this.playTone(392, 0.2, 'sine', 0.12), 150)
+  }
+
+  // You can do it!
+  playEncouragement() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    const cheer = [440, 523, 659, 784]
+    cheer.forEach((freq, i) => {
+      setTimeout(() => {
+        this.playTone(freq, 0.12, 'sine', 0.12)
+      }, i * 80)
+    })
+  }
+
   // ===== FAIRY WORLD SOUNDS =====
 
   // Fairy sparkle - cascading high-pitched twinkles

@@ -31,6 +31,11 @@ export type GameType =
   | 'planetHop'
   | 'alienFeeding'
   | 'starCollector'
+  // Ocean Kingdom World games!
+  | 'bubbleCount'
+  | 'fishSchool'
+  | 'treasureChest'
+  | 'seashellSort'
   // Enhanced Toca Boca-style drag games!
   | 'basketCounting'
   | 'numberLineDrag'

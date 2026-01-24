@@ -20,10 +20,19 @@ const SPACE_WORLD_GAMES: GameType[] = [
   'starCollector'
 ]
 
+// Ocean Kingdom world has special themed games
+const OCEAN_WORLD_GAMES: GameType[] = [
+  'bubbleCount',
+  'fishSchool',
+  'treasureChest',
+  'seashellSort'
+]
+
 // Map of world IDs to their themed game types
 const WORLD_GAME_OVERRIDES: Record<string, GameType[]> = {
   lovelycat: CAT_WORLD_GAMES,
-  space: SPACE_WORLD_GAMES
+  space: SPACE_WORLD_GAMES,
+  ocean: OCEAN_WORLD_GAMES
 }
 
 /**

@@ -36,6 +36,12 @@ import {
   StarCollectorGame
 } from '@/components/game/space-world/SpaceGames'
 import {
+  BubbleCountGame,
+  FishSchoolGame,
+  TreasureChestGame,
+  SeashellSortGame
+} from '@/components/game/ocean-world/OceanGames'
+import {
   BasketCountingGame,
   NumberLineDragGame,
   SortingDragGame,
@@ -715,6 +721,51 @@ export default function GamePage() {
       case 'starCollector':
         return (
           <StarCollectorGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      // Ocean Kingdom World Games!
+      case 'bubbleCount':
+        return (
+          <BubbleCountGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'fishSchool':
+        return (
+          <FishSchoolGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'treasureChest':
+        return (
+          <TreasureChestGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'seashellSort':
+        return (
+          <SeashellSortGame
             question={question}
             correctAnswer={currentProblem.answer}
             options={safeOptions}
