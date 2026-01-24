@@ -20,12 +20,15 @@ export function BubblePopGame({ question, correctAnswer, options, onCorrect, onW
   const [bubbles, setBubbles] = useState<Array<{ id: number; x: number; y: number; answer: number; popped: boolean }>>([])
   const [score, setScore] = useState(0)
 
+  // Create visual counting objects - kids need to count these!
+  const countingObjects = Array(correctAnswer).fill(emoji)
+
   // Create floating bubbles
   useEffect(() => {
     const newBubbles = options.map((answer, i) => ({
       id: i,
       x: 15 + (i * 22) + Math.random() * 10,
-      y: 60 + Math.random() * 20,
+      y: 70 + Math.random() * 15, // Moved down to make room for counting objects
       answer,
       popped: false
     }))
@@ -56,54 +59,67 @@ export function BubblePopGame({ question, correctAnswer, options, onCorrect, onW
   }
 
   return (
-    <div className="relative h-[400px] bg-gradient-to-b from-sky-300 to-sky-500 rounded-3xl overflow-hidden">
+    <div className="relative h-[450px] bg-gradient-to-b from-sky-300 to-sky-500 rounded-3xl overflow-hidden">
       {/* INSTRUCTION BANNER */}
       <motion.div
-        className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/95 px-6 py-3 rounded-2xl shadow-xl z-10"
+        className="absolute top-3 left-1/2 -translate-x-1/2 bg-white/95 px-4 py-2 rounded-2xl shadow-xl z-10"
         initial={{ y: -50 }}
         animate={{ y: 0 }}
       >
-        <p className="text-2xl font-bold text-center">{question}</p>
-        <p className="text-lg text-blue-600 text-center font-bold">
-          👆 Tap the right bubble! 🫧
+        <p className="text-xl font-bold text-center">{question}</p>
+        <p className="text-base text-blue-600 text-center font-bold">
+          🔢 Count them, then tap the right bubble! 👆
         </p>
       </motion.div>
 
-      {/* Floating bubbles */}
+      {/* COUNTING OBJECTS - Kids count these! */}
+      <motion.div
+        className="absolute top-24 left-1/2 -translate-x-1/2 bg-white/90 rounded-2xl px-6 py-3 shadow-lg z-10"
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ delay: 0.3 }}
+      >
+        <div className="flex flex-wrap justify-center gap-2 max-w-[280px]">
+          {countingObjects.map((obj, i) => (
+            <motion.span
+              key={i}
+              className="text-3xl"
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ delay: 0.1 + i * 0.08, type: 'spring' }}
+            >
+              {obj}
+            </motion.span>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* Floating bubbles with answers */}
       {bubbles.map((bubble) => (
         <motion.button
           key={bubble.id}
-          className={`absolute w-20 h-20 rounded-full flex items-center justify-center
-                      text-3xl font-bold shadow-lg cursor-pointer
+          className={`absolute w-18 h-18 rounded-full flex items-center justify-center
+                      text-2xl font-bold shadow-lg cursor-pointer game-interactive
                       ${bubble.popped ? 'opacity-0' : 'bg-gradient-to-br from-blue-200 to-purple-300'}`}
-          style={{ left: `${bubble.x}%`, top: `${bubble.y}%` }}
+          style={{ left: `${bubble.x}%`, top: `${bubble.y}%`, width: '70px', height: '70px' }}
           onClick={() => handlePop(bubble)}
           animate={bubble.popped ? { scale: 0, opacity: 0 } : {
-            y: [0, -15, 0],
-            x: [0, 5, -5, 0],
+            y: [0, -10, 0],
+            x: [0, 4, -4, 0],
           }}
           transition={{
             duration: 3 + bubble.id * 0.5,
             repeat: Infinity,
             ease: "easeInOut"
           }}
-          whileHover={{ scale: 1.2 }}
-          whileTap={{ scale: 0.8 }}
+          whileHover={{ scale: 1.15 }}
+          whileTap={{ scale: 0.85 }}
         >
           <span className="relative z-10">{bubble.answer}</span>
           {/* Bubble shine */}
-          <div className="absolute top-2 left-3 w-4 h-4 bg-white/60 rounded-full" />
+          <div className="absolute top-2 left-3 w-3 h-3 bg-white/60 rounded-full" />
         </motion.button>
       ))}
-
-      {/* Decorative emoji */}
-      <motion.span
-        className="absolute bottom-4 right-4 text-6xl"
-        animate={{ rotate: [-10, 10, -10] }}
-        transition={{ duration: 2, repeat: Infinity }}
-      >
-        {emoji}
-      </motion.span>
     </div>
   )
 }
@@ -118,20 +134,20 @@ interface FeedAnimalProps {
   onCorrect: () => void
   onWrong: () => void
   worldId: string
+  emoji?: string // The emoji to display (passed from game engine)
 }
 
 const HUNGRY_ANIMALS = ['🐼', '🦁', '🐶', '🐱', '🐰', '🦊', '🐻', '🐨']
-const FOOD_ITEMS = ['🍎', '🍌', '🥕', '🍇', '🍓', '🥬', '🌽', '🍕']
 
-export function FeedAnimalGame({ question, correctAnswer, options, onCorrect, onWrong }: FeedAnimalProps) {
+export function FeedAnimalGame({ question, correctAnswer, options, onCorrect, onWrong, emoji }: FeedAnimalProps) {
   const [animal] = useState(() => HUNGRY_ANIMALS[Math.floor(Math.random() * HUNGRY_ANIMALS.length)])
-  const [food] = useState(() => FOOD_ITEMS[Math.floor(Math.random() * FOOD_ITEMS.length)])
-  const [fedCount, setFedCount] = useState(0)
+  // Use the passed emoji, or fall back to a default
+  const displayEmoji = emoji || '⭐'
   const [isHappy, setIsHappy] = useState(false)
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
 
-  // Create visual food items to show what the animal needs
-  const foodDisplay = Array(correctAnswer).fill(food).join('')
+  // Create visual items to show - use the SAME emoji the question refers to!
+  const foodDisplay = Array(correctAnswer).fill(displayEmoji).join('')
 
   const handleFeed = (answer: number) => {
     setSelectedAnswer(answer)
@@ -201,7 +217,7 @@ export function FeedAnimalGame({ question, correctAnswer, options, onCorrect, on
         {options.map((answer, i) => (
           <motion.button
             key={i}
-            className={`relative bg-white rounded-2xl p-4 shadow-lg min-w-[80px]
+            className={`relative bg-white rounded-2xl p-4 shadow-lg min-w-[80px] game-interactive
                        ${selectedAnswer === answer && answer === correctAnswer ? 'ring-4 ring-green-400' : ''}
                        ${selectedAnswer === answer && answer !== correctAnswer ? 'ring-4 ring-red-400' : ''}`}
             onClick={() => handleFeed(answer)}
@@ -213,7 +229,7 @@ export function FeedAnimalGame({ question, correctAnswer, options, onCorrect, on
             disabled={isHappy}
           >
             <div className="flex flex-col items-center">
-              <span className="text-3xl mb-1">{food}</span>
+              <span className="text-3xl mb-1">{displayEmoji}</span>
               <span className="text-2xl font-bold">{answer}</span>
             </div>
           </motion.button>
@@ -290,7 +306,7 @@ export function MatchingGame({ pairs, onComplete }: MatchingProps) {
           {pairs.map((pair, i) => (
             <motion.button
               key={`left-${i}`}
-              className={`w-24 h-16 rounded-xl text-xl font-bold shadow-lg
+              className={`w-24 h-16 rounded-xl text-xl font-bold shadow-lg game-interactive
                          ${matched.has(i) ? 'bg-green-300 opacity-50' : 'bg-white'}
                          ${selected?.type === 'left' && selected.index === i ? 'ring-4 ring-yellow-400' : ''}`}
               onClick={() => handleSelect('left', i, pair.left)}
@@ -308,7 +324,7 @@ export function MatchingGame({ pairs, onComplete }: MatchingProps) {
           {shuffledRight.map((value, i) => (
             <motion.button
               key={`right-${i}`}
-              className={`w-24 h-16 rounded-xl text-xl font-bold shadow-lg
+              className={`w-24 h-16 rounded-xl text-xl font-bold shadow-lg game-interactive
                          ${matched.has(i + 100) ? 'bg-green-300 opacity-50' : 'bg-white'}
                          ${selected?.type === 'right' && selected.index === i ? 'ring-4 ring-yellow-400' : ''}
                          ${wrongPair === i ? 'ring-4 ring-red-400' : ''}`}
@@ -370,16 +386,16 @@ export function RaceGame({ question, correctAnswer, options, onCorrect, onWrong,
         if (newPos >= 85) {
           setIsRacing(false)
           setWinner('player')
+          // Only call onCorrect when the race is WON, not for every correct answer!
           setTimeout(onCorrect, 800)
         }
         return Math.min(newPos, 90)
       })
-      if (playerPosition < 85) {
-        onCorrect()
-      }
+      // FIXED: Don't call onCorrect() for every answer - only when winning!
+      // The race is multi-question, so we wait until player wins
     } else {
       sounds.playGentleError()
-      onWrong()
+      onWrong() // Keep this for feedback (doesn't advance, just shows "try again")
     }
   }
 
@@ -456,7 +472,7 @@ export function RaceGame({ question, correctAnswer, options, onCorrect, onWrong,
         {options.map((answer, i) => (
           <motion.button
             key={i}
-            className="bg-white rounded-2xl p-4 text-3xl font-bold shadow-lg"
+            className="bg-white rounded-2xl p-4 text-3xl font-bold shadow-lg game-interactive"
             onClick={() => handleAnswer(answer)}
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
@@ -544,7 +560,7 @@ export function PuzzleGame({ question, correctAnswer, options, onCorrect, onWron
         {options.map((answer, i) => (
           <motion.button
             key={i}
-            className={`w-16 h-16 rounded-xl text-2xl font-bold shadow-lg
+            className={`w-16 h-16 rounded-xl text-2xl font-bold shadow-lg game-interactive
                        ${selectedPiece === answer && answer === correctAnswer ? 'bg-green-300' : ''}
                        ${selectedPiece === answer && answer !== correctAnswer ? 'bg-red-300' : ''}
                        ${selectedPiece !== answer ? 'bg-white' : ''}`}
@@ -672,7 +688,7 @@ export function BouncingBallGame({ question, correctAnswer, options, onCorrect, 
         <motion.button
           key={ball.id}
           className={`absolute w-16 h-16 rounded-full flex items-center justify-center
-                      text-2xl font-bold text-white shadow-xl cursor-pointer
+                      text-2xl font-bold text-white shadow-xl cursor-pointer game-interactive
                       ${ball.caught ? 'opacity-30 scale-50' : ball.color}`}
           style={{
             left: `${ball.x}%`,
@@ -807,7 +823,7 @@ export function ShuffleGame({ question, correctAnswer, options, onCorrect, onWro
         {cards.map((card) => (
           <motion.button
             key={card.id}
-            className={`absolute w-20 h-28 rounded-xl shadow-xl cursor-pointer
+            className={`absolute w-20 h-28 rounded-xl shadow-xl cursor-pointer game-interactive
                        flex items-center justify-center text-3xl font-bold
                        ${card.flipped || revealed ? 'bg-white' : 'bg-gradient-to-br from-blue-500 to-purple-600'}`}
             style={{ top: '50%', transform: 'translateY(-50%)' }}
@@ -942,7 +958,7 @@ export function WhackMoleGame({ question, correctAnswer, options, onCorrect, onW
         {holes.map((hole) => (
           <motion.button
             key={hole.id}
-            className="relative h-28 rounded-b-full bg-gradient-to-b from-amber-700 via-amber-800 to-amber-950 border-4 border-amber-600 overflow-hidden shadow-lg"
+            className="relative h-28 rounded-b-full bg-gradient-to-b from-amber-700 via-amber-800 to-amber-950 border-4 border-amber-600 overflow-hidden shadow-lg game-interactive"
             onClick={() => handleWhack(hole)}
             whileTap={{ scale: 0.9 }}
             whileHover={{ scale: 1.05 }}
@@ -1107,7 +1123,7 @@ export function BalloonOrderGame({ numbers, onComplete, onWrong }: BalloonOrderP
       {balloons.map((balloon) => (
         <motion.button
           key={balloon.id}
-          className={`absolute flex flex-col items-center cursor-pointer ${balloon.popped ? 'pointer-events-none' : ''}`}
+          className={`absolute flex flex-col items-center cursor-pointer game-interactive ${balloon.popped ? 'pointer-events-none' : ''}`}
           style={{ left: `${balloon.x}%`, top: `${balloon.y}%` }}
           onClick={() => handlePop(balloon)}
           animate={balloon.popped ? { scale: 0, opacity: 0, y: -100 } : { y: [0, -8, 0], x: [0, 3, -3, 0] }}
@@ -1219,7 +1235,7 @@ export function MemoryFlipGame({ pairs, onComplete }: MemoryFlipProps) {
         {cards.map((card) => (
           <motion.button
             key={card.id}
-            className={`aspect-square rounded-xl shadow-lg cursor-pointer flex items-center justify-center
+            className={`aspect-square rounded-xl shadow-lg cursor-pointer flex items-center justify-center game-interactive
                        ${card.matched ? 'bg-green-300 opacity-60' : card.flipped ? 'bg-white' : 'bg-gradient-to-br from-indigo-500 to-purple-600'}`}
             onClick={() => handleCardClick(card.id)}
             whileHover={!card.flipped && !card.matched ? { scale: 1.05 } : {}}
@@ -1343,7 +1359,7 @@ export function FishingGame({ question, correctAnswer, options, onCorrect, onWro
       {fish.map((fishItem) => (
         <motion.button
           key={fishItem.id}
-          className={`absolute cursor-pointer transition-transform ${fishItem.caught ? 'opacity-30' : ''}`}
+          className={`absolute cursor-pointer transition-transform game-interactive ${fishItem.caught ? 'opacity-30' : ''}`}
           style={{ left: `${fishItem.x}%`, top: `${fishItem.y}%` }}
           onClick={() => handleCatch(fishItem)}
           animate={fishItem.caught ? { y: -100, opacity: 0 } : { scaleX: fishItem.x > 50 ? -1 : 1 }}
@@ -1501,7 +1517,7 @@ export function RocketLaunchGame({ question, correctAnswer, options, onCorrect, 
         {options.map((answer, i) => (
           <motion.button
             key={i}
-            className={`bg-gradient-to-b from-purple-500 to-purple-700 text-white rounded-xl px-5 py-3 text-2xl font-bold shadow-lg border-2 border-purple-400
+            className={`bg-gradient-to-b from-purple-500 to-purple-700 text-white rounded-xl px-5 py-3 text-2xl font-bold shadow-lg border-2 border-purple-400 game-interactive
                        ${selectedAnswer === answer && answer === correctAnswer ? 'ring-4 ring-green-400' : ''}
                        ${selectedAnswer === answer && answer !== correctAnswer ? 'ring-4 ring-red-400 animate-shake' : ''}`}
             onClick={() => handleLaunch(answer)}
@@ -1629,7 +1645,7 @@ export function TreasureHuntGame({ question, correctAnswer, options, onCorrect, 
         {chests.map((chest, i) => (
           <motion.button
             key={chest.id}
-            className="relative"
+            className="relative game-interactive"
             onClick={() => handleOpenChest(chest)}
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}

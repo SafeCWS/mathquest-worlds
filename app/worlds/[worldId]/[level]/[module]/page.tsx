@@ -509,6 +509,7 @@ export default function GamePage() {
             onCorrect={() => handleCorrect()}
             onWrong={() => handleWrong()}
             worldId={worldId}
+            emoji={emoji}
           />
         )
 

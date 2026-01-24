@@ -132,8 +132,8 @@ export function BubbleCountGame({ question, correctAnswer, options, onCorrect, o
           {options.map((opt, i) => (
             <motion.button
               key={opt}
-              className="bg-white/90 rounded-2xl p-4 text-3xl font-bold shadow-lg
-                         hover:bg-cyan-50 active:bg-cyan-100 game-interactive"
+              className="bg-white/90 rounded-2xl p-4 text-3xl font-bold shadow-lg game-interactive
+                         hover:bg-cyan-50 active:bg-cyan-100"
               onClick={() => handleAnswer(opt)}
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
@@ -254,8 +254,8 @@ export function FishSchoolGame({ question, correctAnswer, options, onCorrect, on
           {options.map((opt, i) => (
             <motion.button
               key={opt}
-              className="bg-white/90 rounded-2xl p-4 text-3xl font-bold shadow-lg
-                         hover:bg-teal-50 game-interactive"
+              className="bg-white/90 rounded-2xl p-4 text-3xl font-bold shadow-lg game-interactive
+                         hover:bg-teal-50"
               onClick={() => handleAnswer(opt)}
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
