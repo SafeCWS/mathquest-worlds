@@ -32,6 +32,7 @@ import {
 import { getLevelById, getModuleById, getRandomMessage, GameType } from '@/lib/constants/levels'
 import { getWorldGameType } from '@/lib/utils/worldGameTypes'
 import { generateProblems } from '@/lib/math/problemGenerator'
+import { generateShuffledSequence, ShuffledQuestion, shuffledQuestionToMathProblem } from '@/lib/logic/gameShuffle'
 import { getWorldById, World } from '@/lib/constants/worlds'
 import { music } from '@/lib/sounds/musicSounds'
 import { AnimatedBackground } from '@/components/game/AnimatedBackground'
@@ -66,6 +67,9 @@ export default function GamePage() {
   const [showComplete, setShowComplete] = useState(false)
   const [guide] = useState(() => GUIDE_CHARACTERS[Math.floor(Math.random() * GUIDE_CHARACTERS.length)])
   const [showIntro, setShowIntro] = useState(true)
+
+  // Shuffled questions for Toca Boca-style variety!
+  const [shuffledQuestions, setShuffledQuestions] = useState<ShuffledQuestion[]>([])
 
   // Adaptive System State
   const [attemptHistory, setAttemptHistory] = useState<AttemptMetric[]>([])
@@ -118,11 +122,16 @@ export default function GamePage() {
       // 1. Set world state
       setWorld(foundWorld)
 
-      // 2. Generate problems
-      const problems = generateProblems(worldId, level.operation, gameModule)
-      console.log('[GamePage] Generated problems:', problems.length, 'First problem:', problems[0])
+      // 2. Generate shuffled sequence for Toca Boca-style variety!
+      const shuffled = generateShuffledSequence(worldId, gameModule.questionsCount || 7)
+      setShuffledQuestions(shuffled)
+      console.log('[GamePage] Generated shuffled sequence:', shuffled.length, 'Game types:', shuffled.map(q => q.gameType).join(', '))
 
-      // 3. Start game (this sets currentProblem in the store)
+      // 3. Convert to MathProblem format for the game store
+      const problems = shuffled.map((sq, index) => shuffledQuestionToMathProblem(sq, index))
+      console.log('[GamePage] Converted problems:', problems.length, 'First problem:', problems[0])
+
+      // 4. Start game (this sets currentProblem in the store)
       startGame(worldId, levelId, moduleId, problems)
       console.log('[GamePage] Game started')
 
@@ -450,12 +459,15 @@ export default function GamePage() {
       }
     }
 
-    // 2. Standard mini-games based on module's gameType
-    // For certain worlds (like Lovely Cat), use world-specific themed games
-    const baseGameType = gameModule?.gameType || 'standard'
+    // 2. Standard mini-games based on SHUFFLED question's gameType for VARIETY!
+    // Get the current shuffled question's game type for Toca Boca-style variety
+    const currentShuffledQ = shuffledQuestions[problemIndex]
+    const baseGameType = currentShuffledQ?.gameType || gameModule?.gameType || 'standard'
+    // For certain worlds (like Lovely Cat), can still apply world-specific themed overrides
     const gameType: GameType = getWorldGameType(worldId, baseGameType)
     const question = getQuestionText()
-    const emoji = currentProblem.countingObjects?.[0] || world?.emoji || '⭐'
+    // Use shuffled question's emoji for variety, fallback to counting objects or world emoji
+    const emoji = currentShuffledQ?.emoji || currentProblem.countingObjects?.[0] || world?.emoji || '⭐'
 
     switch (gameType) {
       case 'bubblePop':

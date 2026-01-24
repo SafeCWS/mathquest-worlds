@@ -3,27 +3,15 @@
 
 import { useState, useEffect } from 'react'
 import { useGamePreferencesStore, MathOperation, GameStyle } from '@/lib/stores/gamePreferencesStore'
+import { GameType } from '@/lib/constants/levels'
 
-// All game types available - matches the mini-games in MiniGames.tsx
-export type GameType =
-  | 'bubblePop'      // Pop floating bubbles
-  | 'feedAnimal'     // Drag food to animal
-  | 'dragDrop'       // Drag items to target (maps to standard drag)
-  | 'matching'       // Match emoji count to number
-  | 'race'           // Race to the answer
-  | 'whackMole'      // Whack the correct mole
-  | 'balloonOrder'   // Pop balloons in order
-  | 'fishing'        // Catch the fish with answer
-  | 'rocketLaunch'   // Launch rocket to correct planet
-  | 'treasureHunt'   // Find the treasure
-  | 'puzzle'         // Puzzle piece fitting
-  | 'bouncingBall'   // Catch bouncing balls
-  | 'shuffle'        // Card shuffle find
+// Re-export GameType for convenience
+export type { GameType }
 
-// Games grouped by interaction style
+// Games grouped by interaction style - using only valid GameTypes from levels.ts
 const TAP_GAMES: GameType[] = ['bubblePop', 'whackMole', 'balloonOrder', 'race', 'rocketLaunch']
-const DRAG_GAMES: GameType[] = ['feedAnimal', 'dragDrop', 'fishing', 'treasureHunt', 'puzzle']
-const MIXED_GAMES: GameType[] = [...TAP_GAMES, ...DRAG_GAMES, 'matching', 'bouncingBall', 'shuffle']
+const DRAG_GAMES: GameType[] = ['feedAnimal', 'fishing', 'treasureHunt', 'puzzle']
+const MIXED_GAMES: GameType[] = [...TAP_GAMES, ...DRAG_GAMES, 'bouncingBall', 'shuffle', 'memoryFlip']
 
 export interface ShuffledQuestion {
   id: string
@@ -280,9 +268,9 @@ export function useShuffledSequence(worldId: string, count: number = 7, difficul
 }
 
 // Helper to convert ShuffledQuestion to format expected by existing game components
-export function shuffledQuestionToMathProblem(sq: ShuffledQuestion) {
+export function shuffledQuestionToMathProblem(sq: ShuffledQuestion, index: number) {
   return {
-    id: sq.id,
+    id: index, // MathProblem expects numeric id
     type: sq.operation,
     num1: sq.num1,
     num2: sq.num2,
