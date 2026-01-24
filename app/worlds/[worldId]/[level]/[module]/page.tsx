@@ -30,6 +30,12 @@ import {
   KittyDanceGame
 } from '@/components/game/cat-world/CatGames'
 import {
+  AsteroidBlastGame,
+  PlanetHopGame,
+  AlienFeedingGame,
+  StarCollectorGame
+} from '@/components/game/space-world/SpaceGames'
+import {
   BasketCountingGame,
   NumberLineDragGame,
   SortingDragGame,
@@ -664,6 +670,51 @@ export default function GamePage() {
       case 'kittyDance':
         return (
           <KittyDanceGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      // Space Galaxy World Games!
+      case 'asteroidBlast':
+        return (
+          <AsteroidBlastGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'planetHop':
+        return (
+          <PlanetHopGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'alienFeeding':
+        return (
+          <AlienFeedingGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'starCollector':
+        return (
+          <StarCollectorGame
             question={question}
             correctAnswer={currentProblem.answer}
             options={safeOptions}

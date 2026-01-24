@@ -12,9 +12,18 @@ const CAT_WORLD_GAMES: GameType[] = [
   'kittyDance'
 ]
 
+// Space Galaxy world has special themed games
+const SPACE_WORLD_GAMES: GameType[] = [
+  'asteroidBlast',
+  'planetHop',
+  'alienFeeding',
+  'starCollector'
+]
+
 // Map of world IDs to their themed game types
 const WORLD_GAME_OVERRIDES: Record<string, GameType[]> = {
-  lovelycat: CAT_WORLD_GAMES
+  lovelycat: CAT_WORLD_GAMES,
+  space: SPACE_WORLD_GAMES
 }
 
 /**

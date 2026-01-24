@@ -26,6 +26,11 @@ export type GameType =
   | 'catNap'
   | 'catTower'
   | 'kittyDance'
+  // Space Galaxy World games!
+  | 'asteroidBlast'
+  | 'planetHop'
+  | 'alienFeeding'
+  | 'starCollector'
   // Enhanced Toca Boca-style drag games!
   | 'basketCounting'
   | 'numberLineDrag'

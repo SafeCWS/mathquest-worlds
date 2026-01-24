@@ -107,6 +107,27 @@ const GAME_INSTRUCTIONS: Record<string, { title: string; instruction: string; de
     instruction: 'Pick right to start the party!',
     demo: '🐱 💃'
   },
+  // Space Galaxy Games
+  asteroidBlast: {
+    title: 'Asteroid Blast!',
+    instruction: 'Blast the asteroid with the right answer!',
+    demo: '🚀 💥 ☄️'
+  },
+  planetHop: {
+    title: 'Planet Hop!',
+    instruction: 'Hop to planets smallest to biggest!',
+    demo: '👨‍🚀 🪐 🌍 🌙'
+  },
+  alienFeeding: {
+    title: 'Feed the Alien!',
+    instruction: 'Count the food and tap how many!',
+    demo: '👽 🍕🍕🍕'
+  },
+  starCollector: {
+    title: 'Star Collector!',
+    instruction: 'Tap to collect the right number of stars!',
+    demo: '⭐⭐⭐ = 3'
+  },
   // Default/standard
   standard: {
     title: 'Math Time!',
@@ -157,6 +178,11 @@ const GAME_ICONS: Record<string, string> = {
   catNap: '😴',
   catTower: '🗼',
   kittyDance: '💃',
+  // Space Galaxy Games
+  asteroidBlast: '🚀',
+  planetHop: '🪐',
+  alienFeeding: '👽',
+  starCollector: '⭐',
   standard: '⭐',
   // Enhanced Toca Boca-style drag games
   basketCounting: '🧺',
