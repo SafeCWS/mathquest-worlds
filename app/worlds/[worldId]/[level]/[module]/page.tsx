@@ -69,7 +69,7 @@ import {
   MatchDragGame
 } from '@/components/game/DragDropGames'
 import { getLevelById, getModuleById, getRandomMessage, GameType } from '@/lib/constants/levels'
-import { getWorldGameType } from '@/lib/utils/worldGameTypes'
+// getWorldGameType no longer needed — shuffle is world-aware
 import { generateProblems } from '@/lib/math/problemGenerator'
 import { generateShuffledSequence, ShuffledQuestion, shuffledQuestionToMathProblem } from '@/lib/logic/gameShuffle'
 import { getWorldById, World } from '@/lib/constants/worlds'
@@ -188,6 +188,19 @@ export default function GamePage() {
       console.log('[GamePage] Cleanup called (not resetting to avoid Strict Mode issues)')
     }
   }, [worldId, levelId, moduleId, router, startGame, level, gameModule])
+
+  // Safety: retry if shuffled questions ended up empty (prevents infinite "Loading problem..." spinner)
+  useEffect(() => {
+    if (mounted && shuffledQuestions.length === 0 && gameModule && !currentProblem) {
+      console.log('[GamePage] Empty questions detected, retrying generation...')
+      const retryShuffled = generateShuffledSequence(worldId, gameModule.questionsCount || 7)
+      if (retryShuffled.length > 0) {
+        setShuffledQuestions(retryShuffled)
+        const retryProblems = retryShuffled.map((sq, index) => shuffledQuestionToMathProblem(sq, index))
+        startGame(worldId, levelId, moduleId, retryProblems)
+      }
+    }
+  }, [mounted, shuffledQuestions.length, gameModule, currentProblem, worldId, levelId, moduleId, startGame])
 
   // Build question string
   const getQuestionText = useCallback(() => {
@@ -501,11 +514,9 @@ export default function GamePage() {
     }
 
     // 2. Standard mini-games based on SHUFFLED question's gameType for VARIETY!
-    // Get the current shuffled question's game type for Toca Boca-style variety
+    // The shuffle is now world-aware, so no render-time override needed
     const currentShuffledQ = shuffledQuestions[problemIndex]
-    const baseGameType = currentShuffledQ?.gameType || gameModule?.gameType || 'standard'
-    // For certain worlds (like Lovely Cat), can still apply world-specific themed overrides
-    const gameType: GameType = getWorldGameType(worldId, baseGameType)
+    const gameType: GameType = currentShuffledQ?.gameType || gameModule?.gameType || 'standard'
     const question = getQuestionText()
     // Use shuffled question's emoji for variety, fallback to counting objects or world emoji
     const emoji = currentShuffledQ?.emoji || currentProblem.countingObjects?.[0] || world?.emoji || '⭐'
@@ -544,7 +555,7 @@ export default function GamePage() {
             options={safeOptions}
             onCorrect={() => handleCorrect()}
             onWrong={() => handleWrong()}
-            playerEmoji={avatarStyle === 'fairy' ? '🧚' : avatarStyle === 'wizard' ? '🧙' : '🏃'}
+            playerEmoji={world?.emoji || (avatarStyle === 'fairy' ? '🧚' : avatarStyle === 'wizard' ? '🧙' : '🏃')}
           />
         )
 
@@ -627,6 +638,7 @@ export default function GamePage() {
             onCorrect={() => handleCorrect()}
             onWrong={() => handleWrong()}
             emoji={currentProblem.countingObjects?.[0] || '🐟'}
+            worldId={worldId}
           />
         )
 

@@ -154,10 +154,19 @@ interface FeedAnimalProps {
   emoji?: string // The emoji to display (passed from game engine)
 }
 
-const HUNGRY_ANIMALS = ['🐼', '🦁', '🐶', '🐱', '🐰', '🦊', '🐻', '🐨']
+const HUNGRY_ANIMALS: Record<string, string[]> = {
+  ocean: ['🐟', '🐙', '🦀', '🐬', '🦈'],
+  lovelycat: ['🐱', '😺', '🐈', '😻'],
+  space: ['👽', '🤖', '🛸'],
+  dino: ['🦕', '🦖', '🐊'],
+  candy: ['🧁', '🍭', '🍬'],
+  fairy: ['🧚', '🦄', '🦋'],
+  default: ['🐼', '🦁', '🐶', '🐱', '🐰', '🦊', '🐻', '🐨'],
+}
 
-export function FeedAnimalGame({ question, correctAnswer, options, onCorrect, onWrong, emoji }: FeedAnimalProps) {
-  const [animal] = useState(() => HUNGRY_ANIMALS[Math.floor(Math.random() * HUNGRY_ANIMALS.length)])
+export function FeedAnimalGame({ question, correctAnswer, options, onCorrect, onWrong, worldId, emoji }: FeedAnimalProps) {
+  const animals = HUNGRY_ANIMALS[worldId] || HUNGRY_ANIMALS.default
+  const [animal] = useState(() => animals[Math.floor(Math.random() * animals.length)])
   // Use the passed emoji, or fall back to a default
   const displayEmoji = emoji || '⭐'
   const [isHappy, setIsHappy] = useState(false)
@@ -985,7 +994,7 @@ export function WhackMoleGame({ question, correctAnswer, options, onCorrect, onW
         }
         return newHoles
       })
-    }, 1000) // Faster for more excitement!
+    }, 1500) // Slower pop interval for 7-year-old hands
 
     return () => clearInterval(popInterval)
   }, [options, gameWon])
@@ -1354,11 +1363,20 @@ interface FishingProps {
   onCorrect: () => void
   onWrong: () => void
   emoji: string
+  worldId?: string
 }
 
 const FISH_TYPES = ['🐟', '🐠', '🐡', '🦈', '🐬', '🐳', '🦑', '🐙']
+const CATCHABLE_ITEMS: Record<string, string[]> = {
+  lovelycat: ['🧶', '🎀', '🐟', '🐾', '🥛'],
+  candy: ['🍬', '🍭', '🧁', '🍩', '🍪'],
+  space: ['⭐', '🌟', '☄️', '💫', '🪐'],
+  dino: ['🦴', '🥚', '🌿', '🪨'],
+  fairy: ['✨', '💎', '🌸', '🔮'],
+}
 
-export function FishingGame({ question, correctAnswer, options, onCorrect, onWrong }: FishingProps) {
+export function FishingGame({ question, correctAnswer, options, onCorrect, onWrong, emoji, worldId }: FishingProps) {
+  const itemTypes = (worldId && CATCHABLE_ITEMS[worldId]) || FISH_TYPES
   const [fish, setFish] = useState<Array<{ id: number; answer: number; x: number; y: number; caught: boolean; type: string }>>([])
   const [hookY, setHookY] = useState(15)
   const [isCatching, setIsCatching] = useState(false)
@@ -1370,7 +1388,7 @@ export function FishingGame({ question, correctAnswer, options, onCorrect, onWro
       x: 15 + i * 22,
       y: 50 + Math.random() * 30,
       caught: false,
-      type: FISH_TYPES[Math.floor(Math.random() * FISH_TYPES.length)]
+      type: itemTypes[Math.floor(Math.random() * itemTypes.length)]
     }))
     setFish(newFish)
   }, [options])

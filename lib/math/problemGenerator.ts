@@ -146,10 +146,10 @@ function generateWrongAnswers(
 ): number[] {
   const wrongAnswers: Set<number> = new Set()
 
-  // For counting levels with small ranges (1-5, 1-8), use small offsets only
+  // For counting levels with small ranges (1-5, 1-8), use wider offsets to avoid +-1 confusion
   const isSmallRange = maxRange <= 10
   const offsets = isSmallRange
-    ? [-2, -1, 1, 2, -3, 3]  // Small offsets for young learners
+    ? [-3, -2, 2, 3, -4, 4]  // Wider offsets — no +-1 for clearer choices
     : [-3, -2, -1, 1, 2, 3, -5, 5, -10, 10]  // Larger offsets for advanced
 
   for (const offset of shuffleArray(offsets)) {

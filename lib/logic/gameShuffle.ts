@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react'
 import { useGamePreferencesStore, MathOperation, GameStyle } from '@/lib/stores/gamePreferencesStore'
 import { GameType } from '@/lib/constants/levels'
+import { getWorldThemedGames } from '@/lib/utils/worldGameTypes'
 
 // Re-export GameType for convenience
 export type { GameType }
@@ -76,6 +77,24 @@ function getGamesByStyle(style: GameStyle): GameType[] {
     case 'mixed': return MIXED_GAMES
     default: return MIXED_GAMES
   }
+}
+
+// Get world-aware game pool: 80% themed games, 20% generic filler
+// For worlds without themes (jungle, rainbow, castle), returns 100% generic
+function getGamesForWorld(worldId: string, style: GameStyle): GameType[] {
+  const genericGames = getGamesByStyle(style)
+  const themedGames = getWorldThemedGames(worldId)
+
+  if (themedGames.length === 0) {
+    return genericGames
+  }
+
+  // Build pool: repeat themed games 4x to get ~80% ratio vs 1x generic
+  const pool: GameType[] = [
+    ...themedGames, ...themedGames, ...themedGames, ...themedGames,
+    ...genericGames
+  ]
+  return pool
 }
 
 // World-specific emojis - matches existing world theming
@@ -223,8 +242,8 @@ export function generateShuffledSequence(
   // Get user preferences
   const { operations, gameStyle } = useGamePreferencesStore.getState()
 
-  // Get available game types based on style preference
-  const availableGames = getGamesByStyle(gameStyle)
+  // Get available game types based on world + style preference (world-aware!)
+  const availableGames = getGamesForWorld(worldId, gameStyle)
 
   // Create a pool of operation/game combinations
   const pool: Array<{ operation: MathOperation; gameType: GameType }> = []

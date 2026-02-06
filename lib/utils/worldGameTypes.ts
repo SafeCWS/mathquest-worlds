@@ -74,11 +74,8 @@ export function getWorldGameType(worldId: string, defaultGameType: GameType): Ga
   const worldGames = WORLD_GAME_OVERRIDES[worldId]
 
   if (worldGames && worldGames.length > 0) {
-    // 70% chance to use world-specific game, 30% chance to use default
-    // This provides variety while still showcasing the themed games
-    if (Math.random() < 0.7) {
-      return worldGames[Math.floor(Math.random() * worldGames.length)]
-    }
+    // 100% themed when world has themed games — randomness is in WHICH themed game
+    return worldGames[Math.floor(Math.random() * worldGames.length)]
   }
 
   return defaultGameType
