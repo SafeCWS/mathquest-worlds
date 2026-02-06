@@ -1,6 +1,6 @@
 // Level definitions for MathQuest Worlds - STREAMLINED!
 
-export type MathOperation = 'counting' | 'addition' | 'subtraction' | 'multiplication'
+export type MathOperation = 'counting' | 'addition' | 'subtraction' | 'multiplication' | 'division'
 export type InteractionType = 'tap' | 'drag' | 'choice' | 'trace'
 
 // NEW: Game types for variety like CodeSpark!
@@ -41,6 +41,24 @@ export type GameType =
   | 'numberLineDrag'
   | 'sortingDrag'
   | 'matchDrag'
+  // Fairy Kingdom World games!
+  | 'unicornCount'
+  | 'fairyDust'
+  | 'crystalMatch'
+  | 'magicWand'
+  | 'enchantedGarden'
+  // Dino Land World games!
+  | 'fossilHunt'
+  | 'eggHatch'
+  | 'volcanoCountdown'
+  | 'dinoFootprint'
+  | 'pterodactylFly'
+  // Candy World games!
+  | 'lollipopCount'
+  | 'cupcakeDecoration'
+  | 'gumballMachine'
+  | 'chocolateBar'
+  | 'candyJar'
 
 export interface Level {
   id: number
@@ -267,6 +285,47 @@ export const LEVELS: Level[] = [
         maxNumber: 10,
         interactionTypes: ['tap'],
         gameType: 'whackMole'  // Whack-a-mole for multiplication
+      }
+    ]
+  },
+  {
+    id: 6,
+    name: 'Fair Shares',
+    description: 'Learn to divide and share equally!',
+    operation: 'division',
+    unlockStars: 130,
+    badgeEmoji: '➗',
+    outfitReward: 'outfit-division-master',
+    modules: [
+      {
+        id: 1,
+        name: 'Share by 2! (Halving)',
+        questionsCount: 3,
+        difficulty: 'easy',
+        minNumber: 1,
+        maxNumber: 5,  // Answers 1-5, so dividends 2-10
+        interactionTypes: ['tap'],
+        gameType: 'treasureHunt'  // Divide treasure into 2 piles!
+      },
+      {
+        id: 2,
+        name: 'Share by 5!',
+        questionsCount: 3,
+        difficulty: 'medium',
+        minNumber: 1,
+        maxNumber: 10,  // Answers 1-10, so dividends 5-50
+        interactionTypes: ['tap'],
+        gameType: 'fishing'  // Catch fish and share with 5 friends!
+      },
+      {
+        id: 3,
+        name: 'Share by 10!',
+        questionsCount: 3,
+        difficulty: 'hard',
+        minNumber: 1,
+        maxNumber: 10,  // Answers 1-10, so dividends 10-100
+        interactionTypes: ['tap', 'choice'],
+        gameType: 'balloonOrder'  // Pop balloons with division answers!
       }
     ]
   }

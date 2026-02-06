@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { sounds } from '@/lib/sounds/webAudioSounds'
+import { EncouragingMessage, CelebrationConfetti, getEncouragingMessage } from '../GameFeedback'
 
 interface SpaceGameProps {
   question: string
@@ -18,18 +19,28 @@ interface SpaceGameProps {
 // ============================================
 export function AsteroidBlastGame({ question, correctAnswer, options, onCorrect, onWrong }: SpaceGameProps) {
   const [blasted, setBlasted] = useState<number | null>(null)
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [showEncouragement, setShowEncouragement] = useState(false)
+  const [encourageMsg, setEncourageMsg] = useState<{ text: string; emoji: string } | null>(null)
 
   const handleBlast = (answer: number) => {
     setBlasted(answer)
     if (answer === correctAnswer) {
       sounds.playCorrect()
-      setTimeout(onCorrect, 1000)
+      setShowCelebration(true)
+      setTimeout(() => {
+        setShowCelebration(false)
+        onCorrect()
+      }, 1000)
     } else {
       sounds.playGentleError()
+      setEncourageMsg(getEncouragingMessage())
+      setShowEncouragement(true)
       setTimeout(() => {
         setBlasted(null)
+        setShowEncouragement(false)
         onWrong()
-      }, 800)
+      }, 1200)
     }
   }
 
@@ -66,7 +77,7 @@ export function AsteroidBlastGame({ question, correctAnswer, options, onCorrect,
         {options.map((opt, i) => (
           <motion.button
             key={opt}
-            className={`relative w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold game-interactive ${
+            className={`relative w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold game-interactive ${
               blasted === opt
                 ? opt === correctAnswer
                   ? 'bg-green-500'
@@ -116,6 +127,8 @@ export function AsteroidBlastGame({ question, correctAnswer, options, onCorrect,
           </motion.div>
         )}
       </AnimatePresence>
+      <CelebrationConfetti show={showCelebration} emoji={['💥', '🚀', '✨', '⭐', '🌟']} />
+      <EncouragingMessage show={showEncouragement} message={encourageMsg || undefined} />
     </div>
   )
 }
@@ -126,6 +139,9 @@ export function AsteroidBlastGame({ question, correctAnswer, options, onCorrect,
 export function PlanetHopGame({ question, correctAnswer, options, onCorrect, onWrong }: SpaceGameProps) {
   const [currentPlanet, setCurrentPlanet] = useState(0)
   const [astronaut, setAstronaut] = useState(0)
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [showEncouragement, setShowEncouragement] = useState(false)
+  const [encourageMsg, setEncourageMsg] = useState<{ text: string; emoji: string } | null>(null)
   const sortedOptions = [...options].sort((a, b) => a - b)
 
   const handleHop = (planetIndex: number) => {
@@ -141,10 +157,19 @@ export function PlanetHopGame({ question, correctAnswer, options, onCorrect, onW
       if (next >= sortedOptions.length) {
         sounds.playCorrect()
         sounds.playCelebration()
-        setTimeout(onCorrect, 800)
+        setShowCelebration(true)
+        setTimeout(() => {
+          setShowCelebration(false)
+          onCorrect()
+        }, 1000)
       }
     } else {
       sounds.playGentleError()
+      setEncourageMsg(getEncouragingMessage())
+      setShowEncouragement(true)
+      setTimeout(() => {
+        setShowEncouragement(false)
+      }, 1200)
       onWrong()
     }
   }
@@ -155,8 +180,8 @@ export function PlanetHopGame({ question, correctAnswer, options, onCorrect, onW
     <div className="bg-gradient-to-b from-slate-900 via-indigo-900 to-purple-900 rounded-3xl p-6 min-h-[400px] relative">
       {/* Instruction */}
       <motion.div className="bg-white/10 backdrop-blur rounded-2xl p-4 mb-6 text-center">
-        <p className="text-xl font-bold text-white">Hop to planets in order!</p>
-        <p className="text-lg text-yellow-300">1 - 2 - 3 Smallest to biggest!</p>
+        <p className="text-2xl font-bold text-white mb-1">{question}</p>
+        <p className="text-lg text-yellow-300">Hop to planets in order! Smallest to biggest!</p>
       </motion.div>
 
       {/* Planets */}
@@ -210,6 +235,8 @@ export function PlanetHopGame({ question, correctAnswer, options, onCorrect, onW
       <div className="mt-8 text-center text-white">
         <p className="text-lg">Planets visited: {currentPlanet} / {sortedOptions.length}</p>
       </div>
+      <CelebrationConfetti show={showCelebration} emoji={['🪐', '🌍', '🚀', '⭐', '✨']} />
+      <EncouragingMessage show={showEncouragement} message={encourageMsg || undefined} />
     </div>
   )
 }
@@ -220,6 +247,9 @@ export function PlanetHopGame({ question, correctAnswer, options, onCorrect, onW
 export function AlienFeedingGame({ question, correctAnswer, options, onCorrect, onWrong }: SpaceGameProps) {
   const [fed, setFed] = useState(false)
   const [selectedFood, setSelectedFood] = useState<number | null>(null)
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [showEncouragement, setShowEncouragement] = useState(false)
+  const [encourageMsg, setEncourageMsg] = useState<{ text: string; emoji: string } | null>(null)
 
   const spaceFood = ['\u{1F355}', '\u{1F32E}', '\u{1F354}', '\u{1F369}']
   const foodDisplay = Array(correctAnswer).fill(0).map((_, i) => spaceFood[i % spaceFood.length])
@@ -229,10 +259,19 @@ export function AlienFeedingGame({ question, correctAnswer, options, onCorrect, 
     if (answer === correctAnswer) {
       sounds.playCorrect()
       setFed(true)
-      setTimeout(onCorrect, 1200)
+      setShowCelebration(true)
+      setTimeout(() => {
+        setShowCelebration(false)
+        onCorrect()
+      }, 1200)
     } else {
       sounds.playGentleError()
-      setTimeout(() => setSelectedFood(null), 500)
+      setEncourageMsg(getEncouragingMessage())
+      setShowEncouragement(true)
+      setTimeout(() => {
+        setSelectedFood(null)
+        setShowEncouragement(false)
+      }, 1200)
       onWrong()
     }
   }
@@ -265,7 +304,8 @@ export function AlienFeedingGame({ question, correctAnswer, options, onCorrect, 
 
       {/* Food display */}
       <div className="bg-white/10 rounded-2xl p-4 mb-6">
-        <p className="text-center text-white text-lg mb-3">Count the space food!</p>
+        <p className="text-2xl font-bold text-center text-white mb-2">{question}</p>
+        <p className="text-center text-green-200 text-lg mb-3">Count the space food!</p>
         <div className="flex justify-center gap-2 flex-wrap">
           {foodDisplay.map((food, i) => (
             <motion.span
@@ -304,6 +344,8 @@ export function AlienFeedingGame({ question, correctAnswer, options, onCorrect, 
           </motion.button>
         ))}
       </div>
+      <CelebrationConfetti show={showCelebration} emoji={['👽', '🍕', '🛸', '✨', '🎉']} />
+      <EncouragingMessage show={showEncouragement} message={encourageMsg || undefined} />
     </div>
   )
 }
@@ -313,6 +355,9 @@ export function AlienFeedingGame({ question, correctAnswer, options, onCorrect, 
 // ============================================
 export function StarCollectorGame({ question, correctAnswer, options, onCorrect, onWrong }: SpaceGameProps) {
   const [collected, setCollected] = useState<number[]>([])
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [showEncouragement, setShowEncouragement] = useState(false)
+  const [encourageMsg, setEncourageMsg] = useState<{ text: string; emoji: string } | null>(null)
   const totalStars = Math.min(correctAnswer + 4, 12)
 
   const handleCollect = (starId: number) => {
@@ -330,7 +375,11 @@ export function StarCollectorGame({ question, correctAnswer, options, onCorrect,
       if (newCollected.length === correctAnswer) {
         sounds.playCorrect()
         sounds.playCelebration()
-        setTimeout(onCorrect, 800)
+        setShowCelebration(true)
+        setTimeout(() => {
+          setShowCelebration(false)
+          onCorrect()
+        }, 1000)
       }
     }
   }
@@ -339,8 +388,8 @@ export function StarCollectorGame({ question, correctAnswer, options, onCorrect,
     <div className="bg-gradient-to-b from-purple-900 via-indigo-900 to-black rounded-3xl p-6 min-h-[400px] relative overflow-hidden">
       {/* Instruction */}
       <motion.div className="bg-white/10 backdrop-blur rounded-2xl p-4 mb-6 text-center">
-        <p className="text-2xl font-bold text-white">Collect {correctAnswer} stars!</p>
-        <p className="text-lg text-yellow-300">Count: {collected.length} / {correctAnswer}</p>
+        <p className="text-2xl font-bold text-white mb-1">{question}</p>
+        <p className="text-lg text-yellow-300">Collect {correctAnswer} stars! ({collected.length} / {correctAnswer})</p>
       </motion.div>
 
       {/* Stars grid */}
@@ -388,6 +437,8 @@ export function StarCollectorGame({ question, correctAnswer, options, onCorrect,
           <span className="text-white/50">Your stars go here!</span>
         )}
       </motion.div>
+      <CelebrationConfetti show={showCelebration} emoji={['⭐', '🌟', '✨', '💫', '🎉']} />
+      <EncouragingMessage show={showEncouragement} message={encourageMsg || undefined} />
     </div>
   )
 }

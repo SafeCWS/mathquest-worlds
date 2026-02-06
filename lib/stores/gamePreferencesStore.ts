@@ -5,7 +5,7 @@ import { persist } from 'zustand/middleware'
 export type SoundPreference = 'on' | 'off' | 'music-only' | 'sfx-only'
 export type AnimationPreference = 'full' | 'reduced' | 'minimal'
 
-export type MathOperation = 'counting' | 'addition' | 'subtraction'
+export type MathOperation = 'counting' | 'addition' | 'subtraction' | 'multiplication' | 'division'
 export type GameStyle = 'tap' | 'drag' | 'mixed'
 
 export interface GamePreferencesState {

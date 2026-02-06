@@ -164,6 +164,22 @@ function generateQuestion(
       answer = num1 - num2
       question = `${num1} ${emoji} - ${num2} ${emoji} = ?`
       break
+
+    case 'multiplication':
+      // Keep multipliers small for kids (2, 5, or 10)
+      num1 = Math.floor(Math.random() * Math.min(range.max, 10)) + 1
+      num2 = [2, 5, 10][Math.floor(Math.random() * 3)]
+      answer = num1 * num2
+      question = `${num1} ${emoji} × ${num2} = ?`
+      break
+
+    case 'division':
+      // Generate from multiplication to ensure whole number answers
+      num2 = [2, 5, 10][Math.floor(Math.random() * 3)] // divisor
+      answer = Math.floor(Math.random() * Math.min(range.max, 10)) + 1 // quotient
+      num1 = answer * num2 // dividend (ensures clean division)
+      question = `${num1} ${emoji} ÷ ${num2} = ?`
+      break
   }
 
   // Create counting objects for visual display
@@ -171,10 +187,15 @@ function generateQuestion(
     ? Array(answer).fill(emoji)
     : operation === 'addition'
       ? [...Array(num1).fill(emoji), ...Array(num2).fill(emoji)]
-      : Array(num1).fill(emoji)
+      : operation === 'multiplication' || operation === 'division'
+        ? Array(Math.min(num1, 50)).fill(emoji) // Cap at 50 for display
+        : Array(num1).fill(emoji)
 
   // Generate options with appropriate range
-  const maxOptionRange = operation === 'addition' ? num1 + num2 + 5 : range.max
+  const maxOptionRange = operation === 'addition' ? num1 + num2 + 5
+    : operation === 'multiplication' ? answer + 20
+    : operation === 'division' ? range.max
+    : range.max
 
   return {
     id: `q-${questionIndex}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,

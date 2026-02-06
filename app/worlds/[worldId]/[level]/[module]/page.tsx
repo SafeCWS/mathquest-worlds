@@ -42,6 +42,27 @@ import {
   SeashellSortGame
 } from '@/components/game/ocean-world/OceanGames'
 import {
+  UnicornCountGame,
+  FairyDustGame,
+  CrystalMatchGame,
+  MagicWandGame,
+  EnchantedGardenGame
+} from '@/components/game/fairy-world/FairyGames'
+import {
+  FossilHuntGame,
+  EggHatchGame,
+  VolcanoCountdownGame,
+  DinoFootprintGame,
+  PterodactylFlyGame
+} from '@/components/game/dino-world/DinoGames'
+import {
+  LollipopCountGame,
+  CupcakeDecorationGame,
+  GumballMachineGame,
+  ChocolateBarGame,
+  CandyJarGame
+} from '@/components/game/candy-world/CandyGames'
+import {
   BasketCountingGame,
   NumberLineDragGame,
   SortingDragGame,
@@ -181,6 +202,8 @@ export default function GamePage() {
         return `${num1} - ${num2} = ?`
       case 'multiplication':
         return `${num1} × ${num2} = ?`
+      case 'division':
+        return `${num1} ÷ ${num2} = ?`
       default:
         return 'Solve this!'
     }
@@ -821,6 +844,174 @@ export default function GamePage() {
             onCorrect={() => handleCorrect()}
             onWrong={() => handleWrong()}
             emoji={emoji}
+          />
+        )
+
+      // Fairy Kingdom World games!
+      case 'unicornCount':
+        return (
+          <UnicornCountGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'fairyDust':
+        return (
+          <FairyDustGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'crystalMatch':
+        return (
+          <CrystalMatchGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'magicWand':
+        return (
+          <MagicWandGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'enchantedGarden':
+        return (
+          <EnchantedGardenGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      // Dino Land World games!
+      case 'fossilHunt':
+        return (
+          <FossilHuntGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'eggHatch':
+        return (
+          <EggHatchGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'volcanoCountdown':
+        return (
+          <VolcanoCountdownGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'dinoFootprint':
+        return (
+          <DinoFootprintGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'pterodactylFly':
+        return (
+          <PterodactylFlyGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      // Candy World games!
+      case 'lollipopCount':
+        return (
+          <LollipopCountGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'cupcakeDecoration':
+        return (
+          <CupcakeDecorationGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'gumballMachine':
+        return (
+          <GumballMachineGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'chocolateBar':
+        return (
+          <ChocolateBarGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
+          />
+        )
+
+      case 'candyJar':
+        return (
+          <CandyJarGame
+            question={question}
+            correctAnswer={currentProblem.answer}
+            options={safeOptions}
+            onCorrect={() => handleCorrect()}
+            onWrong={() => handleWrong()}
           />
         )
 

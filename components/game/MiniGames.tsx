@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { sounds } from '@/lib/sounds/webAudioSounds'
+import { EncouragingMessage, CelebrationConfetti, getEncouragingMessage } from './GameFeedback'
 
 // ============================================
 // BUBBLE POP GAME - Pop bubbles with correct answer!
@@ -19,6 +20,9 @@ interface BubblePopProps {
 export function BubblePopGame({ question, correctAnswer, options, onCorrect, onWrong, emoji }: BubblePopProps) {
   const [bubbles, setBubbles] = useState<Array<{ id: number; x: number; y: number; answer: number; popped: boolean }>>([])
   const [score, setScore] = useState(0)
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [showEncouragement, setShowEncouragement] = useState(false)
+  const [encourageMsg, setEncourageMsg] = useState<{ text: string; emoji: string } | null>(null)
 
   // Create visual counting objects - kids need to count these!
   const countingObjects = Array(correctAnswer).fill(emoji)
@@ -46,44 +50,51 @@ export function BubblePopGame({ question, correctAnswer, options, onCorrect, onW
       sounds.playCorrect()
       sounds.playMagicWand()
       setScore(prev => prev + 1)
-      setTimeout(onCorrect, 800)
+      setShowCelebration(true)
+      setTimeout(() => {
+        setShowCelebration(false)
+        onCorrect()
+      }, 1000)
     } else {
       sounds.playGentleError()
+      setEncourageMsg(getEncouragingMessage())
+      setShowEncouragement(true)
       setTimeout(() => {
         setBubbles(prev => prev.map(b =>
           b.id === bubble.id ? { ...b, popped: false } : b
         ))
-      }, 500)
+        setShowEncouragement(false)
+      }, 1200)
       onWrong()
     }
   }
 
   return (
-    <div className="relative h-[450px] bg-gradient-to-b from-sky-300 to-sky-500 rounded-3xl overflow-hidden">
+    <div className="relative h-[320px] sm:h-[380px] md:h-[420px] max-h-[70vh] bg-gradient-to-b from-sky-300 to-sky-500 rounded-3xl overflow-hidden">
       {/* INSTRUCTION BANNER */}
       <motion.div
-        className="absolute top-3 left-1/2 -translate-x-1/2 bg-white/95 px-4 py-2 rounded-2xl shadow-xl z-10"
+        className="absolute top-2 left-1/2 -translate-x-1/2 bg-white/95 px-3 py-1.5 md:px-4 md:py-2 rounded-2xl shadow-xl z-10"
         initial={{ y: -50 }}
         animate={{ y: 0 }}
       >
-        <p className="text-xl font-bold text-center">{question}</p>
-        <p className="text-base text-blue-600 text-center font-bold">
-          🔢 Count them, then tap the right bubble! 👆
+        <p className="text-lg md:text-xl font-bold text-center">{question}</p>
+        <p className="text-sm md:text-base text-blue-600 text-center font-bold">
+          Count them, then tap the right bubble!
         </p>
       </motion.div>
 
       {/* COUNTING OBJECTS - Kids count these! */}
       <motion.div
-        className="absolute top-24 left-1/2 -translate-x-1/2 bg-white/90 rounded-2xl px-6 py-3 shadow-lg z-10"
+        className="absolute top-16 md:top-24 left-1/2 -translate-x-1/2 bg-white/90 rounded-2xl px-4 py-2 md:px-6 md:py-3 shadow-lg z-10"
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ delay: 0.3 }}
       >
-        <div className="flex flex-wrap justify-center gap-2 max-w-[280px]">
+        <div className="flex flex-wrap justify-center gap-1 sm:gap-2 max-w-[280px]">
           {countingObjects.map((obj, i) => (
             <motion.span
               key={i}
-              className="text-3xl"
+              className="text-2xl sm:text-3xl"
               initial={{ scale: 0, rotate: -180 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ delay: 0.1 + i * 0.08, type: 'spring' }}
@@ -120,6 +131,12 @@ export function BubblePopGame({ question, correctAnswer, options, onCorrect, onW
           <div className="absolute top-2 left-3 w-3 h-3 bg-white/60 rounded-full" />
         </motion.button>
       ))}
+
+      {/* Celebration confetti */}
+      <CelebrationConfetti show={showCelebration} emoji={['🫧', '✨', '⭐', '🌟', '💫']} />
+
+      {/* Encouraging message on wrong answer */}
+      <EncouragingMessage show={showEncouragement} message={encourageMsg || undefined} />
     </div>
   )
 }
@@ -145,6 +162,9 @@ export function FeedAnimalGame({ question, correctAnswer, options, onCorrect, on
   const displayEmoji = emoji || '⭐'
   const [isHappy, setIsHappy] = useState(false)
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [showEncouragement, setShowEncouragement] = useState(false)
+  const [encourageMsg, setEncourageMsg] = useState<{ text: string; emoji: string } | null>(null)
 
   // Create visual items to show - use the SAME emoji the question refers to!
   const foodDisplay = Array(correctAnswer).fill(displayEmoji).join('')
@@ -156,31 +176,40 @@ export function FeedAnimalGame({ question, correctAnswer, options, onCorrect, on
       sounds.playCorrect()
       sounds.playCoinCollect()
       setIsHappy(true)
-      setTimeout(onCorrect, 1000)
+      setShowCelebration(true)
+      setTimeout(() => {
+        setShowCelebration(false)
+        onCorrect()
+      }, 1200)
     } else {
       sounds.playGentleError()
-      setTimeout(() => setSelectedAnswer(null), 500)
+      setEncourageMsg(getEncouragingMessage())
+      setShowEncouragement(true)
+      setTimeout(() => {
+        setSelectedAnswer(null)
+        setShowEncouragement(false)
+      }, 1200)
       onWrong()
     }
   }
 
   return (
-    <div className="relative bg-gradient-to-b from-green-200 to-green-400 rounded-3xl p-6 min-h-[400px]">
+    <div className="relative bg-gradient-to-b from-green-200 to-green-400 rounded-3xl p-4 md:p-6 min-h-[280px] sm:min-h-[350px] md:min-h-[400px] max-h-[70vh]">
       {/* INSTRUCTION BANNER */}
       <motion.div
-        className="bg-white/95 px-6 py-3 rounded-2xl shadow-xl mb-6"
+        className="bg-white/95 px-4 py-2 md:px-6 md:py-3 rounded-2xl shadow-xl mb-3 md:mb-6"
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
       >
-        <p className="text-2xl font-bold text-center">Count the treats! {foodDisplay}</p>
-        <p className="text-lg text-green-600 text-center font-bold">
-          🔢 Count and tap how many! 👆
+        <p className="text-xl md:text-2xl font-bold text-center">Count the treats! {foodDisplay}</p>
+        <p className="text-base md:text-lg text-green-600 text-center font-bold">
+          Count and tap how many!
         </p>
       </motion.div>
 
       {/* Hungry animal */}
       <motion.div
-        className="flex justify-center mb-8"
+        className="flex justify-center mb-4 md:mb-8"
         animate={isHappy ? {
           scale: [1, 1.2, 1],
           rotate: [-5, 5, -5, 0]
@@ -190,7 +219,7 @@ export function FeedAnimalGame({ question, correctAnswer, options, onCorrect, on
         transition={{ duration: isHappy ? 0.5 : 2, repeat: isHappy ? 0 : Infinity }}
       >
         <div className="relative">
-          <span className="text-[120px]">{animal}</span>
+          <span className="text-[80px] md:text-[120px]">{animal}</span>
           {isHappy && (
             <motion.div
               className="absolute -top-8 left-1/2 -translate-x-1/2 text-4xl"
@@ -213,11 +242,11 @@ export function FeedAnimalGame({ question, correctAnswer, options, onCorrect, on
       </motion.div>
 
       {/* Food options (answers) */}
-      <div className="flex justify-center gap-4 flex-wrap">
+      <div className="flex justify-center gap-2 sm:gap-4 flex-wrap">
         {options.map((answer, i) => (
           <motion.button
             key={i}
-            className={`relative bg-white rounded-2xl p-4 shadow-lg min-w-[80px] game-interactive
+            className={`relative bg-white rounded-2xl p-3 md:p-4 shadow-lg min-w-[70px] md:min-w-[80px] game-interactive
                        ${selectedAnswer === answer && answer === correctAnswer ? 'ring-4 ring-green-400' : ''}
                        ${selectedAnswer === answer && answer !== correctAnswer ? 'ring-4 ring-red-400' : ''}`}
             onClick={() => handleFeed(answer)}
@@ -229,12 +258,18 @@ export function FeedAnimalGame({ question, correctAnswer, options, onCorrect, on
             disabled={isHappy}
           >
             <div className="flex flex-col items-center">
-              <span className="text-3xl mb-1">{displayEmoji}</span>
-              <span className="text-2xl font-bold">{answer}</span>
+              <span className="text-2xl md:text-3xl mb-1">{displayEmoji}</span>
+              <span className="text-xl md:text-2xl font-bold">{answer}</span>
             </div>
           </motion.button>
         ))}
       </div>
+
+      {/* Celebration confetti */}
+      <CelebrationConfetti show={showCelebration} emoji={['🍎', '✨', '⭐', '🌟', '💫']} />
+
+      {/* Encouraging message on wrong answer */}
+      <EncouragingMessage show={showEncouragement} message={encourageMsg || undefined} />
     </div>
   )
 }
@@ -251,6 +286,9 @@ export function MatchingGame({ pairs, onComplete }: MatchingProps) {
   const [matched, setMatched] = useState<Set<number>>(new Set())
   const [selected, setSelected] = useState<{ type: 'left' | 'right'; index: number } | null>(null)
   const [wrongPair, setWrongPair] = useState<number | null>(null)
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [showEncouragement, setShowEncouragement] = useState(false)
+  const [encourageMsg, setEncourageMsg] = useState<{ text: string; emoji: string } | null>(null)
 
   const shuffledRight = useState(() =>
     [...pairs].sort(() => Math.random() - 0.5).map(p => p.right)
@@ -278,16 +316,23 @@ export function MatchingGame({ pairs, onComplete }: MatchingProps) {
         setSelected(null)
 
         if (matched.size + 2 >= pairs.length * 2) {
-          setTimeout(onComplete, 500)
+          setShowCelebration(true)
+          setTimeout(() => {
+            setShowCelebration(false)
+            onComplete()
+          }, 1000)
         }
       } else {
         // Wrong match
         sounds.playGentleError()
         setWrongPair(index)
+        setEncourageMsg(getEncouragingMessage())
+        setShowEncouragement(true)
         setTimeout(() => {
           setWrongPair(null)
           setSelected(null)
-        }, 500)
+          setShowEncouragement(false)
+        }, 1200)
       }
     } else {
       // Same side, change selection
@@ -297,8 +342,8 @@ export function MatchingGame({ pairs, onComplete }: MatchingProps) {
   }
 
   return (
-    <div className="bg-gradient-to-br from-purple-200 to-pink-200 rounded-3xl p-6">
-      <h3 className="text-2xl font-bold text-center mb-6">Match the pairs! 🎯</h3>
+    <div className="bg-gradient-to-br from-purple-200 to-pink-200 rounded-3xl p-4 md:p-6 max-h-[70vh]">
+      <h3 className="text-xl md:text-2xl font-bold text-center mb-3 md:mb-6">Match the pairs!</h3>
 
       <div className="flex justify-around">
         {/* Left column */}
@@ -338,6 +383,9 @@ export function MatchingGame({ pairs, onComplete }: MatchingProps) {
           ))}
         </div>
       </div>
+
+      <CelebrationConfetti show={showCelebration} />
+      <EncouragingMessage show={showEncouragement} message={encourageMsg || undefined} />
     </div>
   )
 }
@@ -400,21 +448,21 @@ export function RaceGame({ question, correctAnswer, options, onCorrect, onWrong,
   }
 
   return (
-    <div className="bg-gradient-to-r from-orange-200 to-yellow-200 rounded-3xl p-6 min-h-[400px]">
+    <div className="bg-gradient-to-r from-orange-200 to-yellow-200 rounded-3xl p-4 md:p-6 min-h-[280px] sm:min-h-[350px] md:min-h-[400px] max-h-[70vh]">
       {/* INSTRUCTION BANNER */}
       <motion.div
-        className="bg-white/95 px-6 py-3 rounded-2xl shadow-xl mb-4"
+        className="bg-white/95 px-4 py-2 md:px-6 md:py-3 rounded-2xl shadow-xl mb-3 md:mb-4"
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
       >
-        <p className="text-2xl font-bold text-center">{question}</p>
-        <p className="text-lg text-orange-600 text-center font-bold">
-          ⚡ Pick fast to win! 🏆
+        <p className="text-xl md:text-2xl font-bold text-center">{question}</p>
+        <p className="text-base md:text-lg text-orange-600 text-center font-bold">
+          Pick fast to win!
         </p>
       </motion.div>
 
       {/* Race track */}
-      <div className="relative h-32 bg-gradient-to-r from-green-400 to-green-500 rounded-2xl mb-6 overflow-hidden">
+      <div className="relative h-24 md:h-32 bg-gradient-to-r from-green-400 to-green-500 rounded-2xl mb-4 md:mb-6 overflow-hidden">
         {/* Track lines */}
         <div className="absolute inset-0 flex flex-col justify-around py-4">
           <div className="h-1 bg-white/30" />
@@ -426,7 +474,7 @@ export function RaceGame({ question, correctAnswer, options, onCorrect, onWrong,
 
         {/* Player */}
         <motion.div
-          className="absolute top-4 text-5xl"
+          className="absolute top-2 md:top-4 text-4xl md:text-5xl"
           style={{ left: `${playerPosition}%` }}
           animate={{ y: [0, -3, 0] }}
           transition={{ duration: 0.3, repeat: Infinity }}
@@ -436,7 +484,7 @@ export function RaceGame({ question, correctAnswer, options, onCorrect, onWrong,
 
         {/* Opponent */}
         <motion.div
-          className="absolute bottom-4 text-5xl"
+          className="absolute bottom-2 md:bottom-4 text-4xl md:text-5xl"
           style={{ left: `${opponentPosition}%` }}
           animate={{ y: [0, -3, 0] }}
           transition={{ duration: 0.4, repeat: Infinity }}
@@ -458,8 +506,8 @@ export function RaceGame({ question, correctAnswer, options, onCorrect, onWrong,
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
             >
-              <span className="text-6xl">{winner === 'player' ? '🏆' : '😅'}</span>
-              <h3 className="text-3xl font-bold mt-4">
+              <span className="text-5xl md:text-6xl">{winner === 'player' ? '🏆' : '😅'}</span>
+              <h3 className="text-2xl md:text-3xl font-bold mt-4">
                 {winner === 'player' ? 'YOU WON!' : 'Try Again!'}
               </h3>
             </motion.div>
@@ -468,11 +516,11 @@ export function RaceGame({ question, correctAnswer, options, onCorrect, onWrong,
       </AnimatePresence>
 
       {/* Answer options */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3 md:gap-4">
         {options.map((answer, i) => (
           <motion.button
             key={i}
-            className="bg-white rounded-2xl p-4 text-3xl font-bold shadow-lg game-interactive"
+            className="bg-white rounded-2xl p-3 md:p-4 text-2xl md:text-3xl font-bold shadow-lg game-interactive"
             onClick={() => handleAnswer(answer)}
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
@@ -504,6 +552,9 @@ interface PuzzleProps {
 export function PuzzleGame({ question, correctAnswer, options, onCorrect, onWrong, image }: PuzzleProps) {
   const [selectedPiece, setSelectedPiece] = useState<number | null>(null)
   const [isComplete, setIsComplete] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [showEncouragement, setShowEncouragement] = useState(false)
+  const [encourageMsg, setEncourageMsg] = useState<{ text: string; emoji: string } | null>(null)
 
   const handleSelect = (answer: number) => {
     setSelectedPiece(answer)
@@ -512,35 +563,44 @@ export function PuzzleGame({ question, correctAnswer, options, onCorrect, onWron
       sounds.playCorrect()
       sounds.playLevelUp()
       setIsComplete(true)
-      setTimeout(onCorrect, 1000)
+      setShowCelebration(true)
+      setTimeout(() => {
+        setShowCelebration(false)
+        onCorrect()
+      }, 1200)
     } else {
       sounds.playGentleError()
-      setTimeout(() => setSelectedPiece(null), 500)
+      setEncourageMsg(getEncouragingMessage())
+      setShowEncouragement(true)
+      setTimeout(() => {
+        setSelectedPiece(null)
+        setShowEncouragement(false)
+      }, 1200)
       onWrong()
     }
   }
 
   return (
-    <div className="bg-gradient-to-br from-blue-200 to-cyan-200 rounded-3xl p-6">
+    <div className="bg-gradient-to-br from-blue-200 to-cyan-200 rounded-3xl p-4 md:p-6 max-h-[70vh]">
       {/* INSTRUCTION BANNER */}
       <motion.div
-        className="bg-white/95 px-6 py-3 rounded-2xl shadow-xl mb-6"
+        className="bg-white/95 px-4 py-2 md:px-6 md:py-3 rounded-2xl shadow-xl mb-3 md:mb-6"
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
       >
-        <p className="text-2xl font-bold text-center">{question}</p>
-        <p className="text-lg text-cyan-600 text-center font-bold">
-          🧩 Find the missing piece! 👆
+        <p className="text-xl md:text-2xl font-bold text-center">{question}</p>
+        <p className="text-base md:text-lg text-cyan-600 text-center font-bold">
+          Find the missing piece!
         </p>
       </motion.div>
 
       {/* Puzzle area */}
-      <div className="flex justify-center mb-6">
+      <div className="flex justify-center mb-4 md:mb-6">
         <motion.div
-          className="relative bg-white rounded-2xl p-8 shadow-xl"
+          className="relative bg-white rounded-2xl p-4 md:p-8 shadow-xl"
           animate={isComplete ? { scale: [1, 1.1, 1] } : {}}
         >
-          <span className="text-8xl">{image}</span>
+          <span className="text-6xl md:text-8xl">{image}</span>
 
           {/* Missing piece slot */}
           <motion.div
@@ -556,11 +616,11 @@ export function PuzzleGame({ question, correctAnswer, options, onCorrect, onWron
       </div>
 
       {/* Puzzle pieces (answers) */}
-      <div className="flex justify-center gap-4 flex-wrap">
+      <div className="flex justify-center gap-2 sm:gap-4 flex-wrap">
         {options.map((answer, i) => (
           <motion.button
             key={i}
-            className={`w-16 h-16 rounded-xl text-2xl font-bold shadow-lg game-interactive
+            className={`w-14 h-14 md:w-16 md:h-16 rounded-xl text-xl md:text-2xl font-bold shadow-lg game-interactive
                        ${selectedPiece === answer && answer === correctAnswer ? 'bg-green-300' : ''}
                        ${selectedPiece === answer && answer !== correctAnswer ? 'bg-red-300' : ''}
                        ${selectedPiece !== answer ? 'bg-white' : ''}`}
@@ -576,6 +636,9 @@ export function PuzzleGame({ question, correctAnswer, options, onCorrect, onWron
           </motion.button>
         ))}
       </div>
+
+      <CelebrationConfetti show={showCelebration} />
+      <EncouragingMessage show={showEncouragement} message={encourageMsg || undefined} />
     </div>
   )
 }
@@ -603,6 +666,9 @@ export function BouncingBallGame({ question, correctAnswer, options, onCorrect, 
     caught: boolean
     color: string
   }>>([])
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [showEncouragement, setShowEncouragement] = useState(false)
+  const [encourageMsg, setEncourageMsg] = useState<{ text: string; emoji: string } | null>(null)
 
   const COLORS = ['bg-red-400', 'bg-blue-400', 'bg-green-400', 'bg-yellow-400', 'bg-purple-400', 'bg-pink-400']
 
@@ -657,29 +723,36 @@ export function BouncingBallGame({ question, correctAnswer, options, onCorrect, 
     if (ball.answer === correctAnswer) {
       sounds.playCorrect()
       sounds.playCoinCollect()
-      setTimeout(onCorrect, 600)
+      setShowCelebration(true)
+      setTimeout(() => {
+        setShowCelebration(false)
+        onCorrect()
+      }, 1000)
     } else {
       sounds.playGentleError()
+      setEncourageMsg(getEncouragingMessage())
+      setShowEncouragement(true)
       setTimeout(() => {
         setBalls(prev => prev.map(b =>
           b.id === ball.id ? { ...b, caught: false } : b
         ))
-      }, 400)
+        setShowEncouragement(false)
+      }, 1200)
       onWrong()
     }
   }
 
   return (
-    <div className="relative h-[400px] bg-gradient-to-b from-indigo-400 to-purple-600 rounded-3xl overflow-hidden">
+    <div className="relative h-[300px] sm:h-[350px] md:h-[400px] max-h-[70vh] bg-gradient-to-b from-indigo-400 to-purple-600 rounded-3xl overflow-hidden">
       {/* INSTRUCTION BANNER */}
       <motion.div
-        className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/95 px-6 py-3 rounded-2xl shadow-xl z-10"
+        className="absolute top-2 md:top-4 left-1/2 -translate-x-1/2 bg-white/95 px-4 py-2 md:px-6 md:py-3 rounded-2xl shadow-xl z-10"
         initial={{ y: -50 }}
         animate={{ y: 0 }}
       >
-        <p className="text-2xl font-bold text-center">{question}</p>
-        <p className="text-lg text-purple-600 text-center font-bold">
-          👆 Catch the right ball! 🎾
+        <p className="text-xl md:text-2xl font-bold text-center">{question}</p>
+        <p className="text-base md:text-lg text-purple-600 text-center font-bold">
+          Catch the right ball!
         </p>
       </motion.div>
 
@@ -687,8 +760,8 @@ export function BouncingBallGame({ question, correctAnswer, options, onCorrect, 
       {balls.map((ball) => (
         <motion.button
           key={ball.id}
-          className={`absolute w-16 h-16 rounded-full flex items-center justify-center
-                      text-2xl font-bold text-white shadow-xl cursor-pointer game-interactive
+          className={`absolute w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center
+                      text-2xl md:text-3xl font-bold text-white shadow-xl cursor-pointer game-interactive
                       ${ball.caught ? 'opacity-30 scale-50' : ball.color}`}
           style={{
             left: `${ball.x}%`,
@@ -707,12 +780,15 @@ export function BouncingBallGame({ question, correctAnswer, options, onCorrect, 
 
       {/* Decorative */}
       <motion.span
-        className="absolute bottom-4 right-4 text-6xl"
+        className="absolute bottom-2 right-2 md:bottom-4 md:right-4 text-4xl md:text-6xl"
         animate={{ rotate: 360 }}
         transition={{ duration: 10, repeat: Infinity, ease: 'linear' }}
       >
         {emoji}
       </motion.span>
+
+      <CelebrationConfetti show={showCelebration} />
+      <EncouragingMessage show={showEncouragement} message={encourageMsg || undefined} />
     </div>
   )
 }
@@ -732,6 +808,9 @@ export function ShuffleGame({ question, correctAnswer, options, onCorrect, onWro
   const [cards, setCards] = useState<Array<{ id: number; answer: number; x: number; flipped: boolean }>>([])
   const [isShuffling, setIsShuffling] = useState(true)
   const [revealed, setRevealed] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [showEncouragement, setShowEncouragement] = useState(false)
+  const [encourageMsg, setEncourageMsg] = useState<{ text: string; emoji: string } | null>(null)
 
   // Initialize cards
   useEffect(() => {
@@ -792,39 +871,46 @@ export function ShuffleGame({ question, correctAnswer, options, onCorrect, onWro
     if (card.answer === correctAnswer) {
       sounds.playCorrect()
       sounds.playMagicWand()
-      setTimeout(onCorrect, 800)
+      setShowCelebration(true)
+      setTimeout(() => {
+        setShowCelebration(false)
+        onCorrect()
+      }, 1000)
     } else {
       sounds.playGentleError()
+      setEncourageMsg(getEncouragingMessage())
+      setShowEncouragement(true)
       setTimeout(() => {
         setCards(prev => prev.map(c =>
           c.id === card.id ? { ...c, flipped: false } : c
         ))
-      }, 600)
+        setShowEncouragement(false)
+      }, 1200)
       onWrong()
     }
   }
 
   return (
-    <div className="bg-gradient-to-br from-amber-300 to-orange-400 rounded-3xl p-6 min-h-[400px]">
+    <div className="bg-gradient-to-br from-amber-300 to-orange-400 rounded-3xl p-4 md:p-6 min-h-[280px] sm:min-h-[350px] md:min-h-[400px] max-h-[70vh]">
       {/* INSTRUCTION BANNER */}
       <motion.div
-        className="bg-white/95 px-6 py-3 rounded-2xl shadow-xl mb-6"
+        className="bg-white/95 px-4 py-2 md:px-6 md:py-3 rounded-2xl shadow-xl mb-3 md:mb-6"
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
       >
-        <p className="text-2xl font-bold text-center">{question}</p>
-        <p className="text-lg text-amber-600 text-center font-bold">
-          {isShuffling ? '🔀 Watch carefully!' : revealed ? '👀 Remember where!' : '👆 Tap the right cup!'}
+        <p className="text-xl md:text-2xl font-bold text-center">{question}</p>
+        <p className="text-base md:text-lg text-amber-600 text-center font-bold">
+          {isShuffling ? 'Watch carefully!' : revealed ? 'Remember where!' : 'Tap the right cup!'}
         </p>
       </motion.div>
 
       {/* Cards */}
-      <div className="relative h-48 mb-6">
+      <div className="relative h-36 md:h-48 mb-4 md:mb-6">
         {cards.map((card) => (
           <motion.button
             key={card.id}
-            className={`absolute w-20 h-28 rounded-xl shadow-xl cursor-pointer game-interactive
-                       flex items-center justify-center text-3xl font-bold
+            className={`absolute w-16 h-24 md:w-20 md:h-28 rounded-xl shadow-xl cursor-pointer game-interactive
+                       flex items-center justify-center text-2xl md:text-3xl font-bold
                        ${card.flipped || revealed ? 'bg-white' : 'bg-gradient-to-br from-blue-500 to-purple-600'}`}
             style={{ top: '50%', transform: 'translateY(-50%)' }}
             animate={{ left: `${card.x}%` }}
@@ -846,6 +932,9 @@ export function ShuffleGame({ question, correctAnswer, options, onCorrect, onWro
       >
         {isShuffling ? 'Watch carefully!' : 'Click the right card!'}
       </motion.div>
+
+      <CelebrationConfetti show={showCelebration} />
+      <EncouragingMessage show={showEncouragement} message={encourageMsg || undefined} />
     </div>
   )
 }
@@ -921,44 +1010,44 @@ export function WhackMoleGame({ question, correctAnswer, options, onCorrect, onW
   }
 
   return (
-    <div className="relative bg-gradient-to-b from-green-300 via-green-400 to-green-600 rounded-3xl p-6 min-h-[420px] overflow-hidden">
+    <div className="relative bg-gradient-to-b from-green-300 via-green-400 to-green-600 rounded-3xl p-4 md:p-6 min-h-[320px] sm:min-h-[380px] md:min-h-[420px] max-h-[70vh] overflow-hidden">
       {/* Decorative clouds */}
       <motion.div
-        className="absolute top-2 left-4 text-4xl opacity-80"
+        className="absolute top-1 left-2 md:top-2 md:left-4 text-2xl md:text-4xl opacity-80"
         animate={{ x: [0, 20, 0] }}
         transition={{ duration: 8, repeat: Infinity }}
       >☁️</motion.div>
       <motion.div
-        className="absolute top-6 right-8 text-3xl opacity-70"
+        className="absolute top-4 right-6 md:top-6 md:right-8 text-xl md:text-3xl opacity-70"
         animate={{ x: [0, -15, 0] }}
         transition={{ duration: 6, repeat: Infinity }}
       >☁️</motion.div>
 
       {/* Sun */}
       <motion.div
-        className="absolute top-2 right-2 text-5xl"
+        className="absolute top-1 right-1 md:top-2 md:right-2 text-3xl md:text-5xl"
         animate={{ rotate: 360 }}
         transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
       >🌞</motion.div>
 
       {/* INSTRUCTION BANNER */}
       <motion.div
-        className="bg-gradient-to-r from-yellow-200 to-orange-200 px-6 py-4 rounded-2xl shadow-xl mb-4 border-4 border-yellow-400"
+        className="bg-gradient-to-r from-yellow-200 to-orange-200 px-4 py-2 md:px-6 md:py-4 rounded-2xl shadow-xl mb-3 md:mb-4 border-4 border-yellow-400"
         initial={{ scale: 0, rotate: -5 }}
         animate={{ scale: 1, rotate: 0 }}
       >
-        <p className="text-2xl font-black text-center text-gray-800">{question}</p>
-        <p className="text-xl text-green-700 text-center font-bold">
-          👆 Whack the right number! 🔨
+        <p className="text-xl md:text-2xl font-black text-center text-gray-800">{question}</p>
+        <p className="text-lg md:text-xl text-green-700 text-center font-bold">
+          Whack the right number!
         </p>
       </motion.div>
 
       {/* Mole grid with better visuals */}
-      <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto mb-4">
+      <div className="grid grid-cols-3 gap-2 md:gap-3 max-w-sm mx-auto mb-3 md:mb-4">
         {holes.map((hole) => (
           <motion.button
             key={hole.id}
-            className="relative h-28 rounded-b-full bg-gradient-to-b from-amber-700 via-amber-800 to-amber-950 border-4 border-amber-600 overflow-hidden shadow-lg game-interactive"
+            className="relative h-20 md:h-28 rounded-b-full bg-gradient-to-b from-amber-700 via-amber-800 to-amber-950 border-4 border-amber-600 overflow-hidden shadow-lg game-interactive"
             onClick={() => handleWhack(hole)}
             whileTap={{ scale: 0.9 }}
             whileHover={{ scale: 1.05 }}
@@ -970,18 +1059,18 @@ export function WhackMoleGame({ question, correctAnswer, options, onCorrect, onW
                 initial={{ scale: 0 }}
                 animate={{ scale: [0, 1.5, 1] }}
               >
-                <span className="text-5xl">💥</span>
+                <span className="text-4xl md:text-5xl">💥</span>
               </motion.div>
             )}
 
             {/* Mole */}
             <motion.div
-              className="absolute bottom-0 left-1/2 -translate-x-1/2 w-20 flex flex-col items-center"
+              className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 md:w-20 flex flex-col items-center"
               animate={{ y: hole.isUp ? (hole.whacked ? 60 : 0) : 80 }}
               transition={{ type: 'spring', stiffness: 500, damping: 25 }}
             >
               <motion.div
-                className="text-5xl"
+                className="text-4xl md:text-5xl"
                 animate={hole.isUp && !hole.whacked ? { rotate: [-5, 5, -5] } : {}}
                 transition={{ duration: 0.3, repeat: Infinity }}
               >
@@ -989,7 +1078,7 @@ export function WhackMoleGame({ question, correctAnswer, options, onCorrect, onW
               </motion.div>
               {hole.answer !== null && !hole.whacked && (
                 <motion.div
-                  className="bg-yellow-300 border-4 border-yellow-500 rounded-xl px-4 py-2 text-2xl font-black text-gray-800 shadow-xl -mt-1"
+                  className="bg-yellow-300 border-4 border-yellow-500 rounded-xl px-3 py-1 md:px-4 md:py-2 text-xl md:text-2xl font-black text-gray-800 shadow-xl -mt-1"
                   animate={{ scale: [1, 1.1, 1] }}
                   transition={{ duration: 0.5, repeat: Infinity }}
                 >
@@ -1006,7 +1095,7 @@ export function WhackMoleGame({ question, correctAnswer, options, onCorrect, onW
 
       {/* Animated hammer */}
       <motion.div
-        className="text-center text-6xl"
+        className="text-center text-4xl md:text-6xl"
         animate={{ rotate: [-15, 15, -15], y: [0, -10, 0] }}
         transition={{ duration: 0.4, repeat: Infinity }}
       >
@@ -1022,12 +1111,12 @@ export function WhackMoleGame({ question, correctAnswer, options, onCorrect, onW
             animate={{ opacity: 1 }}
           >
             <motion.div
-              className="bg-gradient-to-br from-yellow-300 to-orange-400 rounded-3xl p-8 shadow-2xl border-4 border-yellow-500"
+              className="bg-gradient-to-br from-yellow-300 to-orange-400 rounded-3xl p-4 md:p-8 shadow-2xl border-4 border-yellow-500"
               initial={{ scale: 0, rotate: -20 }}
               animate={{ scale: 1, rotate: 0 }}
             >
-              <p className="text-4xl font-black text-center mb-2">🎯 GOT IT! 🎯</p>
-              <p className="text-2xl font-bold text-center">⭐ You're a ROCKSTAR! ⭐</p>
+              <p className="text-3xl md:text-4xl font-black text-center mb-2">GOT IT!</p>
+              <p className="text-xl md:text-2xl font-bold text-center">You're a ROCKSTAR!</p>
             </motion.div>
 
             {/* Confetti */}
@@ -1100,24 +1189,24 @@ export function BalloonOrderGame({ numbers, onComplete, onWrong }: BalloonOrderP
   const sortedNumbers = [...numbers].sort((a, b) => a - b)
 
   return (
-    <div className="relative bg-gradient-to-b from-sky-400 to-sky-200 rounded-3xl p-6 min-h-[400px] overflow-hidden">
+    <div className="relative bg-gradient-to-b from-sky-400 to-sky-200 rounded-3xl p-4 md:p-6 min-h-[280px] sm:min-h-[350px] md:min-h-[400px] max-h-[70vh] overflow-hidden">
       {/* INSTRUCTION BANNER with visual hint */}
-      <motion.div className="bg-white/95 px-6 py-3 rounded-2xl shadow-xl mb-2 text-center" initial={{ y: -50 }} animate={{ y: 0 }}>
-        <p className="text-2xl font-bold text-sky-700">1️⃣2️⃣3️⃣ Pop smallest to biggest!</p>
-        <p className="text-lg text-purple-600 font-bold">
-          Next: <span className="text-3xl font-bold">{sortedNumbers[nextExpected] ?? '✓'}</span>
+      <motion.div className="bg-white/95 px-4 py-2 md:px-6 md:py-3 rounded-2xl shadow-xl mb-2 text-center" initial={{ y: -50 }} animate={{ y: 0 }}>
+        <p className="text-xl md:text-2xl font-bold text-sky-700">Pop smallest to biggest!</p>
+        <p className="text-base md:text-lg text-purple-600 font-bold">
+          Next: <span className="text-2xl md:text-3xl font-bold">{sortedNumbers[nextExpected] ?? '✓'}</span>
         </p>
       </motion.div>
 
       {/* Visual hint showing the concept */}
       <motion.div
-        className="bg-yellow-100 border-2 border-yellow-400 px-4 py-2 rounded-xl mb-2 text-center mx-auto max-w-xs"
+        className="bg-yellow-100 border-2 border-yellow-400 px-3 py-1 md:px-4 md:py-2 rounded-xl mb-2 text-center mx-auto max-w-xs"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.5 }}
       >
-        <span className="text-lg font-bold text-yellow-800">Small → Big: </span>
-        <span className="text-xl font-black text-purple-700">{sortedNumbers.join(' → ')}</span>
+        <span className="text-base md:text-lg font-bold text-yellow-800">Small → Big: </span>
+        <span className="text-lg md:text-xl font-black text-purple-700">{sortedNumbers.join(' → ')}</span>
       </motion.div>
 
       {balloons.map((balloon) => (
@@ -1131,8 +1220,8 @@ export function BalloonOrderGame({ numbers, onComplete, onWrong }: BalloonOrderP
           whileHover={{ scale: 1.2 }}
           whileTap={{ scale: 0.8 }}
         >
-          <span className={`text-6xl ${wrongPop === balloon.id ? 'animate-shake' : ''}`}>🎈</span>
-          <span className={`-mt-10 bg-white rounded-full w-10 h-10 flex items-center justify-center text-xl font-bold shadow-lg ${wrongPop === balloon.id ? 'ring-4 ring-red-400' : ''}`}>
+          <span className={`text-4xl md:text-6xl ${wrongPop === balloon.id ? 'animate-shake' : ''}`}>🎈</span>
+          <span className={`-mt-8 md:-mt-10 bg-white rounded-full w-8 h-8 md:w-10 md:h-10 flex items-center justify-center text-lg md:text-xl font-bold shadow-lg ${wrongPop === balloon.id ? 'ring-4 ring-red-400' : ''}`}>
             {balloon.number}
           </span>
         </motion.button>
@@ -1219,19 +1308,19 @@ export function MemoryFlipGame({ pairs, onComplete }: MemoryFlipProps) {
   }
 
   return (
-    <div className="bg-gradient-to-br from-pink-300 to-purple-400 rounded-3xl p-6">
+    <div className="bg-gradient-to-br from-pink-300 to-purple-400 rounded-3xl p-4 md:p-6 max-h-[70vh]">
       {/* INSTRUCTION BANNER with visual example */}
-      <div className="text-center mb-4">
-        <h3 className="text-2xl font-bold text-white">🎴 Match the Cards! 🎴</h3>
-        <div className="bg-white/90 rounded-xl p-2 mt-2 inline-block">
-          <p className="text-lg text-purple-700 font-bold">
-            Count the items! 🍎🍎🍎 = 3️⃣
+      <div className="text-center mb-3 md:mb-4">
+        <h3 className="text-xl md:text-2xl font-bold text-white">Match the Cards!</h3>
+        <div className="bg-white/90 rounded-xl p-1.5 md:p-2 mt-1 md:mt-2 inline-block">
+          <p className="text-base md:text-lg text-purple-700 font-bold">
+            Count the items! = 3
           </p>
         </div>
-        <p className="text-white font-bold mt-2">Moves: {moves}</p>
+        <p className="text-white font-bold mt-1 md:mt-2 text-sm md:text-base">Moves: {moves}</p>
       </div>
 
-      <div className="grid grid-cols-4 gap-3 max-w-md mx-auto">
+      <div className="grid grid-cols-4 gap-2 md:gap-3 max-w-md mx-auto">
         {cards.map((card) => (
           <motion.button
             key={card.id}
@@ -1242,11 +1331,11 @@ export function MemoryFlipGame({ pairs, onComplete }: MemoryFlipProps) {
             whileTap={!card.flipped && !card.matched ? { scale: 0.95 } : {}}
           >
             {(card.flipped || card.matched) ? (
-              <span className={card.type === 'emoji' ? 'text-xl leading-tight' : 'text-3xl font-bold'}>
+              <span className={card.type === 'emoji' ? 'text-lg md:text-xl leading-tight' : 'text-2xl md:text-3xl font-bold'}>
                 {card.content}
               </span>
             ) : (
-              <span className="text-3xl text-white">❓</span>
+              <span className="text-2xl md:text-3xl text-white">?</span>
             )}
           </motion.button>
         ))}
@@ -1321,7 +1410,7 @@ export function FishingGame({ question, correctAnswer, options, onCorrect, onWro
   }
 
   return (
-    <div className="relative h-[420px] rounded-3xl overflow-hidden">
+    <div className="relative h-[320px] sm:h-[380px] md:h-[420px] max-h-[70vh] rounded-3xl overflow-hidden">
       {/* Sky */}
       <div className="absolute inset-0 bg-gradient-to-b from-sky-300 via-sky-400 to-blue-500" />
 
@@ -1330,25 +1419,25 @@ export function FishingGame({ question, correctAnswer, options, onCorrect, onWro
 
       {/* INSTRUCTION BANNER */}
       <motion.div
-        className="absolute top-3 left-1/2 -translate-x-1/2 bg-white/95 px-5 py-2 rounded-2xl shadow-xl z-10"
+        className="absolute top-2 md:top-3 left-1/2 -translate-x-1/2 bg-white/95 px-3 py-1.5 md:px-5 md:py-2 rounded-2xl shadow-xl z-10"
         initial={{ y: -50 }}
         animate={{ y: 0 }}
       >
-        <p className="text-xl font-bold text-center">{question}</p>
-        <p className="text-base text-blue-600 text-center font-bold">
-          🎣 Catch the right fish! 👆
+        <p className="text-lg md:text-xl font-bold text-center">{question}</p>
+        <p className="text-sm md:text-base text-blue-600 text-center font-bold">
+          Catch the right fish!
         </p>
       </motion.div>
 
       {/* Fishing rod */}
-      <motion.div className="absolute top-8 left-[15%] z-20">
-        <div className="text-4xl">🎣</div>
-        <div className="absolute top-8 left-4 w-0.5 h-20 bg-gray-600" />
+      <motion.div className="absolute top-6 md:top-8 left-[15%] z-20">
+        <div className="text-3xl md:text-4xl">🎣</div>
+        <div className="absolute top-6 md:top-8 left-3 md:left-4 w-0.5 h-16 md:h-20 bg-gray-600" />
       </motion.div>
 
       {/* Boat */}
       <motion.div
-        className="absolute top-[28%] left-[10%] text-5xl"
+        className="absolute top-[28%] left-[10%] text-4xl md:text-5xl"
         animate={{ y: [0, -3, 0], rotate: [-2, 2, -2] }}
         transition={{ duration: 3, repeat: Infinity }}
       >
@@ -1368,9 +1457,9 @@ export function FishingGame({ question, correctAnswer, options, onCorrect, onWro
         >
           <div className="flex flex-col items-center">
             {/* Bigger fish emoji */}
-            <span className="text-6xl">{fishItem.type}</span>
+            <span className="text-4xl md:text-6xl">{fishItem.type}</span>
             {/* Much bigger, clearer number badge */}
-            <span className="bg-yellow-300 border-4 border-yellow-500 rounded-xl px-4 py-2 text-2xl font-black text-gray-800 shadow-xl -mt-3">
+            <span className="bg-yellow-300 border-4 border-yellow-500 rounded-xl px-3 py-1 md:px-4 md:py-2 text-xl md:text-2xl font-black text-gray-800 shadow-xl -mt-2 md:-mt-3">
               {fishItem.answer}
             </span>
           </div>
@@ -1445,7 +1534,7 @@ export function RocketLaunchGame({ question, correctAnswer, options, onCorrect, 
   }
 
   return (
-    <div className="relative h-[420px] bg-gradient-to-b from-indigo-900 via-purple-900 to-black rounded-3xl overflow-hidden">
+    <div className="relative h-[320px] sm:h-[380px] md:h-[420px] max-h-[70vh] bg-gradient-to-b from-indigo-900 via-purple-900 to-black rounded-3xl overflow-hidden">
       {/* Stars background */}
       {[...Array(30)].map((_, i) => (
         <motion.div
@@ -1465,13 +1554,13 @@ export function RocketLaunchGame({ question, correctAnswer, options, onCorrect, 
 
       {/* INSTRUCTION BANNER */}
       <motion.div
-        className="absolute top-3 left-1/2 -translate-x-1/2 bg-white/95 px-5 py-2 rounded-2xl shadow-xl z-10"
+        className="absolute top-2 md:top-3 left-1/2 -translate-x-1/2 bg-white/95 px-3 py-1.5 md:px-5 md:py-2 rounded-2xl shadow-xl z-10"
         initial={{ y: -50 }}
         animate={{ y: 0 }}
       >
-        <p className="text-xl font-bold text-center">{question}</p>
-        <p className="text-base text-purple-600 text-center font-bold">
-          🚀 Launch to the right planet! 👆
+        <p className="text-lg md:text-xl font-bold text-center">{question}</p>
+        <p className="text-sm md:text-base text-purple-600 text-center font-bold">
+          Launch to the right planet!
         </p>
       </motion.div>
 
@@ -1479,7 +1568,7 @@ export function RocketLaunchGame({ question, correctAnswer, options, onCorrect, 
       <AnimatePresence>
         {countdown !== null && (
           <motion.div
-            className="absolute top-1/3 left-1/2 -translate-x-1/2 text-8xl font-black text-yellow-400 z-20"
+            className="absolute top-1/3 left-1/2 -translate-x-1/2 text-6xl md:text-8xl font-black text-yellow-400 z-20"
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: [0, 1.5, 1], opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
@@ -1492,7 +1581,7 @@ export function RocketLaunchGame({ question, correctAnswer, options, onCorrect, 
 
       {/* Rocket */}
       <motion.div
-        className="absolute bottom-20 left-1/2 -translate-x-1/2 text-8xl z-10"
+        className="absolute bottom-16 md:bottom-20 left-1/2 -translate-x-1/2 text-6xl md:text-8xl z-10"
         animate={launched ? { y: -600, scale: 0.5 } : wrongAnswer ? { x: [-10, 10, -10, 10, 0] } : { y: [0, -5, 0] }}
         transition={launched ? { duration: 1.5, ease: 'easeIn' } : { duration: 2, repeat: Infinity }}
       >
@@ -1500,7 +1589,7 @@ export function RocketLaunchGame({ question, correctAnswer, options, onCorrect, 
         {/* Fire trail when launching */}
         {(countdown !== null || launched) && (
           <motion.div
-            className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-5xl"
+            className="absolute -bottom-6 md:-bottom-8 left-1/2 -translate-x-1/2 text-4xl md:text-5xl"
             animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
             transition={{ duration: 0.2, repeat: Infinity }}
           >
@@ -1513,11 +1602,11 @@ export function RocketLaunchGame({ question, correctAnswer, options, onCorrect, 
       <div className="absolute bottom-12 left-1/2 -translate-x-1/2 w-32 h-4 bg-gray-600 rounded-full" />
 
       {/* Answer buttons */}
-      <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-3 px-4">
+      <div className="absolute bottom-2 md:bottom-4 left-0 right-0 flex justify-center gap-2 md:gap-3 px-3 md:px-4">
         {options.map((answer, i) => (
           <motion.button
             key={i}
-            className={`bg-gradient-to-b from-purple-500 to-purple-700 text-white rounded-xl px-5 py-3 text-2xl font-bold shadow-lg border-2 border-purple-400 game-interactive
+            className={`bg-gradient-to-b from-purple-500 to-purple-700 text-white rounded-xl px-4 py-2 md:px-5 md:py-3 text-xl md:text-2xl font-bold shadow-lg border-2 border-purple-400 game-interactive
                        ${selectedAnswer === answer && answer === correctAnswer ? 'ring-4 ring-green-400' : ''}
                        ${selectedAnswer === answer && answer !== correctAnswer ? 'ring-4 ring-red-400 animate-shake' : ''}`}
             onClick={() => handleLaunch(answer)}
@@ -1537,11 +1626,11 @@ export function RocketLaunchGame({ question, correctAnswer, options, onCorrect, 
       <AnimatePresence>
         {launched && (
           <motion.div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-yellow-400 rounded-3xl px-8 py-4 z-30"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-yellow-400 rounded-3xl px-4 py-2 md:px-8 md:py-4 z-30"
             initial={{ scale: 0 }}
             animate={{ scale: 1, rotate: [0, -5, 5, 0] }}
           >
-            <p className="text-3xl font-black text-center">BLAST OFF! 🎉</p>
+            <p className="text-2xl md:text-3xl font-black text-center">BLAST OFF!</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1599,20 +1688,20 @@ export function TreasureHuntGame({ question, correctAnswer, options, onCorrect, 
   }
 
   return (
-    <div className="relative h-[420px] bg-gradient-to-b from-amber-200 via-amber-300 to-amber-500 rounded-3xl overflow-hidden">
+    <div className="relative h-[320px] sm:h-[380px] md:h-[420px] max-h-[70vh] bg-gradient-to-b from-amber-200 via-amber-300 to-amber-500 rounded-3xl overflow-hidden">
       {/* Sand dunes background */}
       <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-amber-600 to-transparent" />
 
       {/* Palm trees */}
       <motion.div
-        className="absolute bottom-20 left-4 text-6xl"
+        className="absolute bottom-16 md:bottom-20 left-2 md:left-4 text-4xl md:text-6xl"
         animate={{ rotate: [-3, 3, -3] }}
         transition={{ duration: 4, repeat: Infinity }}
       >
         🌴
       </motion.div>
       <motion.div
-        className="absolute bottom-24 right-6 text-5xl"
+        className="absolute bottom-20 md:bottom-24 right-4 md:right-6 text-3xl md:text-5xl"
         animate={{ rotate: [3, -3, 3] }}
         transition={{ duration: 3.5, repeat: Infinity }}
       >
@@ -1621,19 +1710,19 @@ export function TreasureHuntGame({ question, correctAnswer, options, onCorrect, 
 
       {/* INSTRUCTION BANNER */}
       <motion.div
-        className="absolute top-3 left-1/2 -translate-x-1/2 bg-white/95 px-5 py-2 rounded-2xl shadow-xl z-10"
+        className="absolute top-2 md:top-3 left-1/2 -translate-x-1/2 bg-white/95 px-3 py-1.5 md:px-5 md:py-2 rounded-2xl shadow-xl z-10"
         initial={{ y: -50 }}
         animate={{ y: 0 }}
       >
-        <p className="text-xl font-bold text-center">{question}</p>
-        <p className="text-base text-amber-600 text-center font-bold">
-          ⛏️ Dig up the treasure! 👆
+        <p className="text-lg md:text-xl font-bold text-center">{question}</p>
+        <p className="text-sm md:text-base text-amber-600 text-center font-bold">
+          Dig up the treasure!
         </p>
       </motion.div>
 
       {/* Pirate character */}
       <motion.div
-        className="absolute top-20 left-1/2 -translate-x-1/2 text-7xl"
+        className="absolute top-16 md:top-20 left-1/2 -translate-x-1/2 text-5xl md:text-7xl"
         animate={{ y: [0, -8, 0] }}
         transition={{ duration: 2, repeat: Infinity }}
       >
@@ -1641,7 +1730,7 @@ export function TreasureHuntGame({ question, correctAnswer, options, onCorrect, 
       </motion.div>
 
       {/* Treasure chests */}
-      <div className="absolute bottom-24 left-0 right-0 flex justify-center gap-6 px-4">
+      <div className="absolute bottom-20 md:bottom-24 left-0 right-0 flex justify-center gap-4 md:gap-6 px-3 md:px-4">
         {chests.map((chest, i) => (
           <motion.button
             key={chest.id}
@@ -1656,7 +1745,7 @@ export function TreasureHuntGame({ question, correctAnswer, options, onCorrect, 
           >
             {/* Chest */}
             <motion.div
-              className="text-6xl"
+              className="text-4xl md:text-6xl"
               animate={chest.opened && chest.isCorrect ? { rotate: [0, -10, 10, 0] } : {}}
             >
               {chest.opened ? (chest.isCorrect ? '👑' : '💨') : '📦'}
@@ -1664,7 +1753,7 @@ export function TreasureHuntGame({ question, correctAnswer, options, onCorrect, 
 
             {/* Answer badge */}
             <motion.div
-              className={`absolute -bottom-2 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl text-xl font-black shadow-lg
+              className={`absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 md:px-4 md:py-2 rounded-xl text-lg md:text-xl font-black shadow-lg
                          ${chest.opened && chest.isCorrect ? 'bg-yellow-400 border-4 border-yellow-500' : ''}
                          ${chest.opened && !chest.isCorrect ? 'bg-red-300 border-4 border-red-400' : ''}
                          ${!chest.opened ? 'bg-white border-4 border-amber-400' : ''}`}
@@ -1701,11 +1790,11 @@ export function TreasureHuntGame({ question, correctAnswer, options, onCorrect, 
       <AnimatePresence>
         {found && (
           <motion.div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-yellow-400 rounded-3xl px-8 py-4 z-30 shadow-2xl"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-yellow-400 rounded-3xl px-4 py-2 md:px-8 md:py-4 z-30 shadow-2xl"
             initial={{ scale: 0, rotate: -20 }}
             animate={{ scale: 1, rotate: 0 }}
           >
-            <p className="text-3xl font-black text-center">TREASURE FOUND! 💰</p>
+            <p className="text-2xl md:text-3xl font-black text-center">TREASURE FOUND!</p>
           </motion.div>
         )}
       </AnimatePresence>

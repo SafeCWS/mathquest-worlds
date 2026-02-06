@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { sounds } from '@/lib/sounds/webAudioSounds'
+import { EncouragingMessage, CelebrationConfetti, getEncouragingMessage } from '../GameFeedback'
 
 interface OceanGameProps {
   question: string
@@ -18,15 +19,27 @@ interface OceanGameProps {
 // ============================================
 export function BubbleCountGame({ question, correctAnswer, options, onCorrect, onWrong }: OceanGameProps) {
   const [popped, setPopped] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [showEncouragement, setShowEncouragement] = useState(false)
+  const [encourageMsg, setEncourageMsg] = useState<{ text: string; emoji: string } | null>(null)
   const bubbles = Array(correctAnswer).fill(null)
 
   const handleAnswer = (answer: number) => {
     if (answer === correctAnswer) {
       sounds.playCorrect()
       setPopped(true)
-      setTimeout(onCorrect, 1000)
+      setShowCelebration(true)
+      setTimeout(() => {
+        setShowCelebration(false)
+        onCorrect()
+      }, 1000)
     } else {
       sounds.playGentleError()
+      setEncourageMsg(getEncouragingMessage())
+      setShowEncouragement(true)
+      setTimeout(() => {
+        setShowEncouragement(false)
+      }, 1200)
       onWrong()
     }
   }
@@ -51,14 +64,10 @@ export function BubbleCountGame({ question, correctAnswer, options, onCorrect, o
 
       {/* Instruction Banner */}
       <div className="text-center mb-4 relative z-10">
-        <h3 className="text-2xl font-bold text-white drop-shadow-lg">
-          {popped ? 'Splashing Fun!' : 'Count the Bubbles!'}
-        </h3>
-        {!popped && (
-          <p className="text-lg text-cyan-100 font-bold">
-            How many bubbles are rising?
-          </p>
-        )}
+        <h3 className="text-2xl font-bold text-white drop-shadow-lg mb-1">{question}</h3>
+        <p className="text-lg text-cyan-100">
+          {popped ? 'Splashing Fun!' : 'Count the bubbles rising!'}
+        </p>
       </div>
 
       {/* Bubbles rising */}
@@ -146,6 +155,8 @@ export function BubbleCountGame({ question, correctAnswer, options, onCorrect, o
           ))}
         </div>
       )}
+      <CelebrationConfetti show={showCelebration} emoji={['🫧', '🌊', '✨', '💙', '⭐']} />
+      <EncouragingMessage show={showEncouragement} message={encourageMsg || undefined} />
     </div>
   )
 }
@@ -155,6 +166,9 @@ export function BubbleCountGame({ question, correctAnswer, options, onCorrect, o
 // ============================================
 export function FishSchoolGame({ question, correctAnswer, options, onCorrect, onWrong }: OceanGameProps) {
   const [isHappy, setIsHappy] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [showEncouragement, setShowEncouragement] = useState(false)
+  const [encourageMsg, setEncourageMsg] = useState<{ text: string; emoji: string } | null>(null)
   const fishEmojis = ['🐠', '🐟', '🐡']
   const fish = Array(correctAnswer).fill(null).map((_, i) => fishEmojis[i % fishEmojis.length])
 
@@ -162,9 +176,18 @@ export function FishSchoolGame({ question, correctAnswer, options, onCorrect, on
     if (answer === correctAnswer) {
       sounds.playCorrect()
       setIsHappy(true)
-      setTimeout(onCorrect, 1200)
+      setShowCelebration(true)
+      setTimeout(() => {
+        setShowCelebration(false)
+        onCorrect()
+      }, 1200)
     } else {
       sounds.playGentleError()
+      setEncourageMsg(getEncouragingMessage())
+      setShowEncouragement(true)
+      setTimeout(() => {
+        setShowEncouragement(false)
+      }, 1200)
       onWrong()
     }
   }
@@ -190,16 +213,14 @@ export function FishSchoolGame({ question, correctAnswer, options, onCorrect, on
       {/* Title */}
       <div className="text-center mb-4 relative z-10">
         <motion.h3
-          className="text-2xl font-bold text-white drop-shadow-lg"
+          className="text-2xl font-bold text-white drop-shadow-lg mb-1"
           animate={isHappy ? { scale: [1, 1.1, 1] } : {}}
         >
-          {isHappy ? 'You found them all!' : 'Count the Fish School!'}
+          {question}
         </motion.h3>
-        {!isHappy && (
-          <p className="text-lg text-cyan-100 font-bold mt-1">
-            How many fish are swimming?
-          </p>
-        )}
+        <p className="text-lg text-cyan-100">
+          {isHappy ? 'You found them all!' : 'Count the fish swimming!'}
+        </p>
       </div>
 
       {/* Fish swimming */}
@@ -268,6 +289,8 @@ export function FishSchoolGame({ question, correctAnswer, options, onCorrect, on
           ))}
         </div>
       )}
+      <CelebrationConfetti show={showCelebration} emoji={['🐟', '🐠', '🎣', '✨', '💙']} />
+      <EncouragingMessage show={showEncouragement} message={encourageMsg || undefined} />
     </div>
   )
 }
@@ -279,6 +302,9 @@ export function TreasureChestGame({ question, correctAnswer, options, onCorrect,
   const [selectedChest, setSelectedChest] = useState<number | null>(null)
   const [openedChest, setOpenedChest] = useState<number | null>(null)
   const [showTreasure, setShowTreasure] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [showEncouragement, setShowEncouragement] = useState(false)
+  const [encourageMsg, setEncourageMsg] = useState<{ text: string; emoji: string } | null>(null)
 
   const handleChestSelect = (answer: number) => {
     setSelectedChest(answer)
@@ -288,14 +314,21 @@ export function TreasureChestGame({ question, correctAnswer, options, onCorrect,
       if (answer === correctAnswer) {
         sounds.playCorrect()
         setShowTreasure(true)
+        setShowCelebration(true)
         sounds.playCelebration()
-        setTimeout(onCorrect, 1200)
+        setTimeout(() => {
+          setShowCelebration(false)
+          onCorrect()
+        }, 1200)
       } else {
         sounds.playGentleError()
+        setEncourageMsg(getEncouragingMessage())
+        setShowEncouragement(true)
         setTimeout(() => {
           setSelectedChest(null)
           setOpenedChest(null)
-        }, 800)
+          setShowEncouragement(false)
+        }, 1200)
         onWrong()
       }
     }, 500)
@@ -422,6 +455,8 @@ export function TreasureChestGame({ question, correctAnswer, options, onCorrect,
           </motion.div>
         )}
       </AnimatePresence>
+      <CelebrationConfetti show={showCelebration} emoji={['🪙', '💎', '👑', '✨', '💰']} />
+      <EncouragingMessage show={showEncouragement} message={encourageMsg || undefined} />
     </div>
   )
 }
@@ -432,6 +467,9 @@ export function TreasureChestGame({ question, correctAnswer, options, onCorrect,
 export function SeashellSortGame({ question, correctAnswer, options, onCorrect, onWrong }: OceanGameProps) {
   const [sortedShells, setSortedShells] = useState<number[]>([])
   const [isComplete, setIsComplete] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [showEncouragement, setShowEncouragement] = useState(false)
+  const [encourageMsg, setEncourageMsg] = useState<{ text: string; emoji: string } | null>(null)
   const sortedOptions = [...options].sort((a, b) => a - b)
 
   const shellEmojis = ['🐚', '🦪', '🐚', '🦪']
@@ -450,10 +488,19 @@ export function SeashellSortGame({ question, correctAnswer, options, onCorrect, 
         sounds.playCorrect()
         sounds.playCelebration()
         setIsComplete(true)
-        setTimeout(onCorrect, 1000)
+        setShowCelebration(true)
+        setTimeout(() => {
+          setShowCelebration(false)
+          onCorrect()
+        }, 1000)
       }
     } else if (!sortedShells.includes(value)) {
       sounds.playGentleError()
+      setEncourageMsg(getEncouragingMessage())
+      setShowEncouragement(true)
+      setTimeout(() => {
+        setShowEncouragement(false)
+      }, 1200)
       onWrong()
     }
   }
@@ -474,14 +521,10 @@ export function SeashellSortGame({ question, correctAnswer, options, onCorrect, 
 
       {/* Instruction */}
       <div className="text-center mb-4 relative z-10">
-        <h3 className="text-2xl font-bold text-white drop-shadow-lg">
-          {isComplete ? 'Perfectly Sorted!' : 'Sort the Seashells!'}
-        </h3>
-        {!isComplete && (
-          <p className="text-lg text-cyan-100 font-bold">
-            Tap from smallest to biggest!
-          </p>
-        )}
+        <h3 className="text-2xl font-bold text-white drop-shadow-lg mb-1">{question}</h3>
+        <p className="text-lg text-cyan-100">
+          {isComplete ? 'Perfectly Sorted!' : 'Sort the shells - smallest to biggest!'}
+        </p>
       </div>
 
       {/* Sorting area - where sorted shells go */}
@@ -562,6 +605,8 @@ export function SeashellSortGame({ question, correctAnswer, options, onCorrect, 
           </motion.div>
         )}
       </AnimatePresence>
+      <CelebrationConfetti show={showCelebration} emoji={['🐚', '🧜‍♀️', '✨', '🌊', '⭐']} />
+      <EncouragingMessage show={showEncouragement} message={encourageMsg || undefined} />
     </div>
   )
 }

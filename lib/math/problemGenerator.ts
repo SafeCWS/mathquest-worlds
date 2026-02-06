@@ -352,6 +352,72 @@ function generateMultiplicationProblem(
   }
 }
 
+// Generate a single division problem - "Fair Shares" style!
+// Division is the inverse of multiplication: if 2 × 5 = 10, then 10 ÷ 2 = 5
+// We ensure whole number answers by generating from multiplication facts
+function generateDivisionProblem(
+  id: number,
+  min: number,
+  max: number,
+  interactionType: InteractionType,
+  worldId: string,
+  moduleId: number
+): MathProblem {
+  // Determine divisor based on module (mirrors multiplication)
+  let divisor: number
+  switch (moduleId) {
+    case 1:
+      divisor = 2 // Divide by 2 (halving)
+      break
+    case 2:
+      divisor = 5 // Divide by 5
+      break
+    case 3:
+      divisor = 10 // Divide by 10
+      break
+    default:
+      divisor = [2, 5, 10][randomInt(0, 2)] // Mixed
+  }
+
+  // Generate the quotient (answer) first, then calculate dividend
+  // This ensures we always get whole number answers!
+  let quotient: number, attempts = 0
+  const num2 = divisor
+
+  do {
+    quotient = randomInt(min, max) // This will be our answer
+    attempts++
+  } while (isProblemUsed('division', quotient * num2, num2) && attempts < 20)
+
+  // num1 (dividend) = quotient × divisor (ensures clean division)
+  const num1 = quotient * num2
+  const answer = quotient
+
+  // Mark this problem as used
+  markProblemUsed('division', num1, num2)
+
+  // For division, wrong answers should be close to correct quotient
+  const maxPossibleQuotient = max
+  const wrongAnswers = generateWrongAnswers(answer, 3, 'division', 1, maxPossibleQuotient)
+  const options = shuffleArray([answer, ...wrongAnswers])
+
+  // Show objects being divided into groups
+  // e.g., 10 ÷ 2 shows 10 objects that can be split into 2 groups of 5
+  const object = getUniqueObject(worldId)
+  const objects: string[] = Array(num1).fill(object)
+
+  return {
+    id,
+    type: 'division',
+    num1, // dividend (e.g., 10)
+    num2, // divisor (e.g., 2)
+    answer, // quotient (e.g., 5)
+    options,
+    interactionType,
+    countingObjects: objects.slice(0, 50) // Cap at 50 for display
+  }
+}
+
 // Main generator function - NOW WITH NO REPEATS!
 // Also prevents commutative duplicates (2+1 won't appear with 1+2)
 export function generateProblems(
@@ -420,6 +486,16 @@ export function generateProblems(
         break
       case 'multiplication':
         problem = generateMultiplicationProblem(
+          i,
+          module.minNumber,
+          module.maxNumber,
+          interactionType,
+          worldId,
+          module.id
+        )
+        break
+      case 'division':
+        problem = generateDivisionProblem(
           i,
           module.minNumber,
           module.maxNumber,
@@ -503,6 +579,16 @@ export function generatePracticeProblems(
         break
       case 'multiplication':
         problem = generateMultiplicationProblem(
+          i,
+          range.min,
+          range.max,
+          interactionType,
+          worldId,
+          1
+        )
+        break
+      case 'division':
+        problem = generateDivisionProblem(
           i,
           range.min,
           range.max,

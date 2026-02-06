@@ -28,11 +28,41 @@ const OCEAN_WORLD_GAMES: GameType[] = [
   'seashellSort'
 ]
 
+// Fairy Kingdom world has special themed games
+const FAIRY_WORLD_GAMES: GameType[] = [
+  'unicornCount',
+  'fairyDust',
+  'crystalMatch',
+  'magicWand',
+  'enchantedGarden'
+]
+
+// Dino Land world has special themed games
+const DINO_WORLD_GAMES: GameType[] = [
+  'fossilHunt',
+  'eggHatch',
+  'volcanoCountdown',
+  'dinoFootprint',
+  'pterodactylFly'
+]
+
+// Candy World has special themed games
+const CANDY_WORLD_GAMES: GameType[] = [
+  'lollipopCount',
+  'cupcakeDecoration',
+  'gumballMachine',
+  'chocolateBar',
+  'candyJar'
+]
+
 // Map of world IDs to their themed game types
 const WORLD_GAME_OVERRIDES: Record<string, GameType[]> = {
   lovelycat: CAT_WORLD_GAMES,
   space: SPACE_WORLD_GAMES,
-  ocean: OCEAN_WORLD_GAMES
+  ocean: OCEAN_WORLD_GAMES,
+  fairy: FAIRY_WORLD_GAMES,
+  dino: DINO_WORLD_GAMES,
+  candy: CANDY_WORLD_GAMES
 }
 
 /**
