@@ -219,6 +219,17 @@ export default function WelcomePage() {
                     🌍 Continue Adventure!
                   </motion.button>
                 </Link>
+                <Link href="/multiplication">
+                  <motion.button
+                    className="w-full px-6 py-3 bg-gradient-to-r from-green-400 to-teal-500
+                               text-white font-bold text-lg rounded-full shadow-lg
+                               border-4 border-green-300"
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    ✖️ Times Tables
+                  </motion.button>
+                </Link>
                 <div className="flex gap-4">
                   <Link href="/wardrobe" className="flex-1">
                     <motion.button

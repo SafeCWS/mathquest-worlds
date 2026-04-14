@@ -1477,6 +1477,88 @@ class WebAudioSoundManager {
     setTimeout(() => this.playTone(784, 0.08, 'square', 0.15), 60)
     setTimeout(() => this.playTone(1047, 0.12, 'square', 0.2), 120)
   }
+
+  // ===== MULTIPLICATION GAME MODE SOUNDS =====
+
+  // Dice roll - rapid ascending frequency sweep (tumbling dice)
+  playDiceRoll() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    // Rapid beep sequence simulating tumbling
+    for (let i = 0; i < 12; i++) {
+      setTimeout(() => {
+        const freq = 200 + Math.random() * 600
+        this.playTone(freq, 0.04, 'square', 0.12)
+      }, i * 60)
+    }
+    // Landing thud
+    setTimeout(() => {
+      this.playTone(150, 0.12, 'triangle', 0.2)
+      this.playTone(300, 0.08, 'sine', 0.15)
+    }, 750)
+  }
+
+  // Card flip - quick swish/whoosh
+  playCardFlip() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    if (!this.audioContext || !this.masterGain) return
+
+    const osc = this.audioContext.createOscillator()
+    const gain = this.audioContext.createGain()
+    osc.type = 'sine'
+    // Quick frequency sweep for a "swish" feel
+    osc.frequency.setValueAtTime(300, this.audioContext.currentTime)
+    osc.frequency.exponentialRampToValueAtTime(900, this.audioContext.currentTime + 0.06)
+    osc.frequency.exponentialRampToValueAtTime(500, this.audioContext.currentTime + 0.12)
+    gain.gain.setValueAtTime(0.18, this.audioContext.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.15)
+    osc.connect(gain)
+    gain.connect(this.masterGain)
+    osc.start()
+    osc.stop(this.audioContext.currentTime + 0.15)
+  }
+
+  // Timer tick - subtle metronome click
+  playTimerTick() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    this.playTone(1000, 0.03, 'sine', 0.1)
+  }
+
+  // Timer warning - escalating 3-beep urgent sequence
+  playTimerWarning() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    const beeps = [600, 800, 1000]
+    beeps.forEach((freq, i) => {
+      setTimeout(() => {
+        this.playTone(freq, 0.1, 'square', 0.2)
+      }, i * 120)
+    })
+  }
+
+  // Table complete - triumphant ascending fanfare (extended celebration)
+  playTableComplete() {
+    if (!this._soundEnabled) return
+    this.initAudio()
+    // Ascending scale buildup
+    const buildup = [262, 294, 330, 349, 392, 440, 494, 523]
+    buildup.forEach((freq, i) => {
+      setTimeout(() => {
+        this.playTone(freq, 0.18, 'triangle', 0.15)
+      }, i * 80)
+    })
+    // Triumphant chord at peak
+    setTimeout(() => {
+      this.playTone(523, 0.5, 'sine', 0.2)
+      this.playTone(659, 0.5, 'sine', 0.2)
+      this.playTone(784, 0.5, 'sine', 0.2)
+      this.playTone(1047, 0.5, 'sine', 0.15)
+    }, 680)
+    // Sparkle shower finale
+    setTimeout(() => this.playSparkleRain(), 900)
+  }
 }
 
 // Singleton instance
