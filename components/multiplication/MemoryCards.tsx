@@ -8,7 +8,7 @@ import { useMultiplicationStore } from '@/lib/stores/multiplicationStore'
 import { shuffleAnswers } from '@/lib/utils/multiplicationDifficulty'
 import { sounds } from '@/lib/sounds/webAudioSounds'
 import { CelebrationOverlay, useCelebration } from '@/components/game/CelebrationOverlay'
-import { TABLE_EMOJIS } from './VisualMultiplication'
+import { useTableEmoji } from './VisualMultiplication'
 
 interface MemoryCardsProps {
   tableNumber: number
@@ -65,7 +65,7 @@ export default function MemoryCards({ tableNumber }: MemoryCardsProps) {
   const recordModeScore = useMultiplicationStore(s => s.recordModeScore)
   const { celebration, showCelebration, dismissCelebration } = useCelebration()
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const emoji = TABLE_EMOJIS[tableNumber] || '⭐'
+  const emoji = useTableEmoji(tableNumber)
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -181,7 +181,7 @@ export default function MemoryCards({ tableNumber }: MemoryCardsProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-300 via-violet-300 to-fuchsia-400 p-4 pb-24">
+    <div className="min-h-screen bg-gradient-to-b from-purple-300 via-violet-300 to-fuchsia-400 p-4 pt-16 pb-8">
       <CelebrationOverlay celebration={celebration} onDismiss={dismissCelebration} />
 
       {/* Header */}
@@ -300,23 +300,19 @@ export default function MemoryCards({ tableNumber }: MemoryCardsProps) {
         )}
       </AnimatePresence>
 
-      {/* Back button */}
-      <motion.div
-        className="fixed bottom-4 left-0 right-0 flex justify-center z-10"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-      >
+      {/* Back button - fixed top-left, always visible in any orientation */}
+      <div className="fixed top-4 left-4 z-50">
         <Link href={`/multiplication/${tableNumber}`}>
           <motion.button
-            className="px-6 py-2 bg-white/30 backdrop-blur-md text-white
-                       font-semibold rounded-full border border-white/40 min-h-[48px]"
+            className="px-4 py-2 bg-white/90 backdrop-blur-sm text-gray-700 font-bold rounded-full
+                       shadow-lg min-h-[48px] min-w-[48px] flex items-center justify-center gap-1"
+            whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            Back
+            ⬅️ Back
           </motion.button>
         </Link>
-      </motion.div>
+      </div>
     </div>
   )
 }

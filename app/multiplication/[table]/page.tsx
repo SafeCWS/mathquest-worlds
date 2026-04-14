@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation'
 import { motion } from 'motion/react'
 import Link from 'next/link'
 import { useMultiplicationStore, GameMode } from '@/lib/stores/multiplicationStore'
+import { useEmojiThemeStore } from '@/lib/stores/emojiThemeStore'
+import EmojiPicker from '@/components/multiplication/EmojiPicker'
 
 interface ModeCard {
   mode: GameMode
@@ -92,6 +94,27 @@ const MODE_CARDS: ModeCard[] = [
     description: 'See the magic of swapping!',
     color: { from: 'from-fuchsia-400', to: 'to-purple-600', border: 'border-fuchsia-300' },
   },
+  {
+    mode: 'chart',
+    name: 'Table Chart',
+    emoji: '📊',
+    description: 'Fill in the chart!',
+    color: { from: 'from-violet-400', to: 'to-indigo-600', border: 'border-violet-300' },
+  },
+  {
+    mode: 'story',
+    name: 'Story Time',
+    emoji: '📖',
+    description: 'Solve fun stories!',
+    color: { from: 'from-rose-400', to: 'to-pink-600', border: 'border-rose-300' },
+  },
+  {
+    mode: 'bubble',
+    name: 'Bubble Pop',
+    emoji: '🫧',
+    description: 'Pop the right answer!',
+    color: { from: 'from-cyan-400', to: 'to-blue-600', border: 'border-cyan-300' },
+  },
 ]
 
 // Special mode only for table 9
@@ -103,8 +126,59 @@ const FINGER_TRICK_CARD: ModeCard = {
   color: { from: 'from-indigo-400', to: 'to-blue-600', border: 'border-indigo-300' },
 }
 
+// Bouncy spring easing — the signature Duolingo overshoot
+const BOUNCY_EASE: [number, number, number, number] = [0.34, 1.56, 0.64, 1]
+
+/** Circular progress ring around star counter */
+function ProgressRing({
+  percent,
+  size = 52,
+  strokeWidth = 4,
+}: {
+  percent: number
+  size?: number
+  strokeWidth?: number
+}) {
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const offset = circumference - (percent / 100) * circumference
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      className="absolute -inset-1"
+      style={{ transform: 'rotate(-90deg)' }}
+    >
+      {/* Background circle */}
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke="rgba(255,255,255,0.2)"
+        strokeWidth={strokeWidth}
+      />
+      {/* Progress circle */}
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke="rgba(255,215,0,0.9)"
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        className="progress-ring-circle"
+      />
+    </svg>
+  )
+}
+
 export default function TableDetailPage() {
   const [mounted, setMounted] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const params = useParams()
   const tableNumber = Number(params.table)
   const {
@@ -113,6 +187,8 @@ export default function TableDetailPage() {
     isTableUnlocked,
     speedChallengeUnlocked,
   } = useMultiplicationStore()
+  const getTableEmoji = useEmojiThemeStore((s) => s.getTableEmoji)
+  const currentEmoji = mounted && _hasHydrated ? getTableEmoji(tableNumber) : '⭐'
 
   useEffect(() => {
     setMounted(true)
@@ -188,28 +264,25 @@ export default function TableDetailPage() {
   }
 
   const mastery = getTableMastery(tableNumber)
+  const allModes = [...MODE_CARDS, ...(tableNumber === 9 ? [FINGER_TRICK_CARD] : [])]
+  const maxStars = allModes.length * 3
+  const progressPercent = maxStars > 0 ? Math.round((mastery.totalStars / maxStars) * 100) : 0
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-300 via-purple-300 to-pink-300 relative overflow-hidden">
-      {/* Floating decorative elements */}
+      {/* Floating decorative elements — CSS animated for performance */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {['✖️', `${tableNumber}`, '=', '⭐', '🎮'].map((symbol, i) => (
-          <motion.span
+          <span
             key={i}
-            className="absolute text-3xl opacity-15"
+            className="float-bg-emoji text-3xl"
             style={{
               left: `${8 + i * 20}%`,
               top: `${10 + (i % 3) * 25}%`,
             }}
-            animate={{ y: [0, -15, 0], rotate: [0, 5, -5, 0] }}
-            transition={{
-              duration: 3 + i * 0.4,
-              repeat: Infinity,
-              delay: i * 0.2,
-            }}
           >
             {symbol}
-          </motion.span>
+          </span>
         ))}
       </div>
 
@@ -217,8 +290,9 @@ export default function TableDetailPage() {
         {/* Header */}
         <motion.div
           className="flex items-center gap-3 mb-4"
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: BOUNCY_EASE }}
         >
           <Link href="/multiplication">
             <motion.button
@@ -232,21 +306,38 @@ export default function TableDetailPage() {
             </motion.button>
           </Link>
           <div className="flex-1">
-            <h1 className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg">
-              Table {tableNumber} ✖️
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg">
+                Table {tableNumber} ✖️
+              </h1>
+              <motion.button
+                className="text-2xl bg-white/30 backdrop-blur-sm rounded-full w-11 h-11
+                           flex items-center justify-center shadow-md
+                           hover:bg-white/50 transition-colors"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowEmojiPicker(true)}
+                aria-label="Change emoji"
+                title="Change emoji"
+              >
+                {currentEmoji}
+              </motion.button>
+            </div>
           </div>
-          {/* Star counter for this table */}
+          {/* Star counter with progress ring */}
           <motion.div
-            className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full shadow-md"
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.3, type: 'spring' }}
+            className="relative flex items-center justify-center"
+            initial={{ scale: 0, rotate: -20 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ delay: 0.3, type: 'spring', stiffness: 400, damping: 15 }}
           >
-            <span className="text-xl">⭐</span>
-            <span className="font-bold text-yellow-700 text-lg">
-              {mastery.totalStars}/{MODE_CARDS.length * 3}
-            </span>
+            <ProgressRing percent={progressPercent} size={56} strokeWidth={4} />
+            <div className="flex items-center gap-1.5 bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-md z-10">
+              <span className="text-lg">⭐</span>
+              <span className="font-bold text-yellow-700 text-base">
+                {mastery.totalStars}/{maxStars}
+              </span>
+            </div>
           </motion.div>
         </motion.div>
 
@@ -254,9 +345,9 @@ export default function TableDetailPage() {
         {mastery.mastered && (
           <motion.div
             className="text-center mb-4"
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: 'spring', delay: 0.2 }}
+            initial={{ scale: 0, rotate: -10 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', delay: 0.2, stiffness: 400, damping: 12 }}
           >
             <span className="inline-flex items-center gap-2 bg-yellow-400/80 backdrop-blur-sm
                              px-5 py-2 rounded-full shadow-lg text-yellow-900 font-bold">
@@ -265,71 +356,121 @@ export default function TableDetailPage() {
           </motion.div>
         )}
 
-        {/* Quick reference preview */}
+        {/* Quick reference preview — staggered fact fade-in */}
         <motion.div
           className="bg-white/30 backdrop-blur-sm rounded-2xl p-4 mb-6 shadow-inner"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
+          transition={{ delay: 0.15, ease: BOUNCY_EASE }}
         >
           <div className="flex flex-wrap justify-center gap-2 text-sm text-white/90 font-medium">
-            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-              <span key={n} className="bg-white/20 px-2 py-1 rounded-lg">
+            {Array.from({ length: 10 }, (_, i) => i + 1).map((n, idx) => (
+              <motion.span
+                key={n}
+                className="bg-white/20 px-2 py-1 rounded-lg"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  delay: 0.3 + idx * 0.05,
+                  duration: 0.3,
+                  ease: BOUNCY_EASE,
+                }}
+              >
                 {tableNumber}x{n}={tableNumber * n}
-              </span>
+              </motion.span>
             ))}
           </div>
         </motion.div>
 
         {/* Game mode grid */}
         <div className="grid grid-cols-2 gap-4">
-          {[...MODE_CARDS, ...(tableNumber === 9 ? [FINGER_TRICK_CARD] : [])].map((card, index) => {
+          {allModes.map((card, index) => {
             const modeScore = mastery.modeScores[card.mode]
             const isSpeedLocked = card.mode === 'speed' && !speedChallengeUnlocked
             const isAvailable = !isSpeedLocked
+            const isNew = modeScore.attempts === 0 && isAvailable
 
             return (
               <motion.div
                 key={card.mode}
-                initial={{ opacity: 0, scale: 0.5, y: 20 }}
+                initial={{ opacity: 0, scale: 0.3, y: 30 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{
-                  delay: 0.2 + index * 0.08,
-                  type: 'spring',
-                  stiffness: 300,
-                  damping: 20,
+                  delay: 0.25 + index * 0.06,
+                  duration: 0.5,
+                  ease: BOUNCY_EASE,
                 }}
               >
                 {isAvailable ? (
                   <Link href={`/multiplication/${tableNumber}/${card.mode}`}>
                     <motion.div
-                      className={`bg-gradient-to-br ${card.color.from} ${card.color.to}
+                      className={`relative bg-gradient-to-br ${card.color.from} ${card.color.to}
                                   rounded-3xl p-5 shadow-xl border-4 ${card.color.border}
                                   min-h-[130px] flex flex-col items-center justify-center gap-2
-                                  cursor-pointer`}
-                      whileHover={{ scale: 1.05, y: -3 }}
-                      whileTap={{ scale: 0.95 }}
+                                  cursor-pointer overflow-hidden`}
+                      whileHover={{ scale: 1.07, y: -5, boxShadow: '0 14px 30px rgba(0,0,0,0.2)' }}
+                      whileTap={{ scale: 0.9 }}
                     >
-                      <span className="text-4xl">{card.emoji}</span>
+                      {/* "New!" badge for untried modes */}
+                      {isNew && (
+                        <span
+                          className="absolute -top-1 -right-1 bg-red-500 text-white text-xs
+                                     font-bold px-2.5 py-1 rounded-full shadow-lg badge-pulse z-10"
+                        >
+                          New!
+                        </span>
+                      )}
+
+                      <motion.span
+                        className="text-4xl"
+                        initial={{ scale: 0, rotate: -60 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{
+                          delay: 0.25 + index * 0.06 + 0.15,
+                          duration: 0.4,
+                          ease: BOUNCY_EASE,
+                        }}
+                      >
+                        {card.emoji}
+                      </motion.span>
                       <span className="text-white font-bold text-lg drop-shadow">
                         {card.name}
                       </span>
                       <span className="text-white/70 text-xs text-center">
                         {card.description}
                       </span>
-                      {/* Star display */}
+                      {/* Star display — stars pop in one-by-one */}
                       <div className="flex items-center gap-1 mt-1">
                         {[1, 2, 3].map((star) => (
-                          <span
+                          <motion.span
                             key={star}
                             className={`text-sm ${
                               star <= modeScore.bestStars
                                 ? 'opacity-100'
                                 : 'opacity-30'
                             }`}
+                            initial={
+                              star <= modeScore.bestStars
+                                ? { scale: 0, rotate: -180 }
+                                : {}
+                            }
+                            animate={
+                              star <= modeScore.bestStars
+                                ? { scale: 1, rotate: 0 }
+                                : {}
+                            }
+                            transition={
+                              star <= modeScore.bestStars
+                                ? {
+                                    delay: 0.6 + index * 0.06 + star * 0.12,
+                                    duration: 0.4,
+                                    ease: BOUNCY_EASE,
+                                  }
+                                : {}
+                            }
                           >
                             ⭐
-                          </span>
+                          </motion.span>
                         ))}
                       </div>
                     </motion.div>
@@ -379,6 +520,13 @@ export default function TableDetailPage() {
           ))}
         </motion.div>
       </main>
+
+      {/* Emoji Picker overlay */}
+      <EmojiPicker
+        tableNumber={tableNumber}
+        isOpen={showEmojiPicker}
+        onClose={() => setShowEmojiPicker(false)}
+      />
     </div>
   )
 }

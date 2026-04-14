@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { sounds } from '@/lib/sounds/webAudioSounds'
 import { PresetAvatar } from '@/components/character-creator/PresetAvatars'
@@ -25,6 +25,15 @@ interface StarBurst {
   delay: number
 }
 
+// Colored particle burst type
+interface ColorParticle {
+  id: number
+  color: string
+  angle: number
+  distance: number
+  size: number
+}
+
 export interface CelebrationData {
   type: 'achievement' | 'level_complete' | 'world_complete' | 'star_milestone' | 'streak'
   title: string
@@ -42,6 +51,26 @@ interface CelebrationOverlayProps {
 // Celebration emojis
 const CONFETTI_EMOJIS = ['🎉', '🎊', '✨', '💫', '🌟', '⭐', '🎈', '🎁', '🏆', '👑']
 const STAR_EMOJIS = ['⭐', '🌟', '✨', '💫']
+
+// Encouragement messages — randomly picked each celebration
+const ENCOURAGEMENTS = [
+  'Great job!',
+  'Amazing!',
+  'You rock!',
+  'Super star!',
+  'Awesome!',
+  'Brilliant!',
+  'Way to go!',
+  'Fantastic!',
+  'Keep it up!',
+  'Wow!',
+]
+
+// Particle burst colors
+const BURST_COLORS = [
+  '#FF6B6B', '#FFD93D', '#6BCB77', '#4D96FF',
+  '#FF8FB1', '#A66CFF', '#F94C66', '#54BAB9',
+]
 
 // Generate confetti particles
 function generateConfetti(count: number): ConfettiParticle[] {
@@ -66,18 +95,36 @@ function generateStarBurst(count: number): StarBurst[] {
   }))
 }
 
+// Generate colored circle particles for burst effect
+function generateColorParticles(count: number): ColorParticle[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: i,
+    color: BURST_COLORS[i % BURST_COLORS.length],
+    angle: (i / count) * 360 + Math.random() * 20,
+    distance: 60 + Math.random() * 80,
+    size: 8 + Math.random() * 12,
+  }))
+}
+
 export function CelebrationOverlay({
   celebration,
   onDismiss,
-  autoDismissMs = 3000
+  autoDismissMs = 3500
 }: CelebrationOverlayProps) {
   const [confetti, setConfetti] = useState<ConfettiParticle[]>([])
   const [starBurst, setStarBurst] = useState<StarBurst[]>([])
+  const [colorParticles, setColorParticles] = useState<ColorParticle[]>([])
   const [isVisible, setIsVisible] = useState(false)
 
   const { avatarStyle, skinTone, hairColor, primaryColor } = useCharacterStore()
 
-  // Handle dismissal
+  // Pick a random encouragement on each celebration
+  const encouragement = useMemo(() => {
+    if (!celebration) return ''
+    return ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)]
+  }, [celebration])
+
+  // Handle dismissal — tap anywhere
   const handleDismiss = useCallback(() => {
     setIsVisible(false)
     setTimeout(onDismiss, 300) // Wait for exit animation
@@ -89,6 +136,7 @@ export function CelebrationOverlay({
       // Generate particles
       setConfetti(generateConfetti(40))
       setStarBurst(generateStarBurst(16))
+      setColorParticles(generateColorParticles(8))
       setIsVisible(true)
 
       // Play celebration sound
@@ -154,6 +202,45 @@ export function CelebrationOverlay({
               {particle.emoji}
             </motion.span>
           ))}
+
+          {/* Colored particle burst — 8 circles flying outward */}
+          {colorParticles.map((particle) => {
+            const radians = (particle.angle * Math.PI) / 180
+            const x = Math.cos(radians) * particle.distance
+            const y = Math.sin(radians) * particle.distance
+            return (
+              <motion.div
+                key={`color-${particle.id}`}
+                className="absolute rounded-full pointer-events-none"
+                style={{
+                  width: particle.size,
+                  height: particle.size,
+                  backgroundColor: particle.color,
+                  left: '50%',
+                  top: '50%',
+                  marginLeft: -particle.size / 2,
+                  marginTop: -particle.size / 2,
+                }}
+                initial={{
+                  x: 0,
+                  y: 0,
+                  scale: 1,
+                  opacity: 1,
+                }}
+                animate={{
+                  x: x,
+                  y: y,
+                  scale: [1, 1.3, 0],
+                  opacity: [1, 0.8, 0],
+                }}
+                transition={{
+                  duration: 0.7,
+                  delay: 0.1 + particle.id * 0.04,
+                  ease: [0.25, 0.46, 0.45, 0.94],
+                }}
+              />
+            )
+          })}
 
           {/* Star burst from center */}
           {starBurst.map((star) => {
@@ -261,6 +348,26 @@ export function CelebrationOverlay({
               )
             })}
 
+            {/* Encouragement text — bounces in above the emoji */}
+            <motion.p
+              className="text-lg font-bold mb-2"
+              style={{
+                background: 'linear-gradient(135deg, #6BCB77, #4D96FF)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}
+              initial={{ scale: 0, y: 10, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              transition={{
+                delay: 0.15,
+                duration: 0.5,
+                ease: [0.34, 1.56, 0.64, 1],
+              }}
+            >
+              {encouragement}
+            </motion.p>
+
             {/* Big emoji celebration */}
             <motion.div
               className="text-8xl mb-4"
@@ -305,32 +412,41 @@ export function CelebrationOverlay({
               </motion.p>
             )}
 
-            {/* Stars display for star milestones */}
+            {/* Stars display — pop in one-by-one with delay */}
             {celebration.stars && (
-              <motion.div
-                className="flex justify-center gap-2 mb-4"
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.5 }}
-              >
+              <div className="flex justify-center gap-2 mb-4">
                 {[...Array(3)].map((_, i) => (
                   <motion.span
                     key={i}
                     className={`text-5xl ${i < celebration.stars! ? '' : 'opacity-30'}`}
-                    animate={i < celebration.stars! ? {
-                      scale: [1, 1.2, 1],
-                      rotate: [-10, 10, -10]
-                    } : {}}
-                    transition={{
-                      duration: 0.8,
-                      repeat: Infinity,
-                      delay: i * 0.15
-                    }}
+                    initial={
+                      i < celebration.stars!
+                        ? { scale: 0, rotate: -180, opacity: 0 }
+                        : { opacity: 0.3 }
+                    }
+                    animate={
+                      i < celebration.stars!
+                        ? {
+                            scale: [0, 1.4, 1],
+                            rotate: [180, 10, 0],
+                            opacity: 1,
+                          }
+                        : { opacity: 0.3 }
+                    }
+                    transition={
+                      i < celebration.stars!
+                        ? {
+                            delay: 0.5 + i * 0.2,
+                            duration: 0.5,
+                            ease: [0.34, 1.56, 0.64, 1],
+                          }
+                        : { delay: 0.5 + i * 0.2 }
+                    }
                   >
                     {i < celebration.stars! ? '🌟' : '⭐'}
                   </motion.span>
                 ))}
-              </motion.div>
+              </div>
             )}
 
             {/* Celebrating character */}
@@ -363,15 +479,18 @@ export function CelebrationOverlay({
               </motion.div>
             </motion.div>
 
-            {/* Tap to continue hint */}
-            <motion.p
-              className="text-sm text-gray-400 mt-4"
+            {/* Tap to continue hint — also dismisses on card tap */}
+            <motion.button
+              className="text-sm text-gray-400 mt-4 px-6 py-2 rounded-full
+                         hover:bg-gray-100 transition-colors cursor-pointer
+                         min-h-[44px] min-w-[44px]"
               initial={{ opacity: 0 }}
               animate={{ opacity: [0.5, 1, 0.5] }}
               transition={{ duration: 2, repeat: Infinity }}
+              onClick={handleDismiss}
             >
               Tap anywhere to continue
-            </motion.p>
+            </motion.button>
           </motion.div>
         </motion.div>
       )}

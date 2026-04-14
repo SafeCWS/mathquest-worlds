@@ -196,7 +196,7 @@ export default function MissingNumber({ tableNumber }: MissingNumberProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-pink-300 via-rose-300 to-red-400 p-4 pb-24">
+    <div className="min-h-screen bg-gradient-to-b from-pink-300 via-rose-300 to-red-400 p-4 pt-16 pb-8">
       <CelebrationOverlay celebration={celebration} onDismiss={dismissCelebration} />
 
       {/* Header */}
@@ -371,23 +371,19 @@ export default function MissingNumber({ tableNumber }: MissingNumberProps) {
         ))}
       </div>
 
-      {/* Back button */}
-      <motion.div
-        className="fixed bottom-4 left-0 right-0 flex justify-center z-10"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
-      >
+      {/* Back button - fixed top-left, always visible in any orientation */}
+      <div className="fixed top-4 left-4 z-50">
         <Link href={`/multiplication/${tableNumber}`}>
           <motion.button
-            className="px-6 py-2 bg-white/30 backdrop-blur-md text-white
-                       font-semibold rounded-full border border-white/40 min-h-[48px]"
+            className="px-4 py-2 bg-white/90 backdrop-blur-sm text-gray-700 font-bold rounded-full
+                       shadow-lg min-h-[48px] min-w-[48px] flex items-center justify-center gap-1"
+            whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            Back
+            ⬅️ Back
           </motion.button>
         </Link>
-      </motion.div>
+      </div>
     </div>
   )
 }

@@ -1,10 +1,17 @@
 'use client'
 
 import { motion } from 'motion/react'
+import { useEmojiThemeStore } from '@/lib/stores/emojiThemeStore'
+import { DEFAULT_EMOJIS } from '@/lib/constants/emojiOptions'
 
-export const TABLE_EMOJIS: Record<number, string> = {
-  1: '⭐', 2: '🐄', 3: '🐱', 4: '🦋', 5: '🍎',
-  6: '🎈', 7: '🐬', 8: '🚀', 9: '💎', 10: '🌻',
+// Static defaults for backward compatibility (server components, non-reactive contexts)
+export const TABLE_EMOJIS: Record<number, string> = DEFAULT_EMOJIS
+
+// Hook that returns the user's chosen emoji (custom or default)
+// Use this in 'use client' components for reactive updates
+export function useTableEmoji(tableNumber: number): string {
+  const getTableEmoji = useEmojiThemeStore((s) => s.getTableEmoji)
+  return getTableEmoji(tableNumber)
 }
 
 interface VisualMultiplicationProps {
@@ -27,7 +34,8 @@ export default function VisualMultiplication({
   animateIn = true,
 }: VisualMultiplicationProps) {
   const product = a * b
-  const emoji = TABLE_EMOJIS[a] || TABLE_EMOJIS[b] || '⭐'
+  const getTableEmoji = useEmojiThemeStore((s) => s.getTableEmoji)
+  const emoji = getTableEmoji(a) || getTableEmoji(b) || '⭐'
   const isCompact = size === 'compact'
   const emojiSize = isCompact ? 'text-sm' : 'text-xl'
   const textSize = isCompact ? 'text-sm' : 'text-lg'

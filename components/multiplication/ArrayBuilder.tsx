@@ -9,18 +9,24 @@ import { useMultiplicationStore } from '@/lib/stores/multiplicationStore'
 import { sounds } from '@/lib/sounds/webAudioSounds'
 import { speakEquation } from '@/lib/sounds/speechUtils'
 import { CelebrationOverlay, useCelebration } from '@/components/game/CelebrationOverlay'
-import { TABLE_EMOJIS } from './VisualMultiplication'
+import { useHintSystem, HintButton } from '@/lib/hooks/useHintSystem'
+import VisualMultiplication, { useTableEmoji } from './VisualMultiplication'
 
 interface ArrayBuilderProps {
   tableNumber: number
 }
 
-// Keep grids reasonable for drag-and-drop (max 6 columns for mobile)
+// Keep grids small: max 4x4 for a child-friendly drag experience
 function getPlayableFact(tableNumber: number): MultiplicationFact {
   const allFacts = getRandomFacts(tableNumber, 10)
-  // Filter to b between 2 and 6 for manageable grid sizes
-  const playable = allFacts.filter(f => f.b >= 2 && f.b <= 6)
-  if (playable.length === 0) return allFacts[0]
+  // Filter to both a and b between 2 and 4 for manageable grid sizes
+  const playable = allFacts.filter(f => f.a >= 2 && f.a <= 4 && f.b >= 2 && f.b <= 4)
+  if (playable.length === 0) {
+    // Fallback: anything with product <= 16
+    const fallback = allFacts.filter(f => f.product <= 16 && f.a >= 2 && f.b >= 2)
+    if (fallback.length > 0) return fallback[Math.floor(Math.random() * fallback.length)]
+    return allFacts[0]
+  }
   return playable[Math.floor(Math.random() * playable.length)]
 }
 
@@ -46,14 +52,19 @@ export default function ArrayBuilder({ tableNumber }: ArrayBuilderProps) {
   const [earnedStars, setEarnedStars] = useState(0)
   const recordModeScore = useMultiplicationStore(s => s.recordModeScore)
   const { celebration, showCelebration, dismissCelebration } = useCelebration()
+  const { hintLevel, showHint, resetHint, totalHintsUsed, visualProps, hintPenalty } =
+    useHintSystem()
 
-  const emoji = TABLE_EMOJIS[tableNumber] || '⭐'
+  const emoji = useTableEmoji(tableNumber)
   const { a: rows, b: cols, product: totalItems } = game.fact
 
   // Track items still in the tray (not yet placed)
   const [trayItems, setTrayItems] = useState<number[]>(() =>
     Array.from({ length: totalItems }, (_, i) => i)
   )
+
+  // Track auto-hint triggered by first wrong drop
+  const [autoHintFired, setAutoHintFired] = useState(false)
 
   // Refs for interact.js state access (avoids stale closures)
   const gameRef = useRef(game)
@@ -64,6 +75,14 @@ export default function ArrayBuilder({ tableNumber }: ArrayBuilderProps) {
   useEffect(() => { gameRef.current = game }, [game])
   useEffect(() => { trayItemsRef.current = trayItems }, [trayItems])
   useEffect(() => { gameCompleteRef.current = gameComplete }, [gameComplete])
+
+  // Auto-hint on first wrong drop
+  useEffect(() => {
+    if (game.wrongDrops >= 1 && !autoHintFired && hintLevel === 0) {
+      showHint()
+      setAutoHintFired(true)
+    }
+  }, [game.wrongDrops, autoHintFired, hintLevel, showHint])
 
   // Speak the equation on mount and when fact changes
   useEffect(() => {
@@ -94,6 +113,97 @@ export default function ArrayBuilder({ tableNumber }: ArrayBuilderProps) {
     }
     return parts.join(' + ') + ` = ${runningTotal}`
   }, [game.filledCells.size, cols, game])
+
+  // Determine which rows are eligible for "Fill Row" (have >= 1 item but not full)
+  const fillableRows = useMemo(() => {
+    const result: number[] = []
+    for (let r = 0; r < rows; r++) {
+      let count = 0
+      for (let c = 0; c < cols; c++) {
+        if (game.filledCells.has(r * cols + c)) count++
+      }
+      if (count >= 1 && count < cols) {
+        result.push(r)
+      }
+    }
+    return result
+  }, [game.filledCells, rows, cols])
+
+  // Fill row handler -- auto-fills remaining cells in a row with staggered animation
+  const handleFillRow = useCallback((rowIndex: number) => {
+    if (gameComplete) return
+    sounds.playSuccessChime()
+
+    const emptyCells: number[] = []
+    for (let c = 0; c < cols; c++) {
+      const cellIdx = rowIndex * cols + c
+      if (!game.filledCells.has(cellIdx)) {
+        emptyCells.push(cellIdx)
+      }
+    }
+
+    // Stagger-fill each cell
+    emptyCells.forEach((cellIdx, i) => {
+      setTimeout(() => {
+        sounds.playCount()
+
+        // Remove one tray item
+        setTrayItems(prev => {
+          const newTray = [...prev]
+          newTray.pop()
+          return newTray
+        })
+
+        // Hide the corresponding draggable in DOM
+        const trayEls = document.querySelectorAll('.array-draggable')
+        const visibleEls = Array.from(trayEls).filter(el => (el as HTMLElement).style.display !== 'none')
+        if (visibleEls.length > 0) {
+          const el = visibleEls[visibleEls.length - 1] as HTMLElement
+          el.style.display = 'none'
+          el.setAttribute('data-dropped', 'true')
+        }
+
+        setGame(prev => {
+          const newFilled = new Set(prev.filledCells)
+          newFilled.add(cellIdx)
+
+          // Check if this is the last cell in the row
+          const isLastInRow = i === emptyCells.length - 1
+          const newCompletedRows = isLastInRow
+            ? Math.max(prev.completedRows, rowIndex + 1)
+            : prev.completedRows
+
+          // Check game complete
+          const isComplete = newFilled.size === prev.fact.product
+          if (isComplete) {
+            const wrong = prev.wrongDrops
+            const rawStars = wrong === 0 ? 3 : wrong <= 3 ? 2 : 1
+            const stars = Math.max(Math.round(rawStars - hintPenalty), 1)
+            setTimeout(() => {
+              setEarnedStars(stars)
+              setGameComplete(true)
+              recordModeScore(tableNumber, 'array', stars)
+              setTimeout(() => {
+                showCelebration({
+                  type: 'level_complete',
+                  title: 'Array Complete!',
+                  subtitle: `${stars} star${stars !== 1 ? 's' : ''} earned!`,
+                  emoji: '\uD83C\uDFD7\uFE0F',
+                  stars,
+                })
+              }, 400)
+            }, 300)
+          }
+
+          return {
+            ...prev,
+            filledCells: newFilled,
+            completedRows: newCompletedRows,
+          }
+        })
+      }, i * 150) // 150ms stagger between each cell
+    })
+  }, [game.filledCells, cols, gameComplete, tableNumber, recordModeScore, showCelebration, hintPenalty])
 
   // Setup interact.js drag-and-drop
   useEffect(() => {
@@ -210,7 +320,7 @@ export default function ArrayBuilder({ tableNumber }: ArrayBuilderProps) {
                   type: 'level_complete',
                   title: 'Array Complete!',
                   subtitle: `${stars} star${stars !== 1 ? 's' : ''} earned!`,
-                  emoji: '🏗️',
+                  emoji: '\uD83C\uDFD7\uFE0F',
                   stars,
                 })
               }, 400)
@@ -237,6 +347,8 @@ export default function ArrayBuilder({ tableNumber }: ArrayBuilderProps) {
     setGame(newGame)
     setGameComplete(false)
     setEarnedStars(0)
+    setAutoHintFired(false)
+    resetHint()
     setTrayItems(Array.from({ length: newGame.fact.product }, (_, i) => i))
     // Reset any lingering dragged elements
     document.querySelectorAll('.array-draggable').forEach(el => {
@@ -247,14 +359,28 @@ export default function ArrayBuilder({ tableNumber }: ArrayBuilderProps) {
       htmlEl.setAttribute('data-y', '0')
       htmlEl.removeAttribute('data-dropped')
     })
-  }, [tableNumber])
+  }, [tableNumber, resetHint])
 
-  // Determine cell size based on grid dimensions
-  const cellSize = cols <= 4 ? 56 : cols <= 6 ? 48 : 40
+  // Cell size fixed at 56px minimum
+  const cellSize = 56
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-300 via-teal-300 to-cyan-400 p-4 pb-24" ref={containerRef}>
+    <div className="min-h-screen bg-gradient-to-b from-emerald-300 via-teal-300 to-cyan-400 p-4 pt-16 pb-8" ref={containerRef}>
       <CelebrationOverlay celebration={celebration} onDismiss={dismissCelebration} />
+
+      {/* Back button - fixed top-left, always visible in any orientation */}
+      <div className="fixed top-4 left-4 z-50">
+        <Link href={`/multiplication/${tableNumber}`}>
+          <motion.button
+            className="px-4 py-2 bg-white/90 backdrop-blur-sm text-gray-700 font-bold rounded-full
+                       shadow-lg min-h-[48px] min-w-[48px] flex items-center justify-center gap-1"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            \u2B05\uFE0F Back
+          </motion.button>
+        </Link>
+      </div>
 
       {/* Header */}
       <motion.div
@@ -283,6 +409,29 @@ export default function ArrayBuilder({ tableNumber }: ArrayBuilderProps) {
           <span className="text-white font-semibold">{rows} x {cols}</span>
         </button>
       </motion.div>
+
+      {/* Hint button -- always visible */}
+      <div className="flex flex-col items-center gap-2 mb-3">
+        <HintButton onTap={showHint} hintLevel={hintLevel} />
+        <AnimatePresence>
+          {hintLevel > 0 && (
+            <motion.div
+              className="max-w-xs w-full bg-white/15 backdrop-blur-sm rounded-2xl p-3"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+            >
+              <VisualMultiplication
+                a={rows}
+                b={cols}
+                show={visualProps}
+                size="compact"
+                animateIn={true}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* Running addition display */}
       <AnimatePresence>
@@ -313,7 +462,7 @@ export default function ArrayBuilder({ tableNumber }: ArrayBuilderProps) {
             <p className="text-xs font-bold text-white/70 text-center mb-2">
               DRAG {emoji} INTO THE GRID
             </p>
-            <div className="flex flex-wrap gap-1 justify-center max-w-[240px] sm:max-w-[180px] mx-auto min-h-[60px]">
+            <div className="flex flex-wrap gap-1 justify-center max-w-[260px] sm:max-w-[180px] mx-auto min-h-[60px]">
               {Array.from({ length: totalItems }, (_, i) => (
                 <motion.div
                   key={`tray-${game.fact.a}-${game.fact.b}-${i}`}
@@ -412,22 +561,37 @@ export default function ArrayBuilder({ tableNumber }: ArrayBuilderProps) {
               })}
             </div>
 
-            {/* Row labels */}
-            <div className="flex justify-between mt-2 px-1">
+            {/* Row labels + Fill Row buttons */}
+            <div className="flex flex-col gap-1 mt-2 px-1">
               {Array.from({ length: rows }, (_, r) => {
                 let rowFilled = 0
                 for (let c = 0; c < cols; c++) {
                   if (game.filledCells.has(r * cols + c)) rowFilled++
                 }
                 const isRowDone = rowFilled === cols
+                const canFillRow = fillableRows.includes(r)
                 return (
-                  <span
-                    key={`row-label-${r}`}
-                    className={`text-xs font-bold px-1.5 py-0.5 rounded
-                               ${isRowDone ? 'text-green-700 bg-green-200/60' : 'text-white/60'}`}
-                  >
-                    {isRowDone ? `R${r + 1} ✓` : `R${r + 1}: ${rowFilled}/${cols}`}
-                  </span>
+                  <div key={`row-label-${r}`} className="flex items-center gap-2">
+                    <span
+                      className={`text-xs font-bold px-1.5 py-0.5 rounded
+                                 ${isRowDone ? 'text-green-700 bg-green-200/60' : 'text-white/60'}`}
+                    >
+                      {isRowDone ? `R${r + 1} \u2713` : `R${r + 1}: ${rowFilled}/${cols}`}
+                    </span>
+                    {canFillRow && !gameComplete && (
+                      <motion.button
+                        className="text-xs font-bold px-3 py-1 rounded-full
+                                   bg-amber-400/80 text-amber-900 shadow-md min-h-[32px]
+                                   flex items-center gap-1"
+                        initial={{ opacity: 0, scale: 0 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => handleFillRow(r)}
+                      >
+                        Fill Row \u2728
+                      </motion.button>
+                    )}
+                  </div>
                 )
               })}
             </div>
@@ -470,24 +634,6 @@ export default function ArrayBuilder({ tableNumber }: ArrayBuilderProps) {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Back button */}
-      <motion.div
-        className="fixed bottom-4 left-0 right-0 flex justify-center z-10"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-      >
-        <Link href={`/multiplication/${tableNumber}`}>
-          <motion.button
-            className="px-6 py-2 bg-white/30 backdrop-blur-md text-white
-                       font-semibold rounded-full border border-white/40 min-h-[48px]"
-            whileTap={{ scale: 0.95 }}
-          >
-            Back
-          </motion.button>
-        </Link>
-      </motion.div>
     </div>
   )
 }

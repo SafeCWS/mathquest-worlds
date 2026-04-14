@@ -5,10 +5,12 @@ import { persist } from 'zustand/middleware'
 
 export type GameMode = 'explorer' | 'match' | 'memory' | 'dice' | 'missing' | 'speed'
   | 'array' | 'groups' | 'dragmatch' | 'numberline' | 'flip' | 'fingers'
+  | 'chart' | 'story' | 'bubble'
 
 const ALL_MODES: GameMode[] = [
   'explorer', 'match', 'memory', 'dice', 'missing', 'speed',
   'array', 'groups', 'dragmatch', 'numberline', 'flip', 'fingers',
+  'chart', 'story', 'bubble',
 ]
 
 export interface TableMastery {

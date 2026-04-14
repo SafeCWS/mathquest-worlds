@@ -33,15 +33,19 @@ export function speak(text: string): void {
   window.speechSynthesis.cancel()
 
   const utterance = new SpeechSynthesisUtterance(text)
-  utterance.rate = 0.85
-  utterance.pitch = 1.1
+  utterance.rate = 0.75       // Slower — gentle pace for young children
+  utterance.pitch = 1.25      // Higher pitch — softer, more child-friendly
   utterance.lang = 'en-US'
-  utterance.volume = 1.0
+  utterance.volume = 0.7      // Softer volume — not jarring
 
-  // Try to pick a good English voice
+  // Pick the softest, most child-friendly voice available
   const voices = window.speechSynthesis.getVoices()
   const preferredVoice = voices.find(
+    // Samantha is Apple's softest female voice (iPad/Mac)
     v => v.lang.startsWith('en') && v.name.includes('Samantha')
+  ) || voices.find(
+    // Karen is another soft option on Apple devices
+    v => v.lang.startsWith('en') && v.name.includes('Karen')
   ) || voices.find(
     v => v.lang.startsWith('en-US')
   ) || voices.find(

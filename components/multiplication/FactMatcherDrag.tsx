@@ -76,7 +76,7 @@ const TABLE_BG_ACCENT: Record<number, string> = {
 // ---------------------------------------------------------------------------
 
 function initGame(tableNumber: number): MatchGameState {
-  const facts = getRandomFacts(tableNumber, 5)
+  const facts = getRandomFacts(tableNumber, 4)
   const shuffledAnswers = shuffleAnswers(facts.map(f => f.product))
   return {
     facts,
@@ -109,6 +109,16 @@ export default function FactMatcherDrag({ tableNumber }: FactMatcherDragProps) {
   const { celebration, showCelebration, dismissCelebration } = useCelebration()
   const { hintLevel, showHint, resetHint, totalHintsUsed, visualProps, hintPenalty } =
     useHintSystem()
+
+  // Auto-hint on first wrong match
+  const [autoHintFired, setAutoHintFired] = useState(false)
+
+  useEffect(() => {
+    if (game.wrongCount >= 1 && !autoHintFired && hintLevel === 0) {
+      showHint()
+      setAutoHintFired(true)
+    }
+  }, [game.wrongCount, autoHintFired, hintLevel, showHint])
 
   const borderColor = TABLE_BORDER_COLORS[tableNumber] || 'border-l-gray-400'
   const bgAccent = TABLE_BG_ACCENT[tableNumber] || 'bg-gray-50'
@@ -404,6 +414,7 @@ export default function FactMatcherDrag({ tableNumber }: FactMatcherDragProps) {
     setFeedbackMessage(null)
     setWrongVisual(null)
     setDrag(null)
+    setAutoHintFired(false)
     resetHint()
     cancelSpeech()
   }, [tableNumber, resetHint])
@@ -419,7 +430,7 @@ export default function FactMatcherDrag({ tableNumber }: FactMatcherDragProps) {
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-b from-blue-300 via-indigo-300 to-violet-400 p-4 pb-24 select-none"
+      className="min-h-screen bg-gradient-to-b from-blue-300 via-indigo-300 to-violet-400 p-4 pt-16 pb-8 select-none"
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       style={{ touchAction: 'none' }}
@@ -519,7 +530,7 @@ export default function FactMatcherDrag({ tableNumber }: FactMatcherDragProps) {
                 className="relative"
               >
                 <motion.div
-                  className={`rounded-2xl px-4 py-3 text-lg font-bold shadow-md min-h-[56px]
+                  className={`rounded-2xl px-4 py-3 text-lg font-bold shadow-md min-h-[64px]
                     flex items-center justify-center
                     border-l-4 border-2 cursor-grab active:cursor-grabbing
                     ${borderColor}
@@ -563,7 +574,7 @@ export default function FactMatcherDrag({ tableNumber }: FactMatcherDragProps) {
               <motion.div
                 key={`ans-${index}`}
                 ref={el => setAnswerRef(index, el)}
-                className={`rounded-2xl px-4 py-3 text-lg font-bold shadow-md min-h-[56px]
+                className={`rounded-2xl px-4 py-3 text-lg font-bold shadow-md min-h-[64px]
                   flex items-center justify-center
                   border-2 transition-colors
                   ${
@@ -598,7 +609,7 @@ export default function FactMatcherDrag({ tableNumber }: FactMatcherDragProps) {
       {drag && (
         <div
           className={`fixed pointer-events-none z-50 rounded-2xl px-5 py-3
-            text-lg font-bold shadow-2xl min-h-[56px]
+            text-lg font-bold shadow-2xl min-h-[64px]
             flex items-center justify-center
             border-l-4 border-2 ${borderColor} bg-white/95 text-gray-800`}
           style={{
@@ -614,21 +625,17 @@ export default function FactMatcherDrag({ tableNumber }: FactMatcherDragProps) {
         </div>
       )}
 
-      {/* ---- Hint button ---- */}
-      <AnimatePresence>
-        {activeFact && !gameComplete && (
-          <motion.div
-            className="flex flex-col items-center gap-2 mt-4"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-          >
-            <HintButton onTap={showHint} hintLevel={hintLevel} />
-            {hintLevel > 0 && (
+      {/* ---- Hint button -- always visible ---- */}
+      {!gameComplete && (
+        <div className="flex flex-col items-center gap-2 mt-4">
+          <HintButton onTap={showHint} hintLevel={hintLevel} />
+          <AnimatePresence>
+            {hintLevel > 0 && activeFact && (
               <motion.div
                 className="max-w-xs w-full bg-white/15 backdrop-blur-sm rounded-2xl p-3"
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
               >
                 <VisualMultiplication
                   a={activeFact.a}
@@ -639,9 +646,9 @@ export default function FactMatcherDrag({ tableNumber }: FactMatcherDragProps) {
                 />
               </motion.div>
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* ---- Score indicator ---- */}
       <motion.div
@@ -679,23 +686,19 @@ export default function FactMatcherDrag({ tableNumber }: FactMatcherDragProps) {
         )}
       </AnimatePresence>
 
-      {/* ---- Back button ---- */}
-      <motion.div
-        className="fixed bottom-4 left-0 right-0 flex justify-center z-10"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-      >
+      {/* Back button - fixed top-left, always visible in any orientation */}
+      <div className="fixed top-4 left-4 z-50">
         <Link href={`/multiplication/${tableNumber}`}>
           <motion.button
-            className="px-6 py-2 bg-white/30 backdrop-blur-md text-white
-              font-semibold rounded-full border border-white/40 min-h-[48px]"
+            className="px-4 py-2 bg-white/90 backdrop-blur-sm text-gray-700 font-bold rounded-full
+                       shadow-lg min-h-[48px] min-w-[48px] flex items-center justify-center gap-1"
+            whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            Back
+            ⬅️ Back
           </motion.button>
         </Link>
-      </motion.div>
+      </div>
     </div>
   )
 }

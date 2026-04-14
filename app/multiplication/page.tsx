@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { motion } from 'motion/react'
 import Link from 'next/link'
 import { useMultiplicationStore } from '@/lib/stores/multiplicationStore'
@@ -19,16 +19,67 @@ const TABLE_COLORS: Record<number, { from: string; to: string; border: string }>
 }
 
 const TABLE_EMOJIS: Record<number, string> = {
-  1: '1️⃣',
-  2: '2️⃣',
-  3: '3️⃣',
-  4: '4️⃣',
-  5: '5️⃣',
-  6: '6️⃣',
-  7: '7️⃣',
-  8: '8️⃣',
-  9: '9️⃣',
-  10: '🔟',
+  1: '1\uFE0F\u20E3',
+  2: '2\uFE0F\u20E3',
+  3: '3\uFE0F\u20E3',
+  4: '4\uFE0F\u20E3',
+  5: '5\uFE0F\u20E3',
+  6: '6\uFE0F\u20E3',
+  7: '7\uFE0F\u20E3',
+  8: '8\uFE0F\u20E3',
+  9: '9\uFE0F\u20E3',
+  10: '\uD83D\uDD1F',
+}
+
+// Background floating emojis — rendered via pure CSS keyframes for performance
+const BG_EMOJIS = [
+  { emoji: '\u2728', left: '8%', top: '15%', size: '2.5rem' },
+  { emoji: '\uD83C\uDF1F', left: '85%', top: '10%', size: '2rem' },
+  { emoji: '\uD83E\uDDEE', left: '75%', top: '55%', size: '2.5rem' },
+  { emoji: '\uD83C\uDFAF', left: '12%', top: '70%', size: '2rem' },
+]
+
+// Sparkle positions for mastered tables (relative to card)
+const SPARKLE_POSITIONS = [
+  { top: '8%', left: '15%' },
+  { top: '20%', right: '10%' },
+  { bottom: '15%', left: '20%' },
+  { bottom: '8%', right: '18%' },
+]
+
+// Bouncy spring easing
+const BOUNCY_EASE: [number, number, number, number] = [0.34, 1.56, 0.64, 1]
+
+/** Animated counter that counts up from 0 to `target` */
+function AnimatedStarCounter({ target }: { target: number }) {
+  const [display, setDisplay] = useState(0)
+  const rafRef = useRef<number>(0)
+
+  useEffect(() => {
+    if (target === 0) {
+      setDisplay(0)
+      return
+    }
+    let start: number | null = null
+    const duration = Math.min(600 + target * 30, 1500) // Longer for bigger numbers, capped
+
+    function step(timestamp: number) {
+      if (!start) start = timestamp
+      const elapsed = timestamp - start
+      const progress = Math.min(elapsed / duration, 1)
+      // Ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setDisplay(Math.round(eased * target))
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(step)
+      }
+    }
+
+    rafRef.current = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [target])
+
+  return <span>{display}</span>
 }
 
 export default function MultiplicationHubPage() {
@@ -57,7 +108,7 @@ export default function MultiplicationHubPage() {
           }}
           transition={{ duration: 2, repeat: Infinity }}
         >
-          ✖️
+          {'\u2716\uFE0F'}
         </motion.div>
       </div>
     )
@@ -66,27 +117,25 @@ export default function MultiplicationHubPage() {
   const totalStars = getTotalStars()
   const tables = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
+  // Find the first locked table (next-to-unlock)
+  const firstLockedTable = tables.find((t) => !isTableUnlocked(t))
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-300 via-teal-300 to-cyan-400 relative overflow-hidden">
-      {/* Floating decorative math symbols */}
+      {/* Floating background emojis — pure CSS keyframes for performance */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {['✖️', '=', '🌟', '✖️', '🎯', '=', '🧮'].map((emoji, i) => (
-          <motion.span
+        {BG_EMOJIS.map((item, i) => (
+          <span
             key={i}
-            className="absolute text-3xl opacity-20"
+            className="float-bg-emoji text-3xl"
             style={{
-              left: `${10 + i * 13}%`,
-              top: `${5 + (i % 3) * 30}%`,
-            }}
-            animate={{ y: [0, -20, 0], rotate: [0, 10, -10, 0] }}
-            transition={{
-              duration: 3 + i * 0.5,
-              repeat: Infinity,
-              delay: i * 0.3,
+              left: item.left,
+              top: item.top,
+              fontSize: item.size,
             }}
           >
-            {emoji}
-          </motion.span>
+            {item.emoji}
+          </span>
         ))}
       </div>
 
@@ -94,8 +143,9 @@ export default function MultiplicationHubPage() {
         {/* Header */}
         <motion.div
           className="flex items-center gap-3 mb-6"
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: BOUNCY_EASE }}
         >
           <Link href="/">
             <motion.button
@@ -105,34 +155,42 @@ export default function MultiplicationHubPage() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              ⬅️
+              {'\u2B05\uFE0F'}
             </motion.button>
           </Link>
           <div className="flex-1">
             <h1 className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg">
-              ✖️ Times Tables
+              {'\u2716\uFE0F'} Times Tables
             </h1>
           </div>
-          {/* Star counter */}
+          {/* Star counter with count-up animation */}
           <motion.div
             className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full shadow-md"
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.3, type: 'spring' }}
+            initial={{ scale: 0, rotate: -20 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ delay: 0.3, type: 'spring', stiffness: 400, damping: 15 }}
           >
-            <span className="text-xl">⭐</span>
-            <span className="font-bold text-yellow-700 text-lg">{totalStars}</span>
+            <motion.span
+              className="text-xl"
+              animate={{ rotate: [0, 15, -15, 0] }}
+              transition={{ delay: 0.8, duration: 0.5 }}
+            >
+              {'\u2B50'}
+            </motion.span>
+            <span className="font-bold text-yellow-700 text-lg counter-pop">
+              <AnimatedStarCounter target={totalStars} />
+            </span>
           </motion.div>
         </motion.div>
 
         {/* Subtitle */}
         <motion.p
           className="text-center text-white/90 text-lg mb-6 drop-shadow"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, ease: BOUNCY_EASE }}
         >
-          Master your multiplication facts! 🧮
+          Master your multiplication facts! {'\uD83E\uDDEE'}
         </motion.p>
 
         {/* Table grid */}
@@ -142,17 +200,17 @@ export default function MultiplicationHubPage() {
             const mastery = getTableMastery(tableNum)
             const colors = TABLE_COLORS[tableNum]
             const emoji = TABLE_EMOJIS[tableNum]
+            const isNextToUnlock = tableNum === firstLockedTable
 
             return (
               <motion.div
                 key={tableNum}
-                initial={{ opacity: 0, scale: 0.5, y: 30 }}
+                initial={{ opacity: 0, scale: 0.3, y: 40 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{
-                  delay: index * 0.06,
-                  type: 'spring',
-                  stiffness: 300,
-                  damping: 20,
+                  delay: index * 0.07,
+                  duration: 0.5,
+                  ease: BOUNCY_EASE,
                 }}
               >
                 {unlocked ? (
@@ -163,8 +221,8 @@ export default function MultiplicationHubPage() {
                                   min-h-[140px] flex flex-col items-center justify-center gap-2
                                   cursor-pointer overflow-hidden
                                   ${mastery.mastered ? 'ring-4 ring-yellow-400 ring-offset-2' : ''}`}
-                      whileHover={{ scale: 1.05, y: -4 }}
-                      whileTap={{ scale: 0.95 }}
+                      whileHover={{ scale: 1.07, y: -6, boxShadow: '0 12px 30px rgba(0,0,0,0.2)' }}
+                      whileTap={{ scale: 0.92 }}
                     >
                       {/* Mastery glow */}
                       {mastery.mastered && (
@@ -175,7 +233,33 @@ export default function MultiplicationHubPage() {
                         />
                       )}
 
-                      <span className="text-4xl">{emoji}</span>
+                      {/* Sparkles for mastered tables (9+ stars) — CSS animated */}
+                      {mastery.totalStars >= 9 &&
+                        SPARKLE_POSITIONS.map((pos, si) => (
+                          <span
+                            key={si}
+                            className="absolute micro-sparkle text-sm pointer-events-none"
+                            style={{
+                              ...pos,
+                              animationDelay: `${si * 0.7}s`,
+                            }}
+                          >
+                            {['\u2728', '\uD83D\uDCAB', '\u2728', '\uD83C\uDF1F'][si]}
+                          </span>
+                        ))}
+
+                      <motion.span
+                        className="text-4xl"
+                        initial={{ scale: 0, rotate: -90 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{
+                          delay: index * 0.07 + 0.2,
+                          duration: 0.4,
+                          ease: BOUNCY_EASE,
+                        }}
+                      >
+                        {emoji}
+                      </motion.span>
 
                       <span className="text-white font-bold text-xl drop-shadow">
                         Table {tableNum}
@@ -185,7 +269,7 @@ export default function MultiplicationHubPage() {
                       <div className="flex items-center gap-1">
                         {mastery.totalStars > 0 ? (
                           <>
-                            <span className="text-sm">⭐</span>
+                            <span className="text-sm">{'\u2B50'}</span>
                             <span className="text-white/90 font-bold text-sm">
                               {mastery.totalStars}/18
                             </span>
@@ -202,26 +286,50 @@ export default function MultiplicationHubPage() {
                           animate={{ rotate: [0, 10, -10, 0] }}
                           transition={{ duration: 2, repeat: Infinity }}
                         >
-                          👑
+                          {'\uD83D\uDC51'}
                         </motion.div>
                       )}
                     </motion.div>
                   </Link>
                 ) : (
                   <motion.div
-                    className="relative bg-gray-400/50 backdrop-blur-sm
+                    className={`relative bg-gray-400/50 backdrop-blur-sm
                                 rounded-3xl p-5 shadow-lg border-4 border-gray-300/50
                                 min-h-[140px] flex flex-col items-center justify-center gap-2
-                                cursor-not-allowed"
+                                cursor-not-allowed
+                                ${isNextToUnlock ? 'glow-pulse-invite' : ''}`}
                     whileHover={{ scale: 1.02 }}
                   >
-                    <span className="text-4xl opacity-50">🔒</span>
+                    <motion.span
+                      className="text-4xl opacity-50"
+                      animate={
+                        isNextToUnlock
+                          ? { scale: [1, 1.15, 1], rotate: [0, 5, -5, 0] }
+                          : {}
+                      }
+                      transition={
+                        isNextToUnlock
+                          ? { duration: 2, repeat: Infinity, ease: 'easeInOut' }
+                          : {}
+                      }
+                    >
+                      {'\uD83D\uDD12'}
+                    </motion.span>
                     <span className="text-white/70 font-bold text-xl drop-shadow">
                       Table {tableNum}
                     </span>
                     <span className="text-white/50 text-xs text-center">
-                      {tableNum > 1 ? `Get 3 ⭐ on Table ${tableNum - 1}!` : 'Start here!'}
+                      {tableNum > 1 ? `Get 3 \u2B50 on Table ${tableNum - 1}!` : 'Start here!'}
                     </span>
+                    {/* "Almost there!" nudge on next-to-unlock */}
+                    {isNextToUnlock && (
+                      <motion.span
+                        className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-xs
+                                   font-bold px-2 py-1 rounded-full shadow-lg badge-pulse"
+                      >
+                        Next!
+                      </motion.span>
+                    )}
                   </motion.div>
                 )}
               </motion.div>
@@ -236,7 +344,7 @@ export default function MultiplicationHubPage() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
         >
-          {['🔢', '✖️', '🌟', '🧠', '🏆'].map((emoji, i) => (
+          {['\uD83D\uDD22', '\u2716\uFE0F', '\uD83C\uDF1F', '\uD83E\uDDE0', '\uD83C\uDFC6'].map((emoji, i) => (
             <motion.span
               key={i}
               animate={{ y: [0, -10, 0] }}

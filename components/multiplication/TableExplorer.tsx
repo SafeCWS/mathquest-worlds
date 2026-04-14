@@ -7,7 +7,7 @@ import { MULTIPLICATION_TABLES } from '@/lib/constants/multiplicationTables'
 import { useMultiplicationStore } from '@/lib/stores/multiplicationStore'
 import { sounds } from '@/lib/sounds/webAudioSounds'
 import { speakEquation } from '@/lib/sounds/speechUtils'
-import VisualMultiplication, { TABLE_EMOJIS } from './VisualMultiplication'
+import VisualMultiplication, { useTableEmoji } from './VisualMultiplication'
 
 interface TableExplorerProps {
   tableNumber: number
@@ -30,7 +30,7 @@ const TABLE_GRADIENTS: Record<number, string> = {
 export default function TableExplorer({ tableNumber }: TableExplorerProps) {
   const markExplored = useMultiplicationStore(s => s.markExplored)
   const facts = MULTIPLICATION_TABLES[tableNumber] || []
-  const emoji = TABLE_EMOJIS[tableNumber] || '⭐'
+  const emoji = useTableEmoji(tableNumber)
   const gradient = TABLE_GRADIENTS[tableNumber] || 'from-gray-200 to-gray-300'
   const [expandedCard, setExpandedCard] = useState<number | null>(null)
   const [viewedCount, setViewedCount] = useState(0)
@@ -59,7 +59,7 @@ export default function TableExplorer({ tableNumber }: TableExplorerProps) {
   }
 
   return (
-    <div className={`min-h-screen bg-gradient-to-b ${gradient} p-4 pb-24`}>
+    <div className={`min-h-screen bg-gradient-to-b ${gradient} p-4 pt-16 pb-8`}>
       {/* Header */}
       <motion.div
         className="text-center mb-6 pt-4"
@@ -184,25 +184,19 @@ export default function TableExplorer({ tableNumber }: TableExplorerProps) {
         )}
       </AnimatePresence>
 
-      {/* Back button */}
-      <motion.div
-        className="fixed bottom-4 left-0 right-0 flex justify-center z-10"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.8 }}
-      >
+      {/* Back button - fixed top-left, always visible in any orientation */}
+      <div className="fixed top-4 left-4 z-50">
         <Link href={`/multiplication/${tableNumber}`}>
           <motion.button
-            className="px-8 py-3 bg-gradient-to-r from-white/80 to-white/60
-                       backdrop-blur-md text-gray-700 font-bold text-lg rounded-full
-                       shadow-lg border-2 border-white/50 min-h-[48px]"
+            className="px-4 py-2 bg-white/90 backdrop-blur-sm text-gray-700 font-bold rounded-full
+                       shadow-lg min-h-[48px] min-w-[48px] flex items-center justify-center gap-1"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            Back to Table {tableNumber}
+            ⬅️ Back
           </motion.button>
         </Link>
-      </motion.div>
+      </div>
     </div>
   )
 }
