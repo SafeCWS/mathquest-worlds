@@ -7,14 +7,17 @@ import { useMultiplicationStore } from '@/lib/stores/multiplicationStore'
 import { generateWrongAnswers, shuffleAnswers } from '@/lib/utils/multiplicationDifficulty'
 import { sounds } from '@/lib/sounds/webAudioSounds'
 import { CelebrationOverlay, useCelebration } from '@/components/game/CelebrationOverlay'
+import { useHintSystem, HintButton } from '@/lib/hooks/useHintSystem'
+import VisualMultiplication from './VisualMultiplication'
+import { WRONG_ANSWER_MESSAGES, CORRECT_ANSWER_MESSAGES, getRandomMessage } from '@/lib/constants/encouragementMessages'
 
 interface DiceRollerProps {
   tableNumber: number
 }
 
-type Phase = 'ready' | 'rolling' | 'answering' | 'feedback' | 'complete'
+type Phase = 'ready' | 'rolling' | 'visual' | 'answering' | 'feedback' | 'complete'
 
-const TOTAL_ROUNDS = 8
+const TOTAL_ROUNDS = 5
 
 export default function DiceRoller({ tableNumber }: DiceRollerProps) {
   const [phase, setPhase] = useState<Phase>('ready')
@@ -26,9 +29,11 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
   const [correctAnswer, setCorrectAnswer] = useState(0)
   const [choices, setChoices] = useState<number[]>([])
   const [feedbackCorrect, setFeedbackCorrect] = useState(false)
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
   const recordModeScore = useMultiplicationStore(s => s.recordModeScore)
   const { celebration, showCelebration, dismissCelebration } = useCelebration()
+  const { hintLevel, showHint, resetHint, totalHintsUsed, visualProps, hintPenalty } = useHintSystem()
   const rollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Cleanup on unmount
@@ -42,6 +47,8 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
     sounds.playDiceRoll()
     setPhase('rolling')
     setSelectedAnswer(null)
+    setFeedbackMessage(null)
+    resetHint()
 
     // Pick a random second number 1-10
     const target = Math.floor(Math.random() * 10) + 1
@@ -61,9 +68,15 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
       setCorrectAnswer(product)
       const wrong = generateWrongAnswers(product, 3, 'product')
       setChoices(shuffleAnswers([product, ...wrong]))
-      setPhase('answering')
+
+      // Show visual BEFORE answer choices
+      setPhase('visual')
     }, 1500)
-  }, [tableNumber])
+  }, [tableNumber, resetHint])
+
+  const proceedToAnswering = useCallback(() => {
+    setPhase('answering')
+  }, [])
 
   const handleAnswer = useCallback((answer: number) => {
     setSelectedAnswer(answer)
@@ -73,9 +86,11 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
       sounds.playCorrect()
       setScore(s => s + 1)
       setFeedbackCorrect(true)
+      setFeedbackMessage(getRandomMessage(CORRECT_ANSWER_MESSAGES))
     } else {
-      sounds.playWrong()
+      sounds.playGentleError()
       setFeedbackCorrect(false)
+      setFeedbackMessage(getRandomMessage(WRONG_ANSWER_MESSAGES))
     }
 
     setPhase('feedback')
@@ -85,22 +100,24 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
       const nextRound = round + 1
       if (nextRound >= TOTAL_ROUNDS) {
         const finalScore = isCorrect ? score + 1 : score
-        const stars = finalScore >= 7 ? 3 : finalScore >= 5 ? 2 : finalScore >= 3 ? 1 : 0
-        recordModeScore(tableNumber, 'dice', Math.max(stars, 1))
+        const rawStars = finalScore >= 4 ? 3 : finalScore >= 3 ? 2 : 1
+        const stars = Math.max(Math.round(rawStars - hintPenalty), 1)
+        recordModeScore(tableNumber, 'dice', stars)
         setPhase('complete')
         showCelebration({
           type: 'level_complete',
           title: 'Dice Master!',
           subtitle: `${finalScore}/${TOTAL_ROUNDS} correct - ${stars} star${stars !== 1 ? 's' : ''}!`,
           emoji: '🎲',
-          stars: Math.max(stars, 1),
+          stars,
         })
       } else {
         setRound(nextRound)
         setPhase('ready')
+        setFeedbackMessage(null)
       }
-    }, isCorrect ? 800 : 1500)
-  }, [correctAnswer, round, score, tableNumber, recordModeScore, showCelebration])
+    }, isCorrect ? 1000 : 2500)
+  }, [correctAnswer, round, score, tableNumber, recordModeScore, showCelebration, hintPenalty])
 
   const handlePlayAgain = useCallback(() => {
     setPhase('ready')
@@ -109,7 +126,9 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
     setDie1Display(tableNumber)
     setDie2Display(1)
     setSelectedAnswer(null)
-  }, [tableNumber])
+    setFeedbackMessage(null)
+    resetHint()
+  }, [tableNumber, resetHint])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-orange-300 via-red-300 to-rose-400 p-4 pb-24">
@@ -160,6 +179,69 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
           <span className="text-4xl font-extrabold text-red-600">{die2Display}</span>
         </motion.div>
       </div>
+
+      {/* Visual phase: show emoji groups so she can count before answering */}
+      {phase === 'visual' && (
+        <motion.div
+          className="mb-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <motion.div
+            className="text-center mb-3"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+          >
+            <span className="text-2xl font-extrabold text-white drop-shadow-lg">
+              {tableNumber} x {targetNumber} = ?
+            </span>
+          </motion.div>
+
+          <div className="max-w-xs mx-auto bg-white/15 backdrop-blur-sm rounded-2xl p-3 mb-3">
+            <VisualMultiplication
+              a={tableNumber}
+              b={targetNumber}
+              show={{ groups: true, additionBridge: false, answer: false }}
+              size="compact"
+              animateIn={true}
+            />
+          </div>
+
+          {/* Hint button for addition bridge */}
+          <div className="flex justify-center gap-3 mb-3">
+            <HintButton onTap={showHint} hintLevel={hintLevel} />
+          </div>
+
+          {hintLevel > 0 && (
+            <motion.div
+              className="max-w-xs mx-auto bg-white/15 backdrop-blur-sm rounded-2xl p-2 mb-3"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              <VisualMultiplication
+                a={tableNumber}
+                b={targetNumber}
+                show={visualProps}
+                size="compact"
+                animateIn={true}
+              />
+            </motion.div>
+          )}
+
+          <div className="flex justify-center">
+            <motion.button
+              className="px-8 py-3 bg-gradient-to-r from-yellow-400 to-orange-500
+                         text-white font-extrabold text-xl rounded-full shadow-xl
+                         border-4 border-yellow-300 min-h-[48px]"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={proceedToAnswering}
+            >
+              I know the answer!
+            </motion.button>
+          </div>
+        </motion.div>
+      )}
 
       {/* Equation display */}
       {(phase === 'answering' || phase === 'feedback') && (
@@ -226,11 +308,11 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
                            ${showCorrect
                              ? 'bg-green-400 border-green-500 text-white'
                              : showWrong
-                               ? 'bg-red-400 border-red-500 text-white'
+                               ? 'bg-amber-400 border-amber-500 text-white'
                                : 'bg-white/90 border-white/50 text-gray-800'
                            }`}
                 whileTap={phase === 'answering' ? { scale: 0.92 } : {}}
-                animate={showWrong ? { x: [0, -6, 6, -6, 6, 0] } : showCorrect ? { scale: [1, 1.1, 1] } : {}}
+                animate={showWrong ? { x: [0, -3, 3, -3, 0] } : showCorrect ? { scale: [1, 1.1, 1] } : {}}
                 transition={{ duration: 0.4 }}
                 onClick={() => phase === 'answering' && handleAnswer(choice)}
                 disabled={phase !== 'answering'}
@@ -242,7 +324,7 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
         </motion.div>
       )}
 
-      {/* Feedback message */}
+      {/* Feedback message with visual */}
       <AnimatePresence>
         {phase === 'feedback' && (
           <motion.div
@@ -251,9 +333,26 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
           >
-            <span className={`text-xl font-bold ${feedbackCorrect ? 'text-green-100' : 'text-red-100'}`}>
-              {feedbackCorrect ? 'Correct!' : `${tableNumber} x ${targetNumber} = ${correctAnswer}`}
-            </span>
+            {feedbackMessage && (
+              <span className={`text-base font-bold block mb-2 ${feedbackCorrect ? 'text-green-100' : 'text-white'}`}>
+                {feedbackMessage}
+              </span>
+            )}
+            {!feedbackCorrect && (
+              <motion.div
+                className="max-w-xs mx-auto bg-white/15 backdrop-blur-sm rounded-2xl p-3 mt-2"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+              >
+                <VisualMultiplication
+                  a={tableNumber}
+                  b={targetNumber}
+                  show={{ groups: true, additionBridge: true, answer: true }}
+                  size="compact"
+                  animateIn={true}
+                />
+              </motion.div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

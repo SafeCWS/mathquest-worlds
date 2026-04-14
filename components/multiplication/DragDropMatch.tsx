@@ -8,6 +8,9 @@ import { useMultiplicationStore } from '@/lib/stores/multiplicationStore'
 import { shuffleAnswers } from '@/lib/utils/multiplicationDifficulty'
 import { sounds } from '@/lib/sounds/webAudioSounds'
 import { CelebrationOverlay, useCelebration } from '@/components/game/CelebrationOverlay'
+import { useHintSystem, HintButton } from '@/lib/hooks/useHintSystem'
+import VisualMultiplication from './VisualMultiplication'
+import { WRONG_ANSWER_MESSAGES, CORRECT_ANSWER_MESSAGES, getRandomMessage } from '@/lib/constants/encouragementMessages'
 
 interface DragDropMatchProps {
   tableNumber: number
@@ -16,14 +19,14 @@ interface DragDropMatchProps {
 interface MatchState {
   facts: MultiplicationFact[]
   shuffledAnswers: number[]
-  matched: Set<number>         // indices of matched facts
-  selectedProblem: number | null // index of currently selected problem
+  matched: Set<number>
+  selectedProblem: number | null
   wrongCount: number
-  shakeAnswer: number | null    // answer index currently shaking
+  shakeAnswer: number | null
 }
 
 function initGame(tableNumber: number): MatchState {
-  const facts = getRandomFacts(tableNumber, 5)
+  const facts = getRandomFacts(tableNumber, 4)
   const shuffledAnswers = shuffleAnswers(facts.map(f => f.product))
   return {
     facts,
@@ -39,14 +42,20 @@ export default function DragDropMatch({ tableNumber }: DragDropMatchProps) {
   const [game, setGame] = useState<MatchState>(() => initGame(tableNumber))
   const [gameComplete, setGameComplete] = useState(false)
   const [earnedStars, setEarnedStars] = useState(0)
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
+  const [wrongVisual, setWrongVisual] = useState<MultiplicationFact | null>(null)
   const recordModeScore = useMultiplicationStore(s => s.recordModeScore)
   const { celebration, showCelebration, dismissCelebration } = useCelebration()
+  const { hintLevel, showHint, resetHint, totalHintsUsed, visualProps, hintPenalty } = useHintSystem()
 
   const handleProblemTap = useCallback((index: number) => {
     if (game.matched.has(index)) return
     sounds.playSelect()
     setGame(prev => ({ ...prev, selectedProblem: index }))
-  }, [game.matched])
+    resetHint()
+    setFeedbackMessage(null)
+    setWrongVisual(null)
+  }, [game.matched, resetHint])
 
   const handleAnswerTap = useCallback((answerIndex: number) => {
     if (game.selectedProblem === null) return
@@ -67,6 +76,9 @@ export default function DragDropMatch({ tableNumber }: DragDropMatchProps) {
       newMatched.add(game.selectedProblem)
 
       const isComplete = newMatched.size === game.facts.length
+      const msg = getRandomMessage(CORRECT_ANSWER_MESSAGES)
+      setFeedbackMessage(msg)
+      setWrongVisual(null)
 
       setGame(prev => ({
         ...prev,
@@ -76,7 +88,8 @@ export default function DragDropMatch({ tableNumber }: DragDropMatchProps) {
 
       if (isComplete) {
         const wrong = game.wrongCount
-        const stars = wrong <= 1 ? 3 : wrong <= 3 ? 2 : 1
+        const rawStars = wrong <= 2 ? 3 : wrong <= 4 ? 2 : 1
+        const stars = Math.max(Math.round(rawStars - hintPenalty), 1)
         setEarnedStars(stars)
         setGameComplete(true)
         recordModeScore(tableNumber, 'match', stars)
@@ -90,32 +103,51 @@ export default function DragDropMatch({ tableNumber }: DragDropMatchProps) {
           })
         }, 400)
       }
+
+      // Clear correct message after a moment
+      setTimeout(() => setFeedbackMessage(null), 1500)
     } else {
-      // Wrong match
-      sounds.playWrong()
+      // Wrong match - gentle wobble instead of harsh shake
+      sounds.playGentleError()
+      const msg = getRandomMessage(WRONG_ANSWER_MESSAGES)
+      setFeedbackMessage(msg)
+      setWrongVisual(selectedFact)
+
       setGame(prev => ({
         ...prev,
         wrongCount: prev.wrongCount + 1,
         shakeAnswer: answerIndex,
       }))
-      // Clear shake after animation
+
+      // Clear shake after gentle animation
       setTimeout(() => {
         setGame(prev => ({ ...prev, shakeAnswer: null }))
       }, 600)
+
+      // Clear visual hint after 2 seconds
+      setTimeout(() => {
+        setWrongVisual(null)
+        setFeedbackMessage(null)
+      }, 2000)
     }
-  }, [game, tableNumber, recordModeScore, showCelebration])
+  }, [game, tableNumber, recordModeScore, showCelebration, hintPenalty])
 
   const handlePlayAgain = useCallback(() => {
     setGame(initGame(tableNumber))
     setGameComplete(false)
     setEarnedStars(0)
-  }, [tableNumber])
+    setFeedbackMessage(null)
+    setWrongVisual(null)
+    resetHint()
+  }, [tableNumber, resetHint])
 
   // Find which answer index corresponds to a matched fact
   const isAnswerMatched = (answerIndex: number): boolean => {
     const answer = game.shuffledAnswers[answerIndex]
     return Array.from(game.matched).some(factIdx => game.facts[factIdx].product === answer)
   }
+
+  const selectedFact = game.selectedProblem !== null ? game.facts[game.selectedProblem] : null
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-300 via-indigo-300 to-violet-400 p-4 pb-24">
@@ -134,6 +166,42 @@ export default function DragDropMatch({ tableNumber }: DragDropMatchProps) {
           Tap a problem, then tap its answer
         </p>
       </motion.div>
+
+      {/* Feedback message */}
+      <AnimatePresence>
+        {feedbackMessage && (
+          <motion.div
+            className="text-center mb-3"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+          >
+            <span className="text-base font-bold text-white bg-black/20 backdrop-blur-sm px-4 py-1.5 rounded-full">
+              {feedbackMessage}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Wrong answer visual hint */}
+      <AnimatePresence>
+        {wrongVisual && (
+          <motion.div
+            className="mb-3 max-w-xs mx-auto bg-white/15 backdrop-blur-sm rounded-2xl p-3"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+          >
+            <VisualMultiplication
+              a={wrongVisual.a}
+              b={wrongVisual.b}
+              show={{ groups: true, additionBridge: true, answer: false }}
+              size="compact"
+              animateIn={true}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Game area: two columns */}
       <div className="flex gap-3 justify-center max-w-lg mx-auto">
@@ -188,12 +256,12 @@ export default function DragDropMatch({ tableNumber }: DragDropMatchProps) {
                 whileTap={!matched ? { scale: 0.95 } : {}}
                 animate={
                   isShaking
-                    ? { x: [0, -8, 8, -8, 8, 0], borderColor: '#ef4444' }
+                    ? { x: [0, -3, 3, -3, 0], borderColor: '#f59e0b' }
                     : matched
                       ? { scale: [1, 1.05, 1] }
                       : {}
                 }
-                transition={isShaking ? { duration: 0.5 } : { duration: 0.3 }}
+                transition={isShaking ? { duration: 0.4 } : { duration: 0.3 }}
                 onClick={() => handleAnswerTap(index)}
                 disabled={matched}
               >
@@ -203,6 +271,35 @@ export default function DragDropMatch({ tableNumber }: DragDropMatchProps) {
           })}
         </div>
       </div>
+
+      {/* Hint button - shows when a problem is selected */}
+      <AnimatePresence>
+        {selectedFact && !gameComplete && (
+          <motion.div
+            className="flex flex-col items-center gap-2 mt-4"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+          >
+            <HintButton onTap={showHint} hintLevel={hintLevel} />
+            {hintLevel > 0 && (
+              <motion.div
+                className="max-w-xs w-full bg-white/15 backdrop-blur-sm rounded-2xl p-3"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+              >
+                <VisualMultiplication
+                  a={selectedFact.a}
+                  b={selectedFact.b}
+                  show={visualProps}
+                  size="compact"
+                  animateIn={true}
+                />
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Score indicator */}
       <motion.div

@@ -8,6 +8,7 @@ import { useMultiplicationStore } from '@/lib/stores/multiplicationStore'
 import { shuffleAnswers } from '@/lib/utils/multiplicationDifficulty'
 import { sounds } from '@/lib/sounds/webAudioSounds'
 import { CelebrationOverlay, useCelebration } from '@/components/game/CelebrationOverlay'
+import { TABLE_EMOJIS } from './VisualMultiplication'
 
 interface MemoryCardsProps {
   tableNumber: number
@@ -15,15 +16,16 @@ interface MemoryCardsProps {
 
 interface MemoryCard {
   id: number
-  factIndex: number   // which fact this belongs to
+  factIndex: number
   type: 'problem' | 'answer'
   displayText: string
   isFlipped: boolean
   isMatched: boolean
+  fact?: MultiplicationFact
 }
 
 function createCards(tableNumber: number): MemoryCard[] {
-  const facts = getRandomFacts(tableNumber, 6)
+  const facts = getRandomFacts(tableNumber, 4)
   const cards: MemoryCard[] = []
 
   facts.forEach((fact, i) => {
@@ -35,6 +37,7 @@ function createCards(tableNumber: number): MemoryCard[] {
       displayText: `${fact.a} x ${fact.b}`,
       isFlipped: false,
       isMatched: false,
+      fact,
     })
     // Answer card
     cards.push({
@@ -44,6 +47,7 @@ function createCards(tableNumber: number): MemoryCard[] {
       displayText: String(fact.product),
       isFlipped: false,
       isMatched: false,
+      fact,
     })
   })
 
@@ -57,9 +61,11 @@ export default function MemoryCards({ tableNumber }: MemoryCardsProps) {
   const [matchedPairs, setMatchedPairs] = useState(0)
   const [isChecking, setIsChecking] = useState(false)
   const [gameComplete, setGameComplete] = useState(false)
+  const [mismatchMessage, setMismatchMessage] = useState<string | null>(null)
   const recordModeScore = useMultiplicationStore(s => s.recordModeScore)
   const { celebration, showCelebration, dismissCelebration } = useCelebration()
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const emoji = TABLE_EMOJIS[tableNumber] || '⭐'
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -75,6 +81,7 @@ export default function MemoryCards({ tableNumber }: MemoryCardsProps) {
     if (flippedIds.length >= 2) return
 
     sounds.playCardFlip()
+    setMismatchMessage(null)
 
     // Flip the card
     setCards(prev =>
@@ -107,10 +114,10 @@ export default function MemoryCards({ tableNumber }: MemoryCardsProps) {
           setFlippedIds([])
           setIsChecking(false)
 
-          // Check if game complete (6 pairs)
-          if (newMatchedCount === 6) {
+          // Check if game complete (4 pairs)
+          if (newMatchedCount === 4) {
             const totalMoves = moves + 1
-            const stars = totalMoves <= 10 ? 3 : totalMoves <= 15 ? 2 : 1
+            const stars = totalMoves <= 8 ? 3 : totalMoves <= 12 ? 2 : 1
             setGameComplete(true)
             recordModeScore(tableNumber, 'memory', stars)
             setTimeout(() => {
@@ -125,9 +132,10 @@ export default function MemoryCards({ tableNumber }: MemoryCardsProps) {
           }
         }, 400)
       } else {
-        // No match - flip back after delay
+        // No match - flip back after longer delay (1200ms)
+        setMismatchMessage('Not a pair \u2014 keep trying!')
         timeoutRef.current = setTimeout(() => {
-          sounds.playWrong()
+          sounds.playGentleError()
           setCards(prev =>
             prev.map(c =>
               newFlipped.includes(c.id) && !c.isMatched
@@ -137,7 +145,8 @@ export default function MemoryCards({ tableNumber }: MemoryCardsProps) {
           )
           setFlippedIds([])
           setIsChecking(false)
-        }, 800)
+          setMismatchMessage(null)
+        }, 1200)
       }
     }
   }, [cards, flippedIds, isChecking, matchedPairs, moves, tableNumber, recordModeScore, showCelebration])
@@ -149,7 +158,27 @@ export default function MemoryCards({ tableNumber }: MemoryCardsProps) {
     setMatchedPairs(0)
     setIsChecking(false)
     setGameComplete(false)
+    setMismatchMessage(null)
   }, [tableNumber])
+
+  // Build mini emoji rows for answer cards (max 2 rows shown)
+  const renderMiniEmoji = (fact: MultiplicationFact) => {
+    const rowsToShow = Math.min(fact.a, 2)
+    const colsToShow = Math.min(fact.b, 6)
+    return (
+      <div className="flex flex-col items-center gap-0 mt-1">
+        {Array.from({ length: rowsToShow }, (_, r) => (
+          <div key={r} className="flex gap-0">
+            {Array.from({ length: colsToShow }, (_, c) => (
+              <span key={c} className="text-[10px] leading-tight">{emoji}</span>
+            ))}
+            {fact.b > 6 && <span className="text-[8px] text-gray-400">...</span>}
+          </div>
+        ))}
+        {fact.a > 2 && <span className="text-[8px] text-gray-400">...</span>}
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-300 via-violet-300 to-fuchsia-400 p-4 pb-24">
@@ -165,16 +194,32 @@ export default function MemoryCards({ tableNumber }: MemoryCardsProps) {
           Memory Match
         </h1>
         <p className="text-white/80 text-sm">
-          Moves: {moves} | Pairs: {matchedPairs}/6
+          Moves: {moves} | Pairs: {matchedPairs}/4
         </p>
       </motion.div>
 
-      {/* Card grid: 3x4 */}
-      <div className="grid grid-cols-3 gap-2 max-w-sm mx-auto">
+      {/* Mismatch message */}
+      <AnimatePresence>
+        {mismatchMessage && (
+          <motion.div
+            className="text-center mb-2"
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <span className="text-sm font-bold text-white bg-black/20 backdrop-blur-sm px-3 py-1 rounded-full">
+              {mismatchMessage}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Card grid: 2x4 */}
+      <div className="grid grid-cols-2 gap-2 max-w-xs mx-auto">
         {cards.map((card, index) => (
           <motion.button
             key={card.id}
-            className="relative aspect-[3/4] rounded-xl overflow-hidden min-h-[80px]"
+            className="relative aspect-[3/4] rounded-xl overflow-hidden min-h-[100px]"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: index * 0.05, type: 'spring' }}
@@ -203,7 +248,7 @@ export default function MemoryCards({ tableNumber }: MemoryCardsProps) {
 
               {/* Card front (face up) */}
               <div
-                className={`absolute inset-0 rounded-xl flex items-center justify-center
+                className={`absolute inset-0 rounded-xl flex flex-col items-center justify-center
                            ${card.isMatched
                              ? 'bg-gradient-to-br from-green-100 to-green-200 border-3 border-green-400'
                              : 'bg-white border-3 border-purple-200'
@@ -214,6 +259,8 @@ export default function MemoryCards({ tableNumber }: MemoryCardsProps) {
                 <span className={`font-bold ${card.type === 'problem' ? 'text-lg text-indigo-700' : 'text-2xl text-emerald-700'}`}>
                   {card.displayText}
                 </span>
+                {/* Mini emoji hint on answer cards */}
+                {card.type === 'answer' && card.fact && renderMiniEmoji(card.fact)}
                 {card.isMatched && (
                   <motion.span
                     className="absolute top-1 right-1 text-green-500 text-sm"

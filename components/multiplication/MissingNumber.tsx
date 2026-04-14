@@ -8,6 +8,9 @@ import { useMultiplicationStore } from '@/lib/stores/multiplicationStore'
 import { generateWrongAnswers, shuffleAnswers } from '@/lib/utils/multiplicationDifficulty'
 import { sounds } from '@/lib/sounds/webAudioSounds'
 import { CelebrationOverlay, useCelebration } from '@/components/game/CelebrationOverlay'
+import { useHintSystem, HintButton } from '@/lib/hooks/useHintSystem'
+import VisualMultiplication from './VisualMultiplication'
+import { WRONG_ANSWER_MESSAGES, CORRECT_ANSWER_MESSAGES, getRandomMessage } from '@/lib/constants/encouragementMessages'
 
 interface MissingNumberProps {
   tableNumber: number
@@ -22,16 +25,15 @@ interface Question {
   choices: number[]
 }
 
-const TOTAL_QUESTIONS = 8
+const TOTAL_QUESTIONS = 5
 
 function generateQuestions(tableNumber: number): Question[] {
   const facts = getRandomFacts(tableNumber, TOTAL_QUESTIONS)
-  const positions: MissingPosition[] = ['a', 'b', 'product']
 
   return facts.map(fact => {
-    // Weight toward 'b' and 'product' — 'a' is always the table number (too easy to guess)
+    // Weight: 10% 'a', 30% 'b', 60% 'product' (finding product is most educational)
     const rand = Math.random()
-    const missingPosition = rand < 0.2 ? 'a' : rand < 0.6 ? 'b' : 'product'
+    const missingPosition: MissingPosition = rand < 0.1 ? 'a' : rand < 0.4 ? 'b' : 'product'
     let correctAnswer: number
     let answerType: 'product' | 'factor'
 
@@ -64,10 +66,12 @@ export default function MissingNumber({ tableNumber }: MissingNumberProps) {
   const [score, setScore] = useState(0)
   const [phase, setPhase] = useState<'answering' | 'feedback' | 'complete'>('answering')
   const [feedbackCorrect, setFeedbackCorrect] = useState(false)
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
   const [revealedAnswer, setRevealedAnswer] = useState<number | null>(null)
   const recordModeScore = useMultiplicationStore(s => s.recordModeScore)
   const { celebration, showCelebration, dismissCelebration } = useCelebration()
+  const { hintLevel, showHint, resetHint, totalHintsUsed, visualProps, hintPenalty } = useHintSystem()
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
   useEffect(() => {
@@ -86,10 +90,12 @@ export default function MissingNumber({ tableNumber }: MissingNumberProps) {
       setScore(s => s + 1)
       setFeedbackCorrect(true)
       setRevealedAnswer(answer)
+      setFeedbackMessage(getRandomMessage(CORRECT_ANSWER_MESSAGES))
     } else {
-      sounds.playWrong()
+      sounds.playGentleError()
       setFeedbackCorrect(false)
       setRevealedAnswer(currentQuestion.correctAnswer)
+      setFeedbackMessage(getRandomMessage(WRONG_ANSWER_MESSAGES))
     }
 
     setPhase('feedback')
@@ -98,24 +104,27 @@ export default function MissingNumber({ tableNumber }: MissingNumberProps) {
       const nextIndex = currentIndex + 1
       if (nextIndex >= TOTAL_QUESTIONS) {
         const finalScore = isCorrect ? score + 1 : score
-        const stars = finalScore >= 7 ? 3 : finalScore >= 5 ? 2 : finalScore >= 3 ? 1 : 0
+        const rawStars = finalScore >= 4 ? 3 : finalScore >= 3 ? 2 : 1
+        const stars = Math.max(Math.round(rawStars - hintPenalty), 1)
         setPhase('complete')
-        recordModeScore(tableNumber, 'missing', Math.max(stars, 1))
+        recordModeScore(tableNumber, 'missing', stars)
         showCelebration({
           type: 'level_complete',
           title: 'Number Detective!',
-          subtitle: `${finalScore}/${TOTAL_QUESTIONS} correct - ${Math.max(stars, 1)} star${Math.max(stars, 1) !== 1 ? 's' : ''}!`,
+          subtitle: `${finalScore}/${TOTAL_QUESTIONS} correct - ${stars} star${stars !== 1 ? 's' : ''}!`,
           emoji: '🔍',
-          stars: Math.max(stars, 1),
+          stars,
         })
       } else {
         setCurrentIndex(nextIndex)
         setPhase('answering')
         setSelectedAnswer(null)
         setRevealedAnswer(null)
+        setFeedbackMessage(null)
+        resetHint()
       }
-    }, isCorrect ? 800 : 1500))
-  }, [phase, currentQuestion, currentIndex, score, tableNumber, recordModeScore, showCelebration])
+    }, isCorrect ? 1000 : 2500))
+  }, [phase, currentQuestion, currentIndex, score, tableNumber, recordModeScore, showCelebration, hintPenalty, resetHint])
 
   const handlePlayAgain = useCallback(() => {
     setQuestions(generateQuestions(tableNumber))
@@ -123,9 +132,11 @@ export default function MissingNumber({ tableNumber }: MissingNumberProps) {
     setScore(0)
     setPhase('answering')
     setFeedbackCorrect(false)
+    setFeedbackMessage(null)
     setSelectedAnswer(null)
     setRevealedAnswer(null)
-  }, [tableNumber])
+    resetHint()
+  }, [tableNumber, resetHint])
 
   // Render the equation with the missing part
   const renderEquation = () => {
@@ -140,7 +151,7 @@ export default function MissingNumber({ tableNumber }: MissingNumberProps) {
                    ${isRevealed
                      ? feedbackCorrect
                        ? 'bg-green-400 border-green-500 text-white'
-                       : 'bg-red-400 border-red-500 text-white'
+                       : 'bg-amber-400 border-amber-500 text-white'
                      : 'bg-gradient-to-br from-yellow-300 to-amber-400 border-amber-500 text-amber-800'
                    }
                    border-3 shadow-lg`}
@@ -191,7 +202,7 @@ export default function MissingNumber({ tableNumber }: MissingNumberProps) {
       {/* Equation display */}
       {phase !== 'complete' && (
         <motion.div
-          className="mb-8"
+          className="mb-4"
           key={currentIndex}
           initial={{ opacity: 0, x: 30 }}
           animate={{ opacity: 1, x: 0 }}
@@ -200,6 +211,67 @@ export default function MissingNumber({ tableNumber }: MissingNumberProps) {
           {renderEquation()}
         </motion.div>
       )}
+
+      {/* Hint system */}
+      {phase === 'answering' && currentQuestion && (
+        <div className="flex flex-col items-center gap-2 mb-4">
+          <HintButton onTap={showHint} hintLevel={hintLevel} />
+          <AnimatePresence>
+            {hintLevel > 0 && (
+              <motion.div
+                className="max-w-xs w-full bg-white/15 backdrop-blur-sm rounded-2xl p-3"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+              >
+                <VisualMultiplication
+                  a={currentQuestion.fact.a}
+                  b={currentQuestion.fact.b}
+                  show={visualProps}
+                  size="compact"
+                  animateIn={true}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* Feedback message */}
+      <AnimatePresence>
+        {feedbackMessage && phase === 'feedback' && (
+          <motion.div
+            className="text-center mb-3"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <span className="text-base font-bold text-white bg-black/20 backdrop-blur-sm px-4 py-1.5 rounded-full">
+              {feedbackMessage}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Wrong answer visual */}
+      <AnimatePresence>
+        {phase === 'feedback' && !feedbackCorrect && currentQuestion && (
+          <motion.div
+            className="max-w-xs mx-auto bg-white/15 backdrop-blur-sm rounded-2xl p-3 mb-3"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+          >
+            <VisualMultiplication
+              a={currentQuestion.fact.a}
+              b={currentQuestion.fact.b}
+              show={{ groups: true, additionBridge: true, answer: true }}
+              size="compact"
+              animateIn={true}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Answer choices */}
       {phase !== 'complete' && currentQuestion && (
@@ -223,11 +295,11 @@ export default function MissingNumber({ tableNumber }: MissingNumberProps) {
                            ${showCorrect
                              ? 'bg-green-400 border-green-500 text-white'
                              : showWrong
-                               ? 'bg-red-400 border-red-500 text-white'
+                               ? 'bg-amber-400 border-amber-500 text-white'
                                : 'bg-white/90 border-white/50 text-gray-800'
                            }`}
                 whileTap={phase === 'answering' ? { scale: 0.92 } : {}}
-                animate={showWrong ? { x: [0, -6, 6, -6, 6, 0] } : showCorrect ? { scale: [1, 1.1, 1] } : {}}
+                animate={showWrong ? { x: [0, -3, 3, -3, 0] } : showCorrect ? { scale: [1, 1.1, 1] } : {}}
                 transition={{ duration: 0.4 }}
                 onClick={() => handleAnswer(choice)}
                 disabled={phase !== 'answering'}

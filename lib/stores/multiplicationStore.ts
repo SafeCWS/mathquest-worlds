@@ -12,7 +12,7 @@ export interface TableMastery {
   explored: boolean
   modeScores: Record<GameMode, { attempts: number; bestStars: number }>
   totalStars: number
-  mastered: boolean // totalStars >= 12 (2 stars avg across 6 modes)
+  mastered: boolean // totalStars >= 9 (1.5 stars avg across 6 modes)
 }
 
 export interface MultiplicationState {
@@ -66,7 +66,7 @@ function computeTotalStars(modeScores: Record<GameMode, { attempts: number; best
  *
  * Traditional method — linear progression:
  * - Table 1 starts unlocked
- * - Each next table unlocks when the previous has >= 4 stars
+ * - Each next table unlocks when the previous has >= 3 stars
  *   (table 2 after table 1, table 3 after table 2, etc.)
  * - Progression: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10
  */
@@ -84,9 +84,9 @@ function computeUnlocks(
   // Helper to get star count for a table
   const starsFor = (t: number): number => tables[t]?.totalStars ?? 0
 
-  // Linear unlock: each table unlocks when the previous has >= 4 stars
+  // Linear unlock: each table unlocks when the previous has >= 3 stars
   for (let t = 2; t <= 10; t++) {
-    if (starsFor(t - 1) >= 4) {
+    if (starsFor(t - 1) >= 3) {
       unlocked.add(t)
     }
   }
@@ -158,7 +158,7 @@ export const useMultiplicationStore = create<MultiplicationState>()(
           ...existing,
           modeScores: updatedModeScores,
           totalStars,
-          mastered: totalStars >= 12,
+          mastered: totalStars >= 9,
         }
 
         const updatedTables = {

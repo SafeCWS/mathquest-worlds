@@ -19,7 +19,7 @@ const MODE_CARDS: ModeCard[] = [
     mode: 'explorer',
     name: 'Explorer',
     emoji: '🔍',
-    description: 'Learn the facts',
+    description: 'See how it works!',
     color: { from: 'from-emerald-400', to: 'to-green-500', border: 'border-emerald-300' },
   },
   {
@@ -40,7 +40,7 @@ const MODE_CARDS: ModeCard[] = [
     mode: 'dice',
     name: 'Dice',
     emoji: '🎲',
-    description: 'Roll and multiply',
+    description: 'Roll and discover!',
     color: { from: 'from-orange-400', to: 'to-red-500', border: 'border-orange-300' },
   },
   {
@@ -54,7 +54,7 @@ const MODE_CARDS: ModeCard[] = [
     mode: 'speed',
     name: 'Speed Challenge',
     emoji: '⚡',
-    description: 'Race the clock',
+    description: 'How many can you get?',
     color: { from: 'from-yellow-400', to: 'to-amber-500', border: 'border-yellow-300' },
   },
 ]
@@ -303,7 +303,7 @@ export default function TableDetailPage() {
                       {card.name}
                     </span>
                     <span className="text-white/50 text-xs text-center">
-                      Explore 3 tables first
+                      Play 3 tables to unlock!
                     </span>
                   </motion.div>
                 )}
