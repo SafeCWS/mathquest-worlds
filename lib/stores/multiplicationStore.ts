@@ -21,7 +21,7 @@ export interface MultiplicationState {
   setHasHydrated: (state: boolean) => void
 
   tables: Record<number, TableMastery>
-  unlockedTables: number[] // Default: [1, 2, 5, 10]
+  unlockedTables: number[] // Default: [1]
   speedChallengeUnlocked: boolean
   speedHighScore: number
 

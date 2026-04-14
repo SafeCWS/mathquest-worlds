@@ -220,7 +220,7 @@ export default function MultiplicationHubPage() {
                       Table {tableNum}
                     </span>
                     <span className="text-white/50 text-xs text-center">
-                      Clear Table {tableNum - 1} first!
+                      {tableNum > 1 ? `Clear Table ${tableNum - 1} first!` : 'Start here!'}
                     </span>
                   </motion.div>
                 )}
