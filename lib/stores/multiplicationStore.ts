@@ -64,20 +64,17 @@ function computeTotalStars(modeScores: Record<GameMode, { attempts: number; best
  * Compute which tables should be unlocked based on current state.
  * Returns the full list of tables that should be unlocked.
  *
- * Unlock progression:
- * - Tables 1, 2, 5, 10 start unlocked
- * - Table 3 unlocks when total stars across unlocked tables >= 6
- * - Table 4 unlocks when table 3 has >= 4 stars
- * - Table 6 unlocks when tables 3 and 4 each have >= 4 stars
- * - Table 7 unlocks when table 6 has >= 4 stars
- * - Table 8 unlocks when table 7 has >= 4 stars
- * - Table 9 unlocks when table 8 has >= 4 stars
+ * Traditional method — linear progression:
+ * - Table 1 starts unlocked
+ * - Each next table unlocks when the previous has >= 4 stars
+ *   (table 2 after table 1, table 3 after table 2, etc.)
+ * - Progression: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10
  */
 function computeUnlocks(
   tables: Record<number, TableMastery>,
   currentUnlocked: number[]
 ): number[] {
-  const unlocked = new Set<number>([1, 2, 5, 10])
+  const unlocked = new Set<number>([1])
 
   // Also include everything already unlocked (don't re-lock)
   for (const t of currentUnlocked) {
@@ -87,40 +84,11 @@ function computeUnlocks(
   // Helper to get star count for a table
   const starsFor = (t: number): number => tables[t]?.totalStars ?? 0
 
-  // Total stars across all unlocked tables
-  const totalUnlockedStars = Array.from(unlocked).reduce(
-    (sum, t) => sum + starsFor(t),
-    0
-  )
-
-  // Table 3: total stars across unlocked tables >= 6
-  if (totalUnlockedStars >= 6) {
-    unlocked.add(3)
-  }
-
-  // Table 4: table 3 has >= 4 stars
-  if (starsFor(3) >= 4) {
-    unlocked.add(4)
-  }
-
-  // Table 6: tables 3 AND 4 each have >= 4 stars
-  if (starsFor(3) >= 4 && starsFor(4) >= 4) {
-    unlocked.add(6)
-  }
-
-  // Table 7: table 6 has >= 4 stars
-  if (starsFor(6) >= 4) {
-    unlocked.add(7)
-  }
-
-  // Table 8: table 7 has >= 4 stars
-  if (starsFor(7) >= 4) {
-    unlocked.add(8)
-  }
-
-  // Table 9: table 8 has >= 4 stars
-  if (starsFor(8) >= 4) {
-    unlocked.add(9)
+  // Linear unlock: each table unlocks when the previous has >= 4 stars
+  for (let t = 2; t <= 10; t++) {
+    if (starsFor(t - 1) >= 4) {
+      unlocked.add(t)
+    }
   }
 
   return Array.from(unlocked).sort((a, b) => a - b)
@@ -140,7 +108,7 @@ function computeSpeedUnlock(tables: Record<number, TableMastery>): boolean {
   return exploredCount >= 3
 }
 
-const DEFAULT_UNLOCKED = [1, 2, 5, 10]
+const DEFAULT_UNLOCKED = [1]
 
 export const useMultiplicationStore = create<MultiplicationState>()(
   persist(
