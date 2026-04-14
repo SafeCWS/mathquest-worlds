@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Fredoka } from 'next/font/google'
+import { AudioUnlock } from '@/components/AudioUnlock'
 import './globals.css'
 
 const fredoka = Fredoka({
@@ -32,7 +33,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${fredoka.variable} antialiased`}>{children}</body>
+      <body className={`${fredoka.variable} antialiased`}>
+        <AudioUnlock>{children}</AudioUnlock>
+      </body>
     </html>
   )
 }

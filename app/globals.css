@@ -656,3 +656,38 @@ body {
     #FF0000 0%, #FF7F00 17%, #FFFF00 33%,
     #00FF00 50%, #0000FF 67%, #4B0082 83%, #9400D3 100%);
 }
+
+/* Gentle shake for wrong answers - encouraging, not harsh */
+@keyframes gentle-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+.animate-gentle-shake {
+  animation: gentle-shake 0.4s ease-in-out;
+}
+
+/* Performance-optimized floating animations (GPU-composited) */
+@keyframes float-gentle {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(8deg); }
+}
+
+@keyframes float-drift {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(15px, -25px) rotate(5deg); }
+  66% { transform: translate(-10px, -15px) rotate(-5deg); }
+}
+
+@keyframes float-sway {
+  0%, 100% { transform: translateX(0) rotate(0deg) scale(1); }
+  25% { transform: translateX(12px) rotate(3deg) scale(1.05); }
+  75% { transform: translateX(-12px) rotate(-3deg) scale(0.95); }
+}
+
+@keyframes sparkle-pulse {
+  0%, 100% { opacity: 0; transform: scale(0.5) rotate(0deg); }
+  50% { opacity: 0.8; transform: scale(1.2) rotate(180deg); }
+}

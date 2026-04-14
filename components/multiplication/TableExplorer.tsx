@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { MULTIPLICATION_TABLES } from '@/lib/constants/multiplicationTables'
 import { useMultiplicationStore } from '@/lib/stores/multiplicationStore'
 import { sounds } from '@/lib/sounds/webAudioSounds'
+import { speakEquation } from '@/lib/sounds/speechUtils'
 import VisualMultiplication, { TABLE_EMOJIS } from './VisualMultiplication'
 
 interface TableExplorerProps {
@@ -46,6 +47,8 @@ export default function TableExplorer({ tableNumber }: TableExplorerProps) {
       setExpandedCard(null)
     } else {
       setExpandedCard(index)
+      const fact = facts[index]
+      speakEquation(fact.a, fact.b)
       if (!viewedCards.has(index)) {
         const newViewed = new Set(viewedCards)
         newViewed.add(index)
@@ -99,10 +102,19 @@ export default function TableExplorer({ tableNumber }: TableExplorerProps) {
               layout
             >
               {/* Equation */}
-              <div className="text-center mb-2">
+              <div className="text-center mb-2 flex items-center justify-center gap-1">
                 <span className="text-2xl font-bold text-gray-800">
                   {fact.a} x {fact.b} = {fact.product}
                 </span>
+                {isExpanded && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); speakEquation(fact.a, fact.b) }}
+                    className="ml-1 text-lg opacity-60 hover:opacity-100 transition-opacity min-w-[36px] min-h-[36px] flex items-center justify-center"
+                    aria-label="Read aloud"
+                  >
+                    &#128266;
+                  </button>
+                )}
               </div>
 
               {/* Visual representation - compact when collapsed, full when expanded */}

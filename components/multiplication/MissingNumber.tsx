@@ -7,6 +7,8 @@ import { getRandomFacts, MultiplicationFact } from '@/lib/constants/multiplicati
 import { useMultiplicationStore } from '@/lib/stores/multiplicationStore'
 import { generateWrongAnswers, shuffleAnswers } from '@/lib/utils/multiplicationDifficulty'
 import { sounds } from '@/lib/sounds/webAudioSounds'
+import { speakMissing, cancelSpeech } from '@/lib/sounds/speechUtils'
+import { useInteractionCooldown } from '@/lib/hooks/useInteractionCooldown'
 import { CelebrationOverlay, useCelebration } from '@/components/game/CelebrationOverlay'
 import { useHintSystem, HintButton } from '@/lib/hooks/useHintSystem'
 import VisualMultiplication from './VisualMultiplication'
@@ -72,6 +74,7 @@ export default function MissingNumber({ tableNumber }: MissingNumberProps) {
   const recordModeScore = useMultiplicationStore(s => s.recordModeScore)
   const { celebration, showCelebration, dismissCelebration } = useCelebration()
   const { hintLevel, showHint, resetHint, totalHintsUsed, visualProps, hintPenalty } = useHintSystem()
+  const { isLocked, triggerCooldown } = useInteractionCooldown()
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
   useEffect(() => {
@@ -80,8 +83,19 @@ export default function MissingNumber({ tableNumber }: MissingNumberProps) {
 
   const currentQuestion = questions[currentIndex]
 
+  // Speak the missing-number equation when a new question appears
+  useEffect(() => {
+    if (phase === 'answering' && currentQuestion) {
+      const { fact, missingPosition } = currentQuestion
+      speakMissing(fact.a, fact.b, missingPosition)
+    }
+    return () => cancelSpeech()
+  }, [currentIndex, phase])
+
   const handleAnswer = useCallback((answer: number) => {
+    if (isLocked) return
     if (phase !== 'answering') return
+    triggerCooldown()
     setSelectedAnswer(answer)
 
     const isCorrect = answer === currentQuestion.correctAnswer
@@ -124,7 +138,7 @@ export default function MissingNumber({ tableNumber }: MissingNumberProps) {
         resetHint()
       }
     }, isCorrect ? 1000 : 2500))
-  }, [phase, currentQuestion, currentIndex, score, tableNumber, recordModeScore, showCelebration, hintPenalty, resetHint])
+  }, [phase, currentQuestion, currentIndex, score, tableNumber, recordModeScore, showCelebration, hintPenalty, resetHint, isLocked, triggerCooldown])
 
   const handlePlayAgain = useCallback(() => {
     setQuestions(generateQuestions(tableNumber))
@@ -200,7 +214,7 @@ export default function MissingNumber({ tableNumber }: MissingNumberProps) {
       </motion.div>
 
       {/* Equation display */}
-      {phase !== 'complete' && (
+      {phase !== 'complete' && currentQuestion && (
         <motion.div
           className="mb-4"
           key={currentIndex}
@@ -208,7 +222,16 @@ export default function MissingNumber({ tableNumber }: MissingNumberProps) {
           animate={{ opacity: 1, x: 0 }}
           transition={{ type: 'spring', damping: 20 }}
         >
-          {renderEquation()}
+          <div className="flex items-center justify-center gap-2">
+            <div className="flex-1">{renderEquation()}</div>
+            <button
+              onClick={() => speakMissing(currentQuestion.fact.a, currentQuestion.fact.b, currentQuestion.missingPosition)}
+              className="text-lg opacity-60 hover:opacity-100 transition-opacity min-w-[36px] min-h-[36px] flex items-center justify-center"
+              aria-label="Read aloud"
+            >
+              &#128266;
+            </button>
+          </div>
         </motion.div>
       )}
 

@@ -36,8 +36,10 @@ class WebAudioSoundManager {
     }
   }
 
-  // Resume audio context (required after user interaction)
+  // Resume audio context (required after user interaction on iOS/iPadOS Safari)
   resume() {
+    // Ensure AudioContext is created first (it's lazy-initialized)
+    this.initAudio()
     if (this.audioContext?.state === 'suspended') {
       this.audioContext.resume()
     }

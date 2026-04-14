@@ -7,6 +7,8 @@ import { getRandomFacts, MultiplicationFact } from '@/lib/constants/multiplicati
 import { useMultiplicationStore } from '@/lib/stores/multiplicationStore'
 import { shuffleAnswers } from '@/lib/utils/multiplicationDifficulty'
 import { sounds } from '@/lib/sounds/webAudioSounds'
+import { speakEquation, cancelSpeech } from '@/lib/sounds/speechUtils'
+import { useInteractionCooldown } from '@/lib/hooks/useInteractionCooldown'
 import { CelebrationOverlay, useCelebration } from '@/components/game/CelebrationOverlay'
 import { useHintSystem, HintButton } from '@/lib/hooks/useHintSystem'
 import VisualMultiplication from './VisualMultiplication'
@@ -47,17 +49,21 @@ export default function DragDropMatch({ tableNumber }: DragDropMatchProps) {
   const recordModeScore = useMultiplicationStore(s => s.recordModeScore)
   const { celebration, showCelebration, dismissCelebration } = useCelebration()
   const { hintLevel, showHint, resetHint, totalHintsUsed, visualProps, hintPenalty } = useHintSystem()
+  const { isLocked, triggerCooldown } = useInteractionCooldown()
 
   const handleProblemTap = useCallback((index: number) => {
     if (game.matched.has(index)) return
     sounds.playSelect()
+    const fact = game.facts[index]
+    speakEquation(fact.a, fact.b)
     setGame(prev => ({ ...prev, selectedProblem: index }))
     resetHint()
     setFeedbackMessage(null)
     setWrongVisual(null)
-  }, [game.matched, resetHint])
+  }, [game.matched, game.facts, resetHint])
 
   const handleAnswerTap = useCallback((answerIndex: number) => {
+    if (isLocked) return
     if (game.selectedProblem === null) return
 
     const selectedFact = game.facts[game.selectedProblem]
@@ -68,6 +74,8 @@ export default function DragDropMatch({ tableNumber }: DragDropMatchProps) {
       return game.facts[factIdx].product === tappedAnswer
     })
     if (alreadyMatched) return
+
+    triggerCooldown()
 
     if (tappedAnswer === selectedFact.product) {
       // Correct match
@@ -130,7 +138,7 @@ export default function DragDropMatch({ tableNumber }: DragDropMatchProps) {
         setFeedbackMessage(null)
       }, 2000)
     }
-  }, [game, tableNumber, recordModeScore, showCelebration, hintPenalty])
+  }, [game, tableNumber, recordModeScore, showCelebration, hintPenalty, isLocked, triggerCooldown])
 
   const handlePlayAgain = useCallback(() => {
     setGame(initGame(tableNumber))
@@ -166,6 +174,29 @@ export default function DragDropMatch({ tableNumber }: DragDropMatchProps) {
           Tap a problem, then tap its answer
         </p>
       </motion.div>
+
+      {/* Speaker button for selected problem */}
+      <AnimatePresence>
+        {selectedFact && !gameComplete && (
+          <motion.div
+            className="flex justify-center mb-2"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+          >
+            <button
+              onClick={() => speakEquation(selectedFact.a, selectedFact.b)}
+              className="text-lg opacity-60 hover:opacity-100 transition-opacity min-w-[36px] min-h-[36px] flex items-center justify-center bg-white/20 rounded-full px-3 py-1"
+              aria-label="Read aloud"
+            >
+              <span role="img" aria-hidden="true">&#128266;</span>
+              <span className="ml-1 text-sm text-white font-semibold">
+                {selectedFact.a} x {selectedFact.b}
+              </span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Feedback message */}
       <AnimatePresence>

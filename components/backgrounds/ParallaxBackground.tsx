@@ -1,6 +1,6 @@
 'use client'
 
-import { motion, useScroll, useTransform } from 'motion/react'
+import { motion } from 'motion/react'
 import { useRef, useMemo } from 'react'
 import {
   AnimatedSun,
@@ -90,7 +90,7 @@ export function ParallaxBackground({
 
   // Generate floating particles
   const floatingParticles = useMemo(() => {
-    return Array.from({ length: 25 }, (_, i) => ({
+    return Array.from({ length: 10 }, (_, i) => ({
       id: i,
       emoji: config.particles[Math.floor(Math.random() * config.particles.length)],
       x: Math.random() * 100,
@@ -104,12 +104,24 @@ export function ParallaxBackground({
 
   // Generate sparkles
   const sparkles = useMemo(() => {
-    return Array.from({ length: 20 }, (_, i) => ({
+    return Array.from({ length: 8 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       y: Math.random() * 100,
       delay: Math.random() * 3,
       size: 12 + Math.random() * 16
+    }))
+  }, [])
+
+  // Generate space stars (stable across renders)
+  const spaceStars = useMemo(() => {
+    return Array.from({ length: 15 }, (_, i) => ({
+      id: i,
+      x: (i * 37 + 13) % 100, // deterministic spread
+      y: (i * 23 + 7) % 70,
+      size: 2 + (i % 3),
+      duration: 2 + (i % 4),
+      delay: (i * 0.3) % 2,
     }))
   }, [])
 
@@ -142,24 +154,17 @@ export function ParallaxBackground({
         {/* Stars for space theme */}
         {isSpace && (
           <>
-            {Array.from({ length: 50 }).map((_, i) => (
-              <motion.div
-                key={`star-${i}`}
+            {spaceStars.map((star) => (
+              <div
+                key={`star-${star.id}`}
                 className="absolute rounded-full bg-white"
                 style={{
-                  left: `${Math.random() * 100}%`,
-                  top: `${Math.random() * 70}%`,
-                  width: 2 + Math.random() * 3,
-                  height: 2 + Math.random() * 3
-                }}
-                animate={{
-                  opacity: [0.3, 1, 0.3],
-                  scale: [0.8, 1.2, 0.8]
-                }}
-                transition={{
-                  duration: 2 + Math.random() * 3,
-                  repeat: Infinity,
-                  delay: Math.random() * 2
+                  left: `${star.x}%`,
+                  top: `${star.y}%`,
+                  width: star.size,
+                  height: star.size,
+                  animation: `sparkle-pulse ${star.duration}s ease-in-out infinite`,
+                  animationDelay: `${star.delay}s`,
                 }}
               />
             ))}
@@ -226,31 +231,22 @@ export function ParallaxBackground({
           </div>
         )}
 
-        {/* Floating particles with parallax */}
+        {/* Floating particles (CSS-animated for GPU performance) */}
         {floatingParticles.map((particle) => (
-          <motion.div
+          <div
             key={`particle-${particle.id}`}
             className="absolute pointer-events-none"
             style={{
               left: `${particle.x}%`,
               top: `${particle.y}%`,
-              fontSize: particle.size
-            }}
-            animate={{
-              y: [0, -30 * particle.direction * intensityMultiplier, 0, 30 * particle.direction * intensityMultiplier, 0],
-              x: [0, 20 * particle.direction, 0, -20 * particle.direction, 0],
-              rotate: [0, 15 * particle.direction, 0, -15 * particle.direction, 0],
-              scale: [1, 1.1, 1, 0.95, 1]
-            }}
-            transition={{
-              duration: particle.duration,
-              repeat: Infinity,
-              delay: particle.delay,
-              ease: 'easeInOut'
+              fontSize: particle.size,
+              animation: `float-${['gentle', 'drift', 'sway'][particle.id % 3]} ${particle.duration}s ease-in-out infinite`,
+              animationDelay: `${particle.delay}s`,
+              willChange: 'transform',
             }}
           >
             {particle.emoji}
-          </motion.div>
+          </div>
         ))}
 
         {/* Butterflies for jungle/fairy themes */}
@@ -364,30 +360,23 @@ export function ParallaxBackground({
           </>
         )}
 
-        {/* Sparkles for fairy/candy themes */}
+        {/* Sparkles for fairy/candy themes (CSS-animated) */}
         {(isFairy || theme === 'candy') && (
           <>
             {sparkles.map((sparkle) => (
-              <motion.div
+              <div
                 key={`sparkle-${sparkle.id}`}
                 className="absolute"
                 style={{
                   left: `${sparkle.x}%`,
-                  top: `${sparkle.y}%`
-                }}
-                animate={{
-                  opacity: [0, 1, 0],
-                  scale: [0.5, 1.2, 0.5],
-                  rotate: [0, 180, 360]
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  delay: sparkle.delay
+                  top: `${sparkle.y}%`,
+                  animation: `sparkle-pulse 2s ease-in-out infinite`,
+                  animationDelay: `${sparkle.delay}s`,
+                  willChange: 'transform, opacity',
                 }}
               >
                 <Sparkle size={sparkle.size * intensityMultiplier} color={config.accentColor} />
-              </motion.div>
+              </div>
             ))}
           </>
         )}
@@ -412,38 +401,15 @@ export function ParallaxBackground({
         }}
       />
 
-      {/* Subtle animated glow orbs */}
-      <motion.div
-        className="absolute rounded-full opacity-20 blur-3xl pointer-events-none"
+      {/* Subtle ambient glow (static, zero GPU cost) */}
+      <div
+        className="absolute inset-0 pointer-events-none"
         style={{
-          width: 300,
-          height: 300,
-          background: config.accentColor,
-          top: '20%',
-          left: '10%'
+          background: `
+            radial-gradient(ellipse at 30% 30%, ${config.accentColor}15 0%, transparent 50%),
+            radial-gradient(ellipse at 70% 60%, ${config.skyGradient[1]}10 0%, transparent 40%)
+          `
         }}
-        animate={{
-          x: [0, 100, 0],
-          y: [0, 50, 0],
-          scale: [1, 1.3, 1]
-        }}
-        transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <motion.div
-        className="absolute rounded-full opacity-15 blur-3xl pointer-events-none"
-        style={{
-          width: 250,
-          height: 250,
-          background: config.skyGradient[1],
-          bottom: '30%',
-          right: '15%'
-        }}
-        animate={{
-          x: [0, -80, 0],
-          y: [0, -40, 0],
-          scale: [1, 0.8, 1]
-        }}
-        transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut', delay: 3 }}
       />
 
       {/* Content container */}

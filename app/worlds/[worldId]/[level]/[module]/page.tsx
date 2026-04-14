@@ -237,26 +237,31 @@ export default function GamePage() {
           assets.push({ id: `seq-${i}`, type: 'text', content: String(i) })
         }
       } else {
-         // Equation sequence
-         assets.push({ id: 'p1', type: 'text', content: String(currentProblem.num1) })
-         assets.push({ id: 'op', type: 'text', content: currentProblem.type === 'addition' ? '+' : '-' }) // Simplification
-         assets.push({ id: 'p2', type: 'text', content: String(currentProblem.num2) })
-         assets.push({ id: 'eq', type: 'text', content: '=' })
-         assets.push({ id: 'ans', type: 'text', content: String(currentProblem.answer) })
+        // Equation sequence: num1 op num2 = answer
+        const op = currentProblem.type === 'addition' ? '+' : '-'
+        assets.push(
+          { id: 'p1', type: 'text', content: String(currentProblem.num1) },
+          { id: 'op', type: 'text', content: op },
+          { id: 'p2', type: 'text', content: String(currentProblem.num2) },
+          { id: 'eq', type: 'text', content: '=' },
+          { id: 'ans', type: 'text', content: String(currentProblem.answer) },
+        )
       }
       correctSequence = assets.map(a => a.id)
-      // Shuffle for puzzle
-      // assets.sort(() => Math.random() - 0.5) // Reorder component handles shuffling visually or we pass shuffled
+      // Shuffle assets so they don't start in correct order (guaranteed different)
+      if (assets.length > 1) {
+        const originalOrder = correctSequence.join(',')
+        do {
+          for (let i = assets.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [assets[i], assets[j]] = [assets[j], assets[i]];
+          }
+        } while (assets.map(a => a.id).join(',') === originalOrder)
+      }
     } else {
       // Physics/Drag assets
-      const count = currentProblem.answer
-      for (let i = 0; i < count; i++) {
-         assets.push({ 
-            id: `obj-${i}`, 
-            type: 'text', 
-            content: emoji, 
-            value: 1 
-         })
+      for (let i = 0; i < currentProblem.answer; i++) {
+        assets.push({ id: `obj-${i}`, type: 'text', content: emoji, value: 1 })
       }
     }
 
@@ -496,6 +501,7 @@ export default function GamePage() {
       if (flowState.nextInteraction === 'drag-target' || flowState.nextInteraction === 'physics-feed') {
         return (
           <DragPhysicsMode
+            key={adaptedProblem.id}
             problem={adaptedProblem}
             onCorrect={handleCorrect}
             onWrong={handleWrong}
@@ -505,6 +511,7 @@ export default function GamePage() {
       if (flowState.nextInteraction === 'sequence') {
         return (
           <SequenceMode
+            key={adaptedProblem.id}
             problem={adaptedProblem}
             onCorrect={handleCorrect}
             onWrong={handleWrong}

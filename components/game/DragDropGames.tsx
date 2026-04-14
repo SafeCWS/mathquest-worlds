@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { motion, AnimatePresence, PanInfo } from 'motion/react'
+import { motion, AnimatePresence, PanInfo, Reorder } from 'motion/react'
 import { sounds } from '@/lib/sounds/webAudioSounds'
 
 interface DragDropGameProps {
@@ -20,6 +20,7 @@ interface DragDropGameProps {
 export function BasketCountingGame({ question, correctAnswer, options, onCorrect, onWrong, emoji }: DragDropGameProps) {
   const [itemsInBasket, setItemsInBasket] = useState<number[]>([])
   const [draggedItem, setDraggedItem] = useState<number | null>(null)
+  const [showOverflow, setShowOverflow] = useState(false)
   const basketRef = useRef<HTMLDivElement>(null)
 
   // Generate draggable items (more than needed so kids can choose)
@@ -43,6 +44,13 @@ export function BasketCountingGame({ question, correctAnswer, options, onCorrect
         if (!itemsInBasket.includes(itemId)) {
           sounds.playPop()
           const newItems = [...itemsInBasket, itemId]
+          if (newItems.length > correctAnswer) {
+            // Too many items! Give gentle feedback
+            sounds.playGentleError()
+            setShowOverflow(true)
+            setTimeout(() => setShowOverflow(false), 1500)
+            return
+          }
           setItemsInBasket(newItems)
 
           // Check if correct count reached
@@ -136,6 +144,21 @@ export function BasketCountingGame({ question, correctAnswer, options, onCorrect
       <p className="text-center text-white mt-4 text-sm">
         Tap items in basket to remove them
       </p>
+
+      {/* Overflow feedback */}
+      <AnimatePresence>
+        {showOverflow && (
+          <motion.div
+            className="text-center mt-2"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+          >
+            <p className="text-lg font-bold text-red-500">Oops! That&apos;s too many!</p>
+            <p className="text-sm text-white">Tap items in basket to remove some</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -144,20 +167,19 @@ export function BasketCountingGame({ question, correctAnswer, options, onCorrect
 // NUMBER LINE DRAG - Drag to the right spot!
 // ============================================
 export function NumberLineDragGame({ question, correctAnswer, options, onCorrect, onWrong, emoji }: DragDropGameProps) {
-  const [position, setPosition] = useState(0)
+  const [position, setPosition] = useState<number | null>(null)
   const [submitted, setSubmitted] = useState(false)
-  const maxNumber = 10
-  const containerWidth = 280
+  // Scale number line to fit the answer, capped at 20 for usable tick spacing
+  const maxNumber = Math.min(20, Math.max(10, correctAnswer + 2, ...options))
 
-  const handleDragEnd = (info: PanInfo) => {
-    // Convert drag position to number (0-10)
-    const newPos = Math.round((info.offset.x / containerWidth) * maxNumber)
-    const clampedPos = Math.max(0, Math.min(maxNumber, newPos + position))
-    setPosition(clampedPos)
+  const handleTapNumber = (num: number) => {
+    if (submitted) return
+    setPosition(num)
     sounds.playSelect()
   }
 
   const handleSubmit = () => {
+    if (position === null) return
     setSubmitted(true)
     if (position === correctAnswer) {
       sounds.playCorrect()
@@ -167,6 +189,7 @@ export function NumberLineDragGame({ question, correctAnswer, options, onCorrect
       sounds.playGentleError()
       setTimeout(() => {
         setSubmitted(false)
+        setPosition(null)
         onWrong()
       }, 1000)
     }
@@ -181,7 +204,7 @@ export function NumberLineDragGame({ question, correctAnswer, options, onCorrect
         animate={{ scale: 1 }}
       >
         <p className="text-2xl font-bold">{question}</p>
-        <p className="text-lg text-purple-600 font-bold">Drag the {emoji} to the answer!</p>
+        <p className="text-lg text-purple-600 font-bold">Tap the {emoji} on the right number!</p>
       </motion.div>
 
       {/* Number line */}
@@ -189,53 +212,67 @@ export function NumberLineDragGame({ question, correctAnswer, options, onCorrect
         {/* Line */}
         <div className="absolute top-1/2 left-4 right-4 h-2 bg-white rounded-full shadow-inner" />
 
-        {/* Number markers */}
+        {/* Number markers - tappable! */}
         <div className="absolute top-1/2 left-4 right-4 flex justify-between">
-          {Array.from({ length: 11 }, (_, i) => (
-            <div key={i} className="flex flex-col items-center -translate-y-1/2">
-              <div className="w-1 h-4 bg-gray-400 rounded" />
-              <span className="text-sm font-bold mt-1">{i}</span>
-            </div>
+          {Array.from({ length: maxNumber + 1 }, (_, i) => (
+            <motion.button
+              key={i}
+              className={`flex flex-col items-center -translate-y-1/2 cursor-pointer rounded-lg px-1 py-0.5 transition-colors ${
+                position === i
+                  ? 'bg-yellow-300/80 scale-110'
+                  : 'hover:bg-white/50'
+              }`}
+              onClick={() => handleTapNumber(i)}
+              whileHover={{ scale: 1.2 }}
+              whileTap={{ scale: 0.9 }}
+            >
+              <div className={`w-1 h-4 rounded ${position === i ? 'bg-yellow-500' : 'bg-gray-400'}`} />
+              <span className={`text-sm font-bold mt-1 ${position === i ? 'text-yellow-700 text-base' : ''}`}>{i}</span>
+            </motion.button>
           ))}
         </div>
 
-        {/* Draggable marker */}
-        <motion.div
-          className="absolute top-1/2 -translate-y-1/2 text-5xl cursor-grab active:cursor-grabbing"
-          style={{
-            left: `${(position / maxNumber) * containerWidth + 16}px`,
-            touchAction: 'none'
-          }}
-          drag="x"
-          dragConstraints={{ left: -position * 28, right: (maxNumber - position) * 28 }}
-          dragElastic={0.1}
-          onDragEnd={(_, info) => handleDragEnd(info)}
-          whileDrag={{ scale: 1.3 }}
-        >
-          {emoji}
-        </motion.div>
+        {/* Animated marker on selected position */}
+        {position !== null && (
+          <motion.div
+            className="absolute top-0 text-5xl pointer-events-none"
+            style={{ left: `${(position / maxNumber) * 100}%` }}
+            initial={{ scale: 0, y: -10 }}
+            animate={{ scale: 1, y: 0, left: `${(position / maxNumber) * (100 - 8) + 4}%` }}
+            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+          >
+            {emoji}
+          </motion.div>
+        )}
       </div>
 
       {/* Current position display */}
       <motion.div
         className="text-center mt-8 text-4xl font-bold"
-        animate={{ scale: [1, 1.1, 1] }}
+        animate={position !== null ? { scale: [1, 1.1, 1] } : {}}
         key={position}
       >
         <span className={submitted ? (position === correctAnswer ? 'text-green-500' : 'text-red-500') : 'text-purple-700'}>
-          {position}
+          {position !== null ? position : '?'}
         </span>
       </motion.div>
 
       {/* Submit button */}
       <motion.button
-        className="mx-auto mt-6 block px-8 py-3 bg-gradient-to-r from-green-400 to-blue-500 text-white text-xl font-bold rounded-2xl shadow-lg"
+        className={`mx-auto mt-6 block px-8 py-3 text-white text-xl font-bold rounded-2xl shadow-lg ${
+          position === null
+            ? 'bg-gray-300 cursor-not-allowed'
+            : 'bg-gradient-to-r from-green-400 to-blue-500'
+        }`}
         onClick={handleSubmit}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        disabled={submitted}
+        whileHover={position !== null ? { scale: 1.05 } : {}}
+        whileTap={position !== null ? { scale: 0.95 } : {}}
+        disabled={submitted || position === null}
       >
-        {submitted ? (position === correctAnswer ? 'Correct!' : 'Try Again!') : 'Check Answer!'}
+        {submitted
+          ? (position === correctAnswer ? 'Correct!' : 'Try Again!')
+          : (position === null ? 'Tap a Number!' : 'Check Answer!')
+        }
       </motion.button>
     </div>
   )
@@ -245,48 +282,36 @@ export function NumberLineDragGame({ question, correctAnswer, options, onCorrect
 // SORTING GAME - Drag numbers in order!
 // ============================================
 export function SortingDragGame({ question, correctAnswer, options, onCorrect, onWrong, emoji }: DragDropGameProps) {
-  // Create shuffled numbers to sort
   const [numbers, setNumbers] = useState(() => {
-    const nums = [...options].sort(() => Math.random() - 0.5)
+    const sorted = [...options].sort((a, b) => a - b)
+    let nums: number[]
+    // Fisher-Yates shuffle that guarantees items are NOT already in sorted order
+    do {
+      nums = [...options]
+      for (let i = nums.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [nums[i], nums[j]] = [nums[j], nums[i]]
+      }
+    } while (nums.every((n, i) => n === sorted[i]) && nums.length > 1)
     return nums.map((n, i) => ({ id: i, value: n }))
   })
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const [isComplete, setIsComplete] = useState(false)
 
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index)
-    sounds.playSelect()
-  }
+  const handleReorder = (newOrder: typeof numbers) => {
+    setNumbers(newOrder)
+    sounds.playPop()
 
-  const handleDragOver = (index: number) => {
-    if (draggedIndex !== null && draggedIndex !== index) {
-      setHoverIndex(index)
+    // Check if sorted correctly (smallest to biggest)
+    const isSorted = newOrder.every((n, i) =>
+      i === 0 || newOrder[i - 1].value <= n.value
+    )
+
+    if (isSorted) {
+      setIsComplete(true)
+      sounds.playCorrect()
+      sounds.playCelebration()
+      setTimeout(onCorrect, 1000)
     }
-  }
-
-  const handleDragEnd = () => {
-    if (draggedIndex !== null && hoverIndex !== null && draggedIndex !== hoverIndex) {
-      const newNumbers = [...numbers]
-      const [moved] = newNumbers.splice(draggedIndex, 1)
-      newNumbers.splice(hoverIndex, 0, moved)
-      setNumbers(newNumbers)
-      sounds.playPop()
-
-      // Check if sorted correctly (smallest to biggest)
-      const isSorted = newNumbers.every((n, i) =>
-        i === 0 || newNumbers[i-1].value <= n.value
-      )
-
-      if (isSorted) {
-        setIsComplete(true)
-        sounds.playCorrect()
-        sounds.playCelebration()
-        setTimeout(onCorrect, 1000)
-      }
-    }
-    setDraggedIndex(null)
-    setHoverIndex(null)
   }
 
   return (
@@ -314,33 +339,30 @@ export function SortingDragGame({ question, correctAnswer, options, onCorrect, o
         </span>
       </motion.div>
 
-      {/* Sortable numbers */}
-      <div className="flex justify-center gap-4 flex-wrap">
+      {/* Sortable numbers using Reorder */}
+      <Reorder.Group
+        axis="x"
+        values={numbers}
+        onReorder={handleReorder}
+        className="flex justify-center gap-4 flex-wrap"
+      >
         {numbers.map((num, index) => (
-          <motion.div
+          <Reorder.Item
             key={num.id}
+            value={num}
             className={`bg-white rounded-2xl p-6 shadow-xl cursor-grab active:cursor-grabbing select-none ${
-              hoverIndex === index ? 'ring-4 ring-yellow-400' : ''
-            } ${isComplete ? 'bg-green-100' : ''}`}
-            drag
-            dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
-            dragElastic={1}
-            onDragStart={() => handleDragStart(index)}
-            onDrag={() => {}}
-            onDragEnd={handleDragEnd}
-            onHoverStart={() => handleDragOver(index)}
+              isComplete ? 'bg-green-100' : ''
+            }`}
             whileDrag={{ scale: 1.2, zIndex: 100, rotate: 5 }}
-            whileHover={{ scale: 1.05 }}
-            layout
             style={{ touchAction: 'none' }}
             animate={isComplete ? { y: [0, -10, 0] } : {}}
             transition={isComplete ? { duration: 0.3, delay: index * 0.1 } : {}}
           >
             <span className="text-4xl font-bold">{num.value}</span>
             <div className="text-2xl mt-1">{emoji}</div>
-          </motion.div>
+          </Reorder.Item>
         ))}
-      </div>
+      </Reorder.Group>
 
       {/* Progress indicator */}
       <motion.div
@@ -407,6 +429,8 @@ export function MatchDragGame({ question, correctAnswer, options, onCorrect, onW
   const setTargetRef = useCallback((value: number, el: HTMLDivElement | null) => {
     if (el) {
       targetRefs.current.set(value, el)
+    } else {
+      targetRefs.current.delete(value)
     }
   }, [])
 

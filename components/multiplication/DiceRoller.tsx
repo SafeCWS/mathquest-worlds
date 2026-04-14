@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { useMultiplicationStore } from '@/lib/stores/multiplicationStore'
 import { generateWrongAnswers, shuffleAnswers } from '@/lib/utils/multiplicationDifficulty'
 import { sounds } from '@/lib/sounds/webAudioSounds'
+import { speakEquation, cancelSpeech } from '@/lib/sounds/speechUtils'
+import { useInteractionCooldown } from '@/lib/hooks/useInteractionCooldown'
 import { CelebrationOverlay, useCelebration } from '@/components/game/CelebrationOverlay'
 import { useHintSystem, HintButton } from '@/lib/hooks/useHintSystem'
 import VisualMultiplication from './VisualMultiplication'
@@ -34,6 +36,7 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
   const recordModeScore = useMultiplicationStore(s => s.recordModeScore)
   const { celebration, showCelebration, dismissCelebration } = useCelebration()
   const { hintLevel, showHint, resetHint, totalHintsUsed, visualProps, hintPenalty } = useHintSystem()
+  const { isLocked, triggerCooldown } = useInteractionCooldown()
   const rollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Cleanup on unmount
@@ -71,6 +74,7 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
 
       // Show visual BEFORE answer choices
       setPhase('visual')
+      speakEquation(tableNumber, target)
     }, 1500)
   }, [tableNumber, resetHint])
 
@@ -79,6 +83,8 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
   }, [])
 
   const handleAnswer = useCallback((answer: number) => {
+    if (isLocked) return
+    triggerCooldown()
     setSelectedAnswer(answer)
     const isCorrect = answer === correctAnswer
 
@@ -117,7 +123,7 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
         setFeedbackMessage(null)
       }
     }, isCorrect ? 1000 : 2500)
-  }, [correctAnswer, round, score, tableNumber, recordModeScore, showCelebration, hintPenalty])
+  }, [correctAnswer, round, score, tableNumber, recordModeScore, showCelebration, hintPenalty, isLocked, triggerCooldown])
 
   const handlePlayAgain = useCallback(() => {
     setPhase('ready')
@@ -188,13 +194,20 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
           animate={{ opacity: 1, y: 0 }}
         >
           <motion.div
-            className="text-center mb-3"
+            className="text-center mb-3 flex items-center justify-center gap-2"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
           >
             <span className="text-2xl font-extrabold text-white drop-shadow-lg">
               {tableNumber} x {targetNumber} = ?
             </span>
+            <button
+              onClick={() => speakEquation(tableNumber, targetNumber)}
+              className="text-lg opacity-60 hover:opacity-100 transition-opacity min-w-[36px] min-h-[36px] flex items-center justify-center"
+              aria-label="Read aloud"
+            >
+              &#128266;
+            </button>
           </motion.div>
 
           <div className="max-w-xs mx-auto bg-white/15 backdrop-blur-sm rounded-2xl p-3 mb-3">

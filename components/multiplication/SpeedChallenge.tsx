@@ -7,6 +7,8 @@ import { getRandomFacts, MultiplicationFact } from '@/lib/constants/multiplicati
 import { useMultiplicationStore } from '@/lib/stores/multiplicationStore'
 import { generateWrongAnswers, shuffleAnswers } from '@/lib/utils/multiplicationDifficulty'
 import { sounds } from '@/lib/sounds/webAudioSounds'
+import { speakEquation, cancelSpeech } from '@/lib/sounds/speechUtils'
+import { useInteractionCooldown } from '@/lib/hooks/useInteractionCooldown'
 import { CelebrationOverlay, useCelebration } from '@/components/game/CelebrationOverlay'
 import VisualMultiplication from './VisualMultiplication'
 import { WRONG_ANSWER_MESSAGES, CORRECT_ANSWER_MESSAGES, getRandomMessage } from '@/lib/constants/encouragementMessages'
@@ -51,6 +53,7 @@ export default function SpeedChallenge({ tableNumber }: SpeedChallengeProps) {
   const recordModeScore = useMultiplicationStore(s => s.recordModeScore)
   const speedHighScore = useMultiplicationStore(s => s.speedHighScore)
   const { celebration, showCelebration, dismissCelebration } = useCelebration()
+  const { isLocked, triggerCooldown } = useInteractionCooldown(400)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const warningPlayedRef = useRef(false)
   const questionKeyRef = useRef(0)
@@ -144,7 +147,9 @@ export default function SpeedChallenge({ tableNumber }: SpeedChallengeProps) {
   }, [])
 
   const handleAnswer = useCallback((answer: number) => {
+    if (isLocked) return
     if (phase !== 'playing' || waitingForNext) return
+    triggerCooldown()
 
     const isCorrect = answer === currentQuestion.fact.product
 
@@ -234,7 +239,7 @@ export default function SpeedChallenge({ tableNumber }: SpeedChallengeProps) {
         setCurrentQuestion(getNextQuestion(tableNumber))
       }, 1500)
     }
-  }, [phase, currentQuestion, tableNumber, gameMode, relaxedQuestion, score, recordModeScore, showCelebration, waitingForNext])
+  }, [phase, currentQuestion, tableNumber, gameMode, relaxedQuestion, score, recordModeScore, showCelebration, waitingForNext, isLocked, triggerCooldown])
 
   const handlePlayAgain = useCallback(() => {
     setPhase('mode_select')
@@ -449,9 +454,20 @@ export default function SpeedChallenge({ tableNumber }: SpeedChallengeProps) {
             animate={{ opacity: 1, x: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
           >
-            <span className="text-4xl font-extrabold text-white drop-shadow-lg">
-              {currentQuestion.fact.a} x {currentQuestion.fact.b} = ?
-            </span>
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-4xl font-extrabold text-white drop-shadow-lg">
+                {currentQuestion.fact.a} x {currentQuestion.fact.b} = ?
+              </span>
+              {gameMode === 'relaxed' && (
+                <button
+                  onClick={() => speakEquation(currentQuestion.fact.a, currentQuestion.fact.b)}
+                  className="text-lg opacity-60 hover:opacity-100 transition-opacity min-w-[36px] min-h-[36px] flex items-center justify-center"
+                  aria-label="Read aloud"
+                >
+                  &#128266;
+                </button>
+              )}
+            </div>
           </motion.div>
 
           {/* Show correct answer on wrong */}

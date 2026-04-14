@@ -37,6 +37,7 @@ class MusicManager {
   }
 
   resume() {
+    this.initAudio()
     if (this.audioContext?.state === 'suspended') {
       this.audioContext.resume()
     }

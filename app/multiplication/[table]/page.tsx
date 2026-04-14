@@ -57,7 +57,51 @@ const MODE_CARDS: ModeCard[] = [
     description: 'How many can you get?',
     color: { from: 'from-yellow-400', to: 'to-amber-500', border: 'border-yellow-300' },
   },
+  {
+    mode: 'array',
+    name: 'Array Builder',
+    emoji: '🧱',
+    description: 'Build rows and columns!',
+    color: { from: 'from-teal-400', to: 'to-cyan-500', border: 'border-teal-300' },
+  },
+  {
+    mode: 'groups',
+    name: 'Group Maker',
+    emoji: '🧺',
+    description: 'Fill equal groups!',
+    color: { from: 'from-lime-400', to: 'to-green-500', border: 'border-lime-300' },
+  },
+  {
+    mode: 'dragmatch',
+    name: 'Drag Match',
+    emoji: '🔗',
+    description: 'Drag facts to answers!',
+    color: { from: 'from-sky-400', to: 'to-blue-500', border: 'border-sky-300' },
+  },
+  {
+    mode: 'numberline',
+    name: 'Number Line',
+    emoji: '🐸',
+    description: 'Hop along the line!',
+    color: { from: 'from-emerald-400', to: 'to-teal-600', border: 'border-emerald-300' },
+  },
+  {
+    mode: 'flip',
+    name: 'Flip It!',
+    emoji: '🔄',
+    description: 'See the magic of swapping!',
+    color: { from: 'from-fuchsia-400', to: 'to-purple-600', border: 'border-fuchsia-300' },
+  },
 ]
+
+// Special mode only for table 9
+const FINGER_TRICK_CARD: ModeCard = {
+  mode: 'fingers',
+  name: '9s Finger Trick',
+  emoji: '🖐️',
+  description: 'The magic finger trick!',
+  color: { from: 'from-indigo-400', to: 'to-blue-600', border: 'border-indigo-300' },
+}
 
 export default function TableDetailPage() {
   const [mounted, setMounted] = useState(false)
@@ -201,7 +245,7 @@ export default function TableDetailPage() {
           >
             <span className="text-xl">⭐</span>
             <span className="font-bold text-yellow-700 text-lg">
-              {mastery.totalStars}/18
+              {mastery.totalStars}/{MODE_CARDS.length * 3}
             </span>
           </motion.div>
         </motion.div>
@@ -239,7 +283,7 @@ export default function TableDetailPage() {
 
         {/* Game mode grid */}
         <div className="grid grid-cols-2 gap-4">
-          {MODE_CARDS.map((card, index) => {
+          {[...MODE_CARDS, ...(tableNumber === 9 ? [FINGER_TRICK_CARD] : [])].map((card, index) => {
             const modeScore = mastery.modeScores[card.mode]
             const isSpeedLocked = card.mode === 'speed' && !speedChallengeUnlocked
             const isAvailable = !isSpeedLocked

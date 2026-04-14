@@ -4,8 +4,12 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 export type GameMode = 'explorer' | 'match' | 'memory' | 'dice' | 'missing' | 'speed'
+  | 'array' | 'groups' | 'dragmatch' | 'numberline' | 'flip' | 'fingers'
 
-const ALL_MODES: GameMode[] = ['explorer', 'match', 'memory', 'dice', 'missing', 'speed']
+const ALL_MODES: GameMode[] = [
+  'explorer', 'match', 'memory', 'dice', 'missing', 'speed',
+  'array', 'groups', 'dragmatch', 'numberline', 'flip', 'fingers',
+]
 
 export interface TableMastery {
   tableNumber: number

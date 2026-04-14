@@ -198,6 +198,11 @@ export default function WelcomePage() {
           >
             {hasCreatedCharacter ? (
               <>
+                {/* Section label */}
+                <p className="text-sm text-gray-500 font-medium tracking-wide uppercase mb-1">
+                  Choose your adventure:
+                </p>
+
                 <Link href="/worlds">
                   <motion.button
                     className="w-full px-8 py-4 bg-gradient-to-r from-yellow-400 to-orange-500
@@ -216,18 +221,32 @@ export default function WelcomePage() {
                       boxShadow: { duration: 1.5, repeat: Infinity }
                     }}
                   >
-                    🌍 Continue Adventure!
+                    <span className="block">🎮 Math Games</span>
+                    <span className="block text-base font-semibold opacity-90">Explore 7 magical worlds!</span>
+                    <span className="block text-xs font-normal opacity-75 mt-1">Counting &bull; Addition &bull; More!</span>
                   </motion.button>
                 </Link>
                 <Link href="/multiplication">
                   <motion.button
-                    className="w-full px-6 py-3 bg-gradient-to-r from-green-400 to-teal-500
-                               text-white font-bold text-lg rounded-full shadow-lg
+                    className="w-full px-8 py-4 bg-gradient-to-r from-green-400 to-teal-500
+                               text-white font-bold text-2xl rounded-full shadow-xl
                                border-4 border-green-300"
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
+                    animate={{
+                      boxShadow: [
+                        '0 0 20px rgba(76, 175, 80, 0.4)',
+                        '0 0 40px rgba(76, 175, 80, 0.7)',
+                        '0 0 20px rgba(76, 175, 80, 0.4)'
+                      ]
+                    }}
+                    transition={{
+                      boxShadow: { duration: 1.5, repeat: Infinity }
+                    }}
                   >
-                    ✖️ Times Tables
+                    <span className="block">✖️ Multiplication Games</span>
+                    <span className="block text-base font-semibold opacity-90">Practice your times tables!</span>
+                    <span className="block text-xs font-normal opacity-75 mt-1">10 tables &bull; 6 game modes</span>
                   </motion.button>
                 </Link>
                 <div className="flex gap-4">
