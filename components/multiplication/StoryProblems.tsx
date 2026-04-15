@@ -95,7 +95,7 @@ const STORY_TEMPLATES: Record<number, StoryTemplate> = {
   },
   8: {
     emoji: '🐙',
-    unitEmoji: '🦑',
+    unitEmoji: '💪',
     singularSubject: 'octopus',
     pluralSubject: 'octopuses',
     singularUnit: 'arm',
@@ -293,19 +293,15 @@ export default function StoryProblems({ tableNumber }: StoryProblemsProps) {
     setAnimatedCount(0)
   }, [tableNumber])
 
-  // Build emoji groups for visual scene
+  // Build emoji groups for visual scene — show ALL items so visual matches the operation
   const emojiGroups = useMemo(() => {
     const groups: string[][] = []
     const groupCount = round.fact.b
     const itemsPerGroup = round.fact.a
 
-    // Cap visual display for large products
-    const maxVisualGroups = Math.min(groupCount, 6)
-    const maxItemsPerGroup = Math.min(itemsPerGroup, 8)
-
-    for (let g = 0; g < maxVisualGroups; g++) {
+    for (let g = 0; g < groupCount; g++) {
       const row: string[] = []
-      for (let i = 0; i < maxItemsPerGroup; i++) {
+      for (let i = 0; i < itemsPerGroup; i++) {
         row.push(round.template.unitEmoji)
       }
       groups.push(row)
@@ -313,7 +309,12 @@ export default function StoryProblems({ tableNumber }: StoryProblemsProps) {
     return groups
   }, [round])
 
-  const isTruncated = round.fact.b > 6 || round.fact.a > 8
+  // Adaptive sizing: scale emojis down for larger products so they fit on screen
+  const totalItems = round.fact.product
+  const emojiSize = totalItems <= 20 ? 'text-lg' : totalItems <= 50 ? 'text-base' : 'text-sm'
+  const subjectSize = totalItems <= 20 ? 'text-xl' : totalItems <= 50 ? 'text-lg' : 'text-base'
+  const groupPadding = totalItems <= 20 ? 'px-3 py-1.5' : totalItems <= 50 ? 'px-2 py-1' : 'px-1.5 py-0.5'
+  const groupGap = totalItems <= 30 ? 'gap-1.5' : 'gap-1'
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-300 via-orange-300 to-rose-400 p-4 pb-24">
@@ -390,23 +391,23 @@ export default function StoryProblems({ tableNumber }: StoryProblemsProps) {
               </motion.button>
             </div>
 
-            {/* Visual emoji scene */}
-            <div className="flex flex-col items-center gap-1.5">
+            {/* Visual emoji scene — shows ALL items to match the operation */}
+            <div className={`flex flex-col items-center ${groupGap}`}>
               {emojiGroups.map((group, groupIdx) => (
                 <motion.div
                   key={`group-${groupIdx}`}
-                  className="flex items-center gap-0.5 bg-white/15 rounded-xl px-3 py-1.5"
+                  className={`flex items-center gap-0.5 bg-white/15 rounded-xl ${groupPadding}`}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 + groupIdx * 0.1 }}
+                  transition={{ delay: 0.1 + groupIdx * 0.06 }}
                 >
                   {/* Group subject emoji */}
-                  <span className="text-xl mr-1.5">{round.template.emoji}</span>
+                  <span className={`${subjectSize} mr-1`}>{round.template.emoji}</span>
                   {/* Items in this group */}
                   {group.map((emoji, itemIdx) => (
                     <motion.span
                       key={`item-${groupIdx}-${itemIdx}`}
-                      className="text-lg"
+                      className={emojiSize}
                       initial={{ scale: 0 }}
                       animate={showCountAnimation ? {
                         scale: [1, 1.3, 1],
@@ -419,11 +420,6 @@ export default function StoryProblems({ tableNumber }: StoryProblemsProps) {
                   ))}
                 </motion.div>
               ))}
-              {isTruncated && (
-                <span className="text-white/60 text-sm">
-                  ...and more!
-                </span>
-              )}
             </div>
 
             {/* Count animation overlay */}
