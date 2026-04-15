@@ -1,0 +1,4 @@
+1:"$Sreact.fragment"
+2:I[62562,["/mathquest-worlds/_next/static/chunks/bb0791f1170654aa.js","/mathquest-worlds/_next/static/chunks/c5eb7ea5e205dc52.js"],"default"]
+3:I[41038,["/mathquest-worlds/_next/static/chunks/bb0791f1170654aa.js","/mathquest-worlds/_next/static/chunks/c5eb7ea5e205dc52.js"],"default"]
+0:{"buildId":"1rBGgcOo2XQAeXtkr_9VQ","rsc":["$","$1","c",{"children":[null,["$","$L2",null,{"parallelRouterKey":"children","template":["$","$L3",null,{}]}]]}],"loading":null,"isPartial":false}
