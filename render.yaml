@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: mathquest-worlds
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: starter
+    branch: main
+    # DELIBERATE deviation from CLAUDE.md default autoDeploy=no.
+    # Manual deploy IS the bug we're fixing (stale out/ on GitHub Pages
+    # caused 404s on newly-linked game modes). Starter tier is single-
+    # developer scope (one family game, no prod traffic) so the
+    # "pause before prod" safety isn't applicable here.
+    autoDeploy: yes
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: AUTH_TRUST_HOST
+        value: "true"
+      # Secret env vars: `sync: false` tells Render "prompt the operator
+      # at service creation and never sync from the yaml." This makes
+      # Render FAIL FAST if any of these are unset, instead of NextAuth
+      # silently breaking at first login attempt.
+      # Values fed from Keychain:
+      #   security find-generic-password -a mathquest-worlds -s auth-secret -w
+      #   security find-generic-password -a mathquest-worlds -s google-client-id -w
+      #   security find-generic-password -a mathquest-worlds -s google-client-secret -w
+      #   security find-generic-password -a mathquest-worlds -s allowed-email -w
+      - key: AUTH_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: ALLOWED_EMAIL
+        sync: false

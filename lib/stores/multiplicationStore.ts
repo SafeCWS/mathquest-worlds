@@ -58,6 +58,22 @@ function createDefaultTableMastery(tableNumber: number): TableMastery {
   }
 }
 
+// Module-level cache for default TableMastery objects.
+// Without this, `getTableMastery` returns a fresh object on every cache
+// miss, and any component using `useMultiplicationStore(s => s.getTableMastery(n))`
+// as a selector re-renders in a loop (new reference ≠ old reference).
+// Keyed by table number since default state is identical per table.
+const defaultMasteryCache = new Map<number, TableMastery>()
+
+function getDefaultMastery(table: number): TableMastery {
+  let cached = defaultMasteryCache.get(table)
+  if (!cached) {
+    cached = createDefaultTableMastery(table)
+    defaultMasteryCache.set(table, cached)
+  }
+  return cached
+}
+
 function computeTotalStars(modeScores: Record<GameMode, { attempts: number; bestStars: number }>): number {
   let total = 0
   for (const mode of ALL_MODES) {
@@ -188,7 +204,10 @@ export const useMultiplicationStore = create<MultiplicationState>()(
       },
 
       getTableMastery: (table: number) => {
-        return get().tables[table] || createDefaultTableMastery(table)
+        // Use memoized default so reference equality holds across
+        // renders when no data has been stored for this table yet
+        // (prevents infinite re-render loops in Zustand selectors).
+        return get().tables[table] || getDefaultMastery(table)
       },
 
       getTotalStars: () => {
