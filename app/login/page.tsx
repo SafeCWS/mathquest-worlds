@@ -8,27 +8,41 @@ import { motion } from 'motion/react'
 function LoginCard() {
   const searchParams = useSearchParams()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     const error = searchParams.get('error')
     if (!error) return
-    // NextAuth surfaces `AccessDenied` when our signIn() callback
-    // returns false (wrong email or wrong Workspace domain).
-    // Configuration / OAuthCallback / Verification errors map to a
-    // generic "please try again" because a 7-year-old can't fix them.
-    if (error === 'AccessDenied') {
-      setErrorMessage('Sorry, this game is for family only 🐉')
+    if (error === 'CredentialsSignin') {
+      setErrorMessage('Hmm, that email or password didn’t match 🐉')
     } else {
       setErrorMessage('Something went wrong. Please try again 🌟')
     }
   }, [searchParams])
 
-  const handleSignIn = () => {
-    // Full popup flow (not One Tap) — Safari on macOS silently blocks
-    // `google.accounts.id.prompt()` without the COOP header set in
-    // next.config.ts. The NextAuth signIn() helper opens a Google
-    // OAuth popup that works reliably across browsers.
-    void signIn('google', { callbackUrl: '/' })
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setErrorMessage(null)
+    setSubmitting(true)
+    const callbackUrl = searchParams.get('callbackUrl') ?? '/'
+    const result = await signIn('credentials', {
+      email,
+      password,
+      callbackUrl,
+      redirect: false,
+    })
+    if (result?.error) {
+      setErrorMessage('Hmm, that email or password didn’t match 🐉')
+      setSubmitting(false)
+      return
+    }
+    if (result?.url) {
+      window.location.href = result.url
+    } else {
+      window.location.href = '/'
+    }
   }
 
   return (
@@ -42,7 +56,8 @@ function LoginCard() {
       <motion.h1
         className="text-4xl md:text-5xl font-bold mb-3"
         style={{
-          background: 'linear-gradient(90deg, #FF6B6B, #FFD93D, #6BCB77, #4D96FF, #9B59B6, #FF6B6B)',
+          background:
+            'linear-gradient(90deg, #FF6B6B, #FFD93D, #6BCB77, #4D96FF, #9B59B6, #FF6B6B)',
           backgroundSize: '200% auto',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
@@ -55,7 +70,7 @@ function LoginCard() {
       </motion.h1>
 
       <motion.p
-        className="text-xl text-gray-600 mb-8"
+        className="text-xl text-gray-600 mb-6"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 }}
@@ -76,25 +91,59 @@ function LoginCard() {
         </motion.div>
       )}
 
-      <motion.button
-        onClick={handleSignIn}
-        className="w-full px-8 py-4 bg-gradient-to-r from-blue-400 to-indigo-500
-                   text-white font-bold text-xl rounded-full shadow-xl
-                   border-4 border-blue-300 flex items-center justify-center gap-3"
-        whileHover={{ scale: 1.03 }}
-        whileTap={{ scale: 0.97 }}
-        animate={{
-          boxShadow: [
-            '0 0 20px rgba(59, 130, 246, 0.4)',
-            '0 0 40px rgba(59, 130, 246, 0.7)',
-            '0 0 20px rgba(59, 130, 246, 0.4)',
-          ],
-        }}
-        transition={{ boxShadow: { duration: 1.5, repeat: Infinity } }}
-      >
-        <span className="text-2xl">🔐</span>
-        <span>Sign in with Google</span>
-      </motion.button>
+      <form onSubmit={handleSubmit} className="space-y-4 text-left">
+        <label className="block">
+          <span className="text-sm font-semibold text-gray-700">Email</span>
+          <input
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="mt-1 w-full px-4 py-3 rounded-2xl border-2 border-indigo-200
+                       focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200
+                       bg-white/70 text-gray-800 text-lg outline-none transition"
+            placeholder="you@example.com"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-semibold text-gray-700">Password</span>
+          <input
+            type="password"
+            required
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="mt-1 w-full px-4 py-3 rounded-2xl border-2 border-indigo-200
+                       focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200
+                       bg-white/70 text-gray-800 text-lg outline-none transition"
+            placeholder="••••••••"
+          />
+        </label>
+
+        <motion.button
+          type="submit"
+          disabled={submitting}
+          className="w-full px-8 py-4 mt-2 bg-gradient-to-r from-blue-400 to-indigo-500
+                     text-white font-bold text-xl rounded-full shadow-xl
+                     border-4 border-blue-300 flex items-center justify-center gap-3
+                     disabled:opacity-70 disabled:cursor-not-allowed"
+          whileHover={{ scale: submitting ? 1 : 1.03 }}
+          whileTap={{ scale: submitting ? 1 : 0.97 }}
+          animate={{
+            boxShadow: [
+              '0 0 20px rgba(59, 130, 246, 0.4)',
+              '0 0 40px rgba(59, 130, 246, 0.7)',
+              '0 0 20px rgba(59, 130, 246, 0.4)',
+            ],
+          }}
+          transition={{ boxShadow: { duration: 1.5, repeat: Infinity } }}
+        >
+          <span className="text-2xl">🔐</span>
+          <span>{submitting ? 'Signing in…' : 'Sign in'}</span>
+        </motion.button>
+      </form>
 
       <motion.p
         className="mt-6 text-sm text-gray-500"
@@ -112,7 +161,6 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center p-4
                      bg-gradient-to-b from-sky-400 via-indigo-300 to-purple-300">
-      {/* Decorative floating emojis */}
       <motion.div
         className="absolute top-10 left-0 right-0 flex justify-center gap-8 text-5xl pointer-events-none z-0"
         initial={{ opacity: 0, y: -30 }}
@@ -135,7 +183,6 @@ export default function LoginPage() {
         ))}
       </motion.div>
 
-      {/* Suspense boundary required for useSearchParams during static gen */}
       <Suspense
         fallback={
           <div className="bg-white/90 rounded-3xl p-8 shadow-2xl">
