@@ -15,6 +15,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    // Runs on every middleware-matched request. Returning false makes
+    // NextAuth redirect to pages.signIn (/login). This is what actually
+    // enforces route protection — the `auth as middleware` export alone
+    // only establishes session context without gating.
+    authorized: ({ auth }) => !!auth,
     async signIn({ profile, account }) {
       // Defense-in-depth. Checks ordered shortest/cheapest first so a
       // mis-routed or hostile callback is rejected before we touch the
