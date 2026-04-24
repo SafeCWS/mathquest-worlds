@@ -1,6 +1,16 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
-import crypto from 'node:crypto'
+
+// Edge-safe constant-time string equality (Edge runtime has no node:crypto
+// and no Web Crypto timingSafeEqual). Classic XOR-accumulator idiom.
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let result = 0
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return result === 0
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -21,12 +31,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const expectedPassword = process.env.SIMPLE_AUTH_PASSWORD ?? ''
         if (!expectedEmail || !expectedPassword) return null
         if (email !== expectedEmail) return null
-        // Constant-time password comparison to avoid timing-side-channel
-        // leakage. Overkill for a single-user family app but costs nothing.
-        const aBuf = Buffer.from(password, 'utf8')
-        const bBuf = Buffer.from(expectedPassword, 'utf8')
-        if (aBuf.length !== bBuf.length) return null
-        if (!crypto.timingSafeEqual(aBuf, bBuf)) return null
+        if (!constantTimeEqual(password, expectedPassword)) return null
         return { id: email, email }
       },
     }),
