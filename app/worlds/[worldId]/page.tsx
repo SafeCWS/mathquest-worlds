@@ -21,7 +21,7 @@ export default function WorldMapPage() {
   const [mounted, setMounted] = useState(false)
   const [world, setWorld] = useState<World | null>(null)
 
-  const { characterName, hasCreatedCharacter } = useCharacterStore()
+  const { _hasHydrated, characterName, hasCreatedCharacter } = useCharacterStore()
   const {
     totalStars,
     moduleProgress,
@@ -37,6 +37,13 @@ export default function WorldMapPage() {
   useEffect(() => {
     setMounted(true)
 
+    // Phase 4.F regression fix: gate the routing decisions on hydration.
+    // Without this, the first render sees hasCreatedCharacter=false (the
+    // default Zustand state) and bounces the kid back to "/" before the
+    // persisted save loads — a returning-kid lockout. Same shape as the
+    // Phase 4.0 fix on /create-character and /wardrobe.
+    if (!_hasHydrated) return
+
     if (!hasCreatedCharacter) {
       router.push('/')
       return
@@ -49,7 +56,7 @@ export default function WorldMapPage() {
     } else {
       router.push('/worlds')
     }
-  }, [worldId, hasCreatedCharacter, router, setCurrentWorld])
+  }, [_hasHydrated, worldId, hasCreatedCharacter, router, setCurrentWorld])
 
   if (!mounted || !world) {
     return (

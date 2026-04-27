@@ -22,10 +22,16 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './tests/e2e',
-  fullyParallel: true,
+  // fullyParallel: false — Next.js dev server with Turbopack cannot keep up
+  // with parallel test workers cold-loading new routes simultaneously
+  // (each parallel goto causes Turbopack to compile the route on demand,
+  // queueing behind the others). Serial execution is fast enough at this
+  // suite size (~15s for 8 tests) and far more reliable. Phase 5 should
+  // re-evaluate this against `npm run start` (production server).
+  fullyParallel: false,
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
   reporter: [['list'], ['html', { open: 'never' }]],
 
   use: {
