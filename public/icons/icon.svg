@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Jungle-green primary (matches viewport themeColor #2D5016) with sky gradient -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5BA84F"/>
+      <stop offset="60%" stop-color="#2D5016"/>
+      <stop offset="100%" stop-color="#1A3009"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#FFEB99" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#FFEB99" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Rounded-square background -->
+  <rect x="0" y="0" width="512" height="512" rx="96" ry="96" fill="url(#bg)"/>
+  <!-- Soft glow -->
+  <circle cx="256" cy="200" r="200" fill="url(#glow)"/>
+  <!-- Star (suggests "earn stars") -->
+  <polygon points="256,80 286,176 386,176 305,234 336,330 256,272 176,330 207,234 126,176 226,176"
+           fill="#FFD93D" stroke="#FFA500" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Multiplication sign + numbers, friendly -->
+  <text x="256" y="430" font-family="-apple-system, system-ui, sans-serif" font-weight="800"
+        font-size="160" text-anchor="middle" fill="#FFFFFF"
+        stroke="#1A3009" stroke-width="6" paint-order="stroke">
+    2&#215;3
+  </text>
+</svg>

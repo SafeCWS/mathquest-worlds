@@ -4,6 +4,10 @@ import { useEffect, useState, useRef } from 'react'
 import { motion } from 'motion/react'
 import Link from 'next/link'
 import { useMultiplicationStore } from '@/lib/stores/multiplicationStore'
+// Yokoten (Phase 5): the prior `const [mounted, setMounted] = useState(false)`
+// + setMounted(true) in useEffect was redundant once Zustand's `_hasHydrated`
+// flag covers the SSR/CSR mismatch window. Same pattern was cleaned up on
+// /progress, /parent, /preferences, /worlds/[worldId] in Phase 4 G4.
 
 const TABLE_COLORS: Record<number, { from: string; to: string; border: string }> = {
   1: { from: 'from-rose-400', to: 'to-pink-500', border: 'border-rose-300' },
@@ -83,7 +87,6 @@ function AnimatedStarCounter({ target }: { target: number }) {
 }
 
 export default function MultiplicationHubPage() {
-  const [mounted, setMounted] = useState(false)
   const {
     _hasHydrated,
     unlockedTables,
@@ -92,12 +95,8 @@ export default function MultiplicationHubPage() {
     getTotalStars,
   } = useMultiplicationStore()
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  // Wait for both client mount AND Zustand hydration
-  if (!mounted || !_hasHydrated) {
+  // Wait for Zustand hydration to gate against SSR/CSR mismatch.
+  if (!_hasHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-green-300 via-teal-300 to-cyan-400">
         <motion.div
