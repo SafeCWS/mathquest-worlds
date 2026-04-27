@@ -1,7 +1,7 @@
 'use client'
 
 import { motion, useReducedMotion, type HTMLMotionProps } from 'motion/react'
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { sounds } from '@/lib/sounds/webAudioSounds'
 
 // KidButton — the Phase 1.1 button primitive Tina will press a thousand times.
@@ -53,6 +53,14 @@ export function KidButton({
   const [bursting, setBursting] = useState(false)
   const sparkleEnabled = sparkle ?? variant === 'primary'
 
+  // Dev-only nudge: aria-label is required, but TS can't catch whitespace-only.
+  // Screen readers treat "  " as missing — warn loudly in dev.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production' && !ariaLabel?.trim()) {
+      console.warn('[KidButton] aria-label must be a non-empty string')
+    }
+  }, [ariaLabel])
+
   const handlePress = useCallback(() => {
     if (disabled) return
 
@@ -72,6 +80,30 @@ export function KidButton({
 
     onClick()
   }, [disabled, sound, haptic, sparkleEnabled, reduceMotion, onClick])
+
+  // Keyboard parity for `onPointerDown`. PointerEvents do NOT fire on keyboard
+  // activation — Tab+Enter and Tab+Space would otherwise be silently broken.
+  //
+  // Double-fire analysis:
+  //   - Touch/mouse:  keydown does NOT fire from pointer input → only onPointerDown fires.
+  //   - Enter key:    onKeyDown fires; native button also synthesizes a `click` event,
+  //                   but we attach no `onClick` handler, so handlePress runs exactly once.
+  //   - Space key:    onKeyDown fires; we call preventDefault() to suppress page-scroll
+  //                   and the native click-on-keyup. handlePress runs exactly once.
+  //   - Auto-repeat:  holding a key fires keydown repeatedly; `event.repeat` short-circuits
+  //                   so haptic/audio/sparkle don't machine-gun.
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      if (event.repeat) return
+      // Space scrolls the page by default on a focused button; suppress it.
+      // Also suppresses the native click-on-keyup so we stay single-fire even
+      // if a future onClick is added.
+      if (event.key === ' ') event.preventDefault()
+      handlePress()
+    },
+    [handlePress]
+  )
 
   const variantClass =
     variant === 'primary'
@@ -93,6 +125,7 @@ export function KidButton({
       aria-disabled={disabled}
       disabled={disabled}
       onPointerDown={handlePress}
+      onKeyDown={handleKeyDown}
       whileHover={reduceMotion || disabled ? undefined : { scale: 1.05, y: -2 }}
       whileTap={reduceMotion || disabled ? undefined : { scale: 0.88 }}
       transition={{ type: 'spring', stiffness: 400, damping: 17 }}
