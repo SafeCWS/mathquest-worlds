@@ -1,5 +1,25 @@
 // Character customization items for MathQuest Worlds
 
+// Primary accent colors for avatars. Source of truth — imported by both
+// `lib/stores/characterStore.ts` (runtime palette) and
+// `lib/character/schema.ts` (migration validation).
+//
+// Why it lives here: characterItems.ts is a value-only constants module that
+// is imported VERY early by everything (stores, components, migrations).
+// Centralizing the palette eliminates the v1 duplication where
+// `PRIMARY_COLORS_SNAPSHOT` had to be inlined inside schema.ts to avoid a
+// value-level circular dep with characterStore.ts. See Phase 4.0 carry-over.
+export const PRIMARY_COLORS = [
+  '#4A90D9', // Blue
+  '#E53E7E', // Pink
+  '#38A169', // Green
+  '#DD6B20', // Orange
+  '#805AD5', // Purple
+  '#D69E2E', // Gold
+  '#E53E3E', // Red
+  '#319795', // Teal
+] as const
+
 export interface CharacterItem {
   id: string
   name: string

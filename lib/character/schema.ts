@@ -15,21 +15,14 @@
 // - On unknown keys we WARN in dev, IGNORE in prod (per plan §3.3 "Never throw")
 
 import type { CharacterState as StoreShape } from '@/lib/stores/characterStore'
+import { PRIMARY_COLORS } from '@/lib/constants/characterItems'
 
-// Inline copy of the palette to avoid a value-level circular dep — schema.ts
-// is imported by characterStore.ts during module init, so we cannot pull
-// runtime values from it. Source of truth is still characterStore.ts; if
-// the palette there changes, mirror it here.
-const PRIMARY_COLORS_SNAPSHOT = [
-  '#4A90D9',
-  '#E53E7E',
-  '#38A169',
-  '#DD6B20',
-  '#805AD5',
-  '#D69E2E',
-  '#E53E3E',
-  '#319795',
-] as const
+// Phase 4.0: PRIMARY_COLORS now imported from `lib/constants/characterItems.ts`
+// (the value-only constants module). Earlier we kept an inline snapshot here
+// because schema.ts is imported by characterStore.ts during module init and a
+// value-level back-import would have created a circular dep. By moving the
+// palette into characterItems (which neither file pulls eagerly at top level
+// for this value), we get a single source of truth.
 
 export const CURRENT_SCHEMA_VERSION = 2 as const
 export type SchemaVersion = 1 | 2
@@ -150,7 +143,7 @@ export function migrate(prev: unknown): CharacterStateV2 {
   // enum-like field if its allowed set ever shrinks.
   if (
     migrated.primaryColor &&
-    !(PRIMARY_COLORS_SNAPSHOT as readonly string[]).includes(migrated.primaryColor)
+    !(PRIMARY_COLORS as readonly string[]).includes(migrated.primaryColor)
   ) {
     droppedKeys.push(`primaryColor (out of palette: ${migrated.primaryColor})`)
     delete migrated.primaryColor

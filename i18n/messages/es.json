@@ -54,8 +54,7 @@
     "multiplicationGamesHint": "10 tablas • 6 modos de juego",
     "wardrobe": "👗 Ropero",
     "progress": "📊 Progreso",
-    "startAdventure": "✨ ¡Empieza la aventura!",
-    "defaultName": "Aventurero"
+    "startAdventure": "✨ ¡Empieza la aventura!"
   },
   "mascot": {
     "greetingReturning": "¡Hola, {name}! ¿Lista para la aventura?",
@@ -158,7 +157,6 @@
   "preferences": {
     "questionWhatToLearn": "¡Hola {name}! ¿Qué quieres aprender?",
     "questionHowToPlay": "¿Cómo quieres jugar?",
-    "defaultName": "amigo",
     "operations": {
       "counting": "Contar",
       "countingDescription": "¡Cuenta cosas divertidas!",
@@ -188,7 +186,6 @@
     "title": "Panel de padres",
     "backToGame": "Volver al juego",
     "skillLevel": "Nivel:",
-    "defaultName": "Aventurero",
     "tabs": {
       "overview": "Resumen",
       "skills": "Habilidades",

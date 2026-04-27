@@ -44,6 +44,7 @@ export default function PreferencesPage() {
   const router = useRouter()
   const t = useTranslations('preferences')
   const tCommon = useTranslations('common')
+  const tMascot = useTranslations('mascot')
   const [mounted, setMounted] = useState(false)
   const [guide] = useState(
     () => GUIDE_CHARACTERS[Math.floor(Math.random() * GUIDE_CHARACTERS.length)]
@@ -154,7 +155,7 @@ export default function PreferencesPage() {
             />
             <p className="text-xl md:text-2xl font-bold text-gray-800">
               {step === 'operations'
-                ? t('questionWhatToLearn', { name: characterName || t('defaultName') })
+                ? t('questionWhatToLearn', { name: characterName || tMascot('fallbackName') })
                 : t('questionHowToPlay')}
             </p>
             <p className="text-sm md:text-lg text-gray-600 mt-1">{t(guideVoiceKey)}</p>

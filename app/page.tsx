@@ -25,7 +25,6 @@ export default function WelcomePage() {
   const tStats = useTranslations('stats')
   const reduceMotion = useReducedMotion()
   const router = useRouter()
-  const [mounted, setMounted] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [parentsOpen, setParentsOpen] = useState(false)
   const [lockedToast, setLockedToast] = useState<string | null>(null)
@@ -42,14 +41,19 @@ export default function WelcomePage() {
   const { checkAndUnlockStreakAchievements } = useUnlocksStore()
   const { celebration, showCelebration, dismissCelebration } = useCelebration()
 
+  // Phase 4.0: dropped local `mounted` state — `_hasHydrated` already covers
+  // the SSR/persist race. updateStreak() must run AFTER hydration so we don't
+  // overwrite the persisted lastPlayDate with a fresh "today" before Zustand
+  // has rehydrated yesterday's value (would silently kill the streak).
   useEffect(() => {
-    setMounted(true)
-    updateStreak()
-  }, [updateStreak])
+    if (_hasHydrated) {
+      updateStreak()
+    }
+  }, [_hasHydrated, updateStreak])
 
   // Check for streak achievements after streak is updated
   useEffect(() => {
-    if (mounted && currentStreak > 0) {
+    if (_hasHydrated && currentStreak > 0) {
       const streakAchievements = checkAndUnlockStreakAchievements(currentStreak)
       if (streakAchievements.length > 0) {
         const achievement = streakAchievements[0]
@@ -61,11 +65,11 @@ export default function WelcomePage() {
         })
       }
     }
-  }, [mounted, currentStreak, checkAndUnlockStreakAchievements, showCelebration])
+  }, [_hasHydrated, currentStreak, checkAndUnlockStreakAchievements, showCelebration])
 
-  // Wait for both client mount AND Zustand hydration before rendering
-  // This fixes the mobile/iPad race condition where localStorage data loads after initial render
-  if (!mounted || !_hasHydrated) {
+  // Wait for Zustand hydration before rendering — fixes the mobile/iPad race
+  // where localStorage data loads after initial render.
+  if (!_hasHydrated) {
     return (
       <div
         role="status"

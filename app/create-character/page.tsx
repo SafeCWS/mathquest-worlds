@@ -32,11 +32,11 @@ export default function CreateCharacterPage() {
   const t = useTranslations('characterCreator')
   const tA11y = useTranslations('a11y')
 
-  const [mounted, setMounted] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>('avatar')
   const [nameInput, setNameInput] = useState('')
 
   const {
+    _hasHydrated,
     avatarStyle,
     primaryColor,
     skinTone,
@@ -51,16 +51,20 @@ export default function CreateCharacterPage() {
     saveCharacter,
   } = useCharacterStore()
 
+  // Sync the input field with the persisted name once hydration completes.
+  // Before Phase 4.0 this used a local `mounted` flag (set in a no-deps
+  // effect) plus the same `characterName` dep — duplicating signals. The
+  // store's `_hasHydrated` flag is the canonical "client + persist ready"
+  // marker, so we lean on that and drop the local state.
   useEffect(() => {
-    setMounted(true)
-    if (characterName) {
+    if (_hasHydrated && characterName) {
       setNameInput(characterName)
     }
-  }, [characterName])
+  }, [_hasHydrated, characterName])
 
   // SSR-safe gate — without this the persisted Zustand state and the server
   // markup disagree on first paint, which causes a hydration mismatch.
-  if (!mounted) {
+  if (!_hasHydrated) {
     return (
       <div
         role="status"

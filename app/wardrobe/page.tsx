@@ -28,10 +28,10 @@ export default function WardrobePage() {
   const tCreator = useTranslations('characterCreator')
   const tA11y = useTranslations('a11y')
 
-  const [mounted, setMounted] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>('avatar')
 
   const {
+    _hasHydrated,
     hasCreatedCharacter,
     characterName,
     avatarStyle,
@@ -46,14 +46,17 @@ export default function WardrobePage() {
 
   const { totalStars, currentStreak } = useProgressStore()
 
+  // Phase 4.0: dropped local `mounted` state in favor of the store's
+  // `_hasHydrated` flag. Same SSR safety, one less signal to track.
+  // Routing guard waits for hydration before redirecting so we don't bounce
+  // a returning kid back to "/" while their save is still loading.
   useEffect(() => {
-    setMounted(true)
-    if (!hasCreatedCharacter) {
+    if (_hasHydrated && !hasCreatedCharacter) {
       router.push('/')
     }
-  }, [hasCreatedCharacter, router])
+  }, [_hasHydrated, hasCreatedCharacter, router])
 
-  if (!mounted || !hasCreatedCharacter) {
+  if (!_hasHydrated || !hasCreatedCharacter) {
     return (
       <div
         role="status"

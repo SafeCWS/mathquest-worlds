@@ -35,6 +35,7 @@ export default function ParentDashboard() {
   const router = useRouter()
   const t = useTranslations('parent')
   const tCommon = useTranslations('common')
+  const tMascot = useTranslations('mascot')
   const locale = useLocale()
   const [mounted, setMounted] = useState(false)
   const [authenticated, setAuthenticated] = useState(false)
@@ -128,7 +129,7 @@ export default function ParentDashboard() {
               {(characterName || 'A')[0].toUpperCase()}
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-slate-800">{characterName || t('defaultName')}</h2>
+              <h2 className="text-2xl font-bold text-slate-800">{characterName || tMascot('fallbackName')}</h2>
               <p className="text-slate-500">{t('skillLevel')} <span className="font-medium capitalize text-slate-700">{t(`skillLevels.${skillLevel}`)}</span></p>
             </div>
           </div>
