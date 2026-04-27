@@ -621,7 +621,7 @@ function ParentsPanel({ titleId, onClose }: ParentsPanelProps) {
       </div>
 
       <p className="text-base text-gray-700 leading-relaxed">
-        Progress, stars, recent sessions, and skill assessment are on the parent dashboard. PIN required.
+        {tSlide('parentsBody')}
       </p>
 
       <Link href="/parent" onClick={onClose} className="block">

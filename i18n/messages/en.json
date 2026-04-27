@@ -78,9 +78,9 @@
   "slideOver": {
     "settingsTitle": "Settings",
     "parentsTitle": "For parents",
+    "parentsBody": "Progress, stars, recent sessions, and skill assessment are on the parent dashboard. PIN required.",
     "close": "Close panel",
     "language": "Language",
-    "musicVolume": "Music volume",
     "sfxVolume": "Sound effects",
     "openParents": "For parents →",
     "fullParentDashboard": "Open full dashboard",

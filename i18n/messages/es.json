@@ -78,9 +78,9 @@
   "slideOver": {
     "settingsTitle": "Ajustes",
     "parentsTitle": "Para padres",
+    "parentsBody": "El progreso, las estrellas, las sesiones recientes y la evaluación de habilidades están en el panel para padres. Pide PIN.",
     "close": "Cerrar panel",
     "language": "Idioma",
-    "musicVolume": "Volumen de música",
     "sfxVolume": "Efectos de sonido",
     "openParents": "Para padres →",
     "fullParentDashboard": "Abrir panel completo",
