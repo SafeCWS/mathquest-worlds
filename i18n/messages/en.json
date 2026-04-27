@@ -6,6 +6,23 @@
     "forParents": "For Parents",
     "loading": "Loading..."
   },
+  "a11y": {
+    "openSettings": "Open settings",
+    "openParentDashboard": "Open parent dashboard",
+    "playMathGames": "Play math games",
+    "playMultiplicationGames": "Play multiplication games",
+    "openWardrobe": "Open wardrobe",
+    "openProgress": "Open progress",
+    "startAdventure": "Start your adventure",
+    "selectAvatarStyle": "Choose avatar style: {label}",
+    "selectColor": "Choose color: {label}",
+    "selectTab": "Open {label} tab",
+    "characterNameInput": "Type your character name",
+    "saveCharacter": "Save character and continue",
+    "languageGroup": "Language picker",
+    "languageEnglish": "Switch to English",
+    "languageSpanish": "Switch to Spanish"
+  },
   "languageToggle": {
     "label": "Language",
     "english": "EN",

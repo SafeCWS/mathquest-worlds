@@ -1,6 +1,6 @@
 'use client'
 
-import { motion } from 'motion/react'
+import { motion, useReducedMotion } from 'motion/react'
 import { useRef, useMemo } from 'react'
 import {
   AnimatedSun,
@@ -81,6 +81,7 @@ export function ParallaxBackground({
 }: ParallaxBackgroundProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const config = themeConfigs[theme]
+  const reduceMotion = useReducedMotion()
 
   const intensityMultiplier = {
     subtle: 0.5,
@@ -138,7 +139,7 @@ export function ParallaxBackground({
       }}
     >
       {/* Layer 1: Sky elements (furthest back) */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
         {/* Sun for day themes */}
         {isWelcomeOrJungle && (
           <motion.div
@@ -223,7 +224,7 @@ export function ParallaxBackground({
       </div>
 
       {/* Layer 2: Mid-ground decorations */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
         {/* Mountains for certain themes */}
         {(theme === 'jungle' || theme === 'welcome' || theme === 'dino') && (
           <div className="absolute bottom-0 left-0 right-0 opacity-40">
@@ -295,7 +296,7 @@ export function ParallaxBackground({
       </div>
 
       {/* Layer 3: Foreground elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div aria-hidden="true" className="absolute inset-0 overflow-hidden pointer-events-none">
         {/* Palm trees for jungle */}
         {isWelcomeOrJungle && (
           <>

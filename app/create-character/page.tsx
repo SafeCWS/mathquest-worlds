@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'motion/react'
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
 import { useRouter } from 'next/navigation'
 import { useCharacterStore, PRIMARY_COLORS, AvatarStyle } from '@/lib/stores/characterStore'
 import { PresetAvatar, AvatarSelector } from '@/components/character-creator/PresetAvatars'
@@ -19,6 +19,7 @@ const tabs: { id: TabType; label: string; icon: string }[] = [
 
 export default function CreateCharacterPage() {
   const router = useRouter()
+  const reduceMotion = useReducedMotion()
   const [mounted, setMounted] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>('avatar')
   const [nameInput, setNameInput] = useState('')
@@ -48,10 +49,15 @@ export default function CreateCharacterPage() {
 
   if (!mounted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-400 to-green-400">
+      <div
+        role="status"
+        aria-label="Loading character creator"
+        className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-400 to-green-400"
+      >
         <motion.div
+          aria-hidden="true"
           className="text-7xl"
-          animate={{ rotate: 360, scale: [1, 1.2, 1] }}
+          animate={reduceMotion ? undefined : { rotate: 360, scale: [1, 1.2, 1] }}
           transition={{ duration: 2, repeat: Infinity }}
         >
           ✨
@@ -106,13 +112,21 @@ export default function CreateCharacterPage() {
             className="space-y-6"
           >
             <div>
-              <h3 className="text-lg font-bold text-center text-gray-700 mb-3">
+              <h3 id="outfit-color-label" className="text-lg font-bold text-center text-gray-700 mb-3">
                 🎨 Outfit Color
               </h3>
-              <div className="flex flex-wrap justify-center gap-3">
+              <div
+                role="radiogroup"
+                aria-labelledby="outfit-color-label"
+                className="flex flex-wrap justify-center gap-3"
+              >
                 {PRIMARY_COLORS.map((color) => (
                   <motion.button
                     key={color}
+                    type="button"
+                    role="radio"
+                    aria-checked={primaryColor === color}
+                    aria-label={`Outfit color ${color}`}
                     className={`w-12 h-12 rounded-full border-4 shadow-lg ${
                       primaryColor === color ? 'border-yellow-400 scale-110' : 'border-white/50'
                     }`}
@@ -163,24 +177,31 @@ export default function CreateCharacterPage() {
             </h3>
 
             <div className="w-full max-w-sm">
+              <label htmlFor="character-name" className="sr-only">
+                Character name
+              </label>
               <input
+                id="character-name"
                 type="text"
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
                 placeholder="Enter your name..."
                 maxLength={20}
+                aria-label="Type your character name"
                 className="w-full px-6 py-4 rounded-2xl border-4 border-yellow-300
                            focus:border-yellow-500 focus:outline-none text-center
                            text-2xl font-bold shadow-lg bg-white/90
-                           placeholder:text-gray-400"
+                           placeholder:text-gray-500"
               />
             </div>
 
-            <div className="flex flex-wrap justify-center gap-2">
+            <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="Quick name suggestions">
               {['Alex', 'Sam', 'Jordan', 'Riley', 'Max', 'Sky'].map((name) => (
                 <motion.button
                   key={name}
-                  className="px-4 py-2 bg-white/80 rounded-full text-gray-700
+                  type="button"
+                  aria-label={`Use the name ${name}`}
+                  className="px-4 py-2 bg-white/90 rounded-full text-gray-700
                              font-medium shadow hover:bg-yellow-100 transition-colors"
                   onClick={() => setNameInput(name)}
                   whileHover={{ scale: 1.05 }}
@@ -198,10 +219,10 @@ export default function CreateCharacterPage() {
   return (
     <ParallaxBackground theme="welcome" intensity="medium">
       <main className="min-h-screen flex flex-col p-4 relative">
-        {/* Confetti celebration */}
+        {/* Confetti celebration — purely decorative, hidden from assistive tech */}
         <AnimatePresence>
-          {showConfetti && (
-            <>
+          {showConfetti && !reduceMotion && (
+            <div aria-hidden="true">
               {[...Array(30)].map((_, i) => (
                 <motion.div
                   key={i}
@@ -224,7 +245,7 @@ export default function CreateCharacterPage() {
                   {['⭐', '🌟', '✨', '🎉', '🎊', '💫'][i % 6]}
                 </motion.div>
               ))}
-            </>
+            </div>
           )}
         </AnimatePresence>
 
@@ -251,7 +272,7 @@ export default function CreateCharacterPage() {
           >
             {/* Large avatar preview */}
             <motion.div
-              animate={{ y: [0, -10, 0] }}
+              animate={reduceMotion ? undefined : { y: [0, -10, 0] }}
               transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
             >
               <PresetAvatar
@@ -281,6 +302,8 @@ export default function CreateCharacterPage() {
 
             {/* Randomize button */}
             <motion.button
+              type="button"
+              aria-label="Randomize character"
               className="mt-4 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500
                          text-white rounded-full font-bold shadow-lg
                          flex items-center gap-2"
@@ -288,7 +311,7 @@ export default function CreateCharacterPage() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95, rotate: 10 }}
             >
-              <span className="text-xl">🎲</span>
+              <span aria-hidden="true" className="text-xl">🎲</span>
               Randomize!
             </motion.button>
           </motion.div>
@@ -301,23 +324,30 @@ export default function CreateCharacterPage() {
             animate={{ opacity: 1, x: 0 }}
           >
             {/* Tabs */}
-            <div className="flex border-b-2 border-gray-100">
+            <div role="tablist" aria-label="Character customization tabs" className="flex border-b-2 border-gray-100">
               {tabs.map((tab) => (
                 <motion.button
                   key={tab.id}
+                  type="button"
+                  role="tab"
+                  id={`tab-${tab.id}`}
+                  aria-selected={activeTab === tab.id}
+                  aria-controls={`tabpanel-${tab.id}`}
+                  aria-label={`Open ${tab.label} tab`}
                   className={`flex-1 py-4 px-4 font-bold text-lg flex items-center
                               justify-center gap-2 transition-colors relative
                               ${activeTab === tab.id
-                                ? 'text-orange-500 bg-orange-50'
-                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                                ? 'text-orange-600 bg-orange-50'
+                                : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
                               }`}
                   onClick={() => setActiveTab(tab.id)}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <span className="text-xl">{tab.icon}</span>
+                  <span aria-hidden="true" className="text-xl">{tab.icon}</span>
                   <span className="hidden sm:inline">{tab.label}</span>
                   {activeTab === tab.id && (
                     <motion.div
+                      aria-hidden="true"
                       className="absolute bottom-0 left-0 right-0 h-1 bg-orange-500"
                       layoutId="activeTab"
                     />
@@ -327,7 +357,12 @@ export default function CreateCharacterPage() {
             </div>
 
             {/* Tab content */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div
+              role="tabpanel"
+              id={`tabpanel-${activeTab}`}
+              aria-labelledby={`tab-${activeTab}`}
+              className="flex-1 overflow-y-auto p-4"
+            >
               {renderTabContent()}
             </div>
           </motion.div>
@@ -340,6 +375,8 @@ export default function CreateCharacterPage() {
           animate={{ opacity: 1, y: 0 }}
         >
           <motion.button
+            type="button"
+            aria-label="Go back to home"
             className="px-6 py-3 bg-white/90 backdrop-blur text-gray-700
                        rounded-full font-bold shadow-lg border-4 border-white/50"
             onClick={() => router.push('/')}
@@ -349,19 +386,25 @@ export default function CreateCharacterPage() {
             ← Back
           </motion.button>
           <motion.button
+            type="button"
+            aria-label="Save character and start adventure"
             className="px-8 py-4 bg-gradient-to-r from-yellow-400 to-orange-500
                        text-white rounded-full font-bold text-xl shadow-xl
                        border-4 border-yellow-300"
             onClick={handleSave}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            animate={{
-              boxShadow: [
-                '0 0 20px rgba(255, 215, 0, 0.4)',
-                '0 0 40px rgba(255, 215, 0, 0.6)',
-                '0 0 20px rgba(255, 215, 0, 0.4)'
-              ]
-            }}
+            animate={
+              reduceMotion
+                ? undefined
+                : {
+                    boxShadow: [
+                      '0 0 20px rgba(255, 215, 0, 0.4)',
+                      '0 0 40px rgba(255, 215, 0, 0.6)',
+                      '0 0 20px rgba(255, 215, 0, 0.4)',
+                    ],
+                  }
+            }
             transition={{
               boxShadow: { duration: 1.5, repeat: Infinity }
             }}

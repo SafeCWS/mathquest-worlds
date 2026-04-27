@@ -8,6 +8,7 @@ interface ColorPickerProps {
   onSelect: (color: string) => void
   lockedColors?: string[]
   size?: 'small' | 'medium' | 'large'
+  groupLabel?: string
 }
 
 export function ColorPicker({
@@ -15,7 +16,8 @@ export function ColorPicker({
   selectedColor,
   onSelect,
   lockedColors = [],
-  size = 'medium'
+  size = 'medium',
+  groupLabel = 'Choose a color',
 }: ColorPickerProps) {
   const sizeClasses = {
     small: 'w-8 h-8',
@@ -24,15 +26,26 @@ export function ColorPicker({
   }
 
   return (
-    <div className="flex flex-wrap gap-3 justify-center p-4">
+    <div
+      role="radiogroup"
+      aria-label={groupLabel}
+      className="flex flex-wrap gap-3 justify-center p-4"
+    >
       {colors.map((color, index) => {
         const isLocked = lockedColors.includes(color)
         const isSelected = selectedColor === color
         const isRainbow = color === 'rainbow'
+        const colorLabel = isRainbow ? 'Rainbow' : color
 
         return (
           <motion.button
             key={color}
+            type="button"
+            role="radio"
+            aria-checked={isSelected}
+            aria-label={isLocked ? `Locked color: ${colorLabel}` : `Color ${colorLabel}`}
+            aria-disabled={isLocked}
+            disabled={isLocked}
             className={`
               ${sizeClasses[size]} rounded-full
               transition-all duration-200
@@ -54,7 +67,7 @@ export function ColorPicker({
           >
             {/* Lock overlay */}
             {isLocked && (
-              <div className="w-full h-full flex items-center justify-center bg-black/30 rounded-full">
+              <div aria-hidden="true" className="w-full h-full flex items-center justify-center bg-black/30 rounded-full">
                 <span className="text-sm">🔒</span>
               </div>
             )}
@@ -62,6 +75,7 @@ export function ColorPicker({
             {/* Selected indicator */}
             {isSelected && !isLocked && (
               <motion.div
+                aria-hidden="true"
                 className="w-full h-full flex items-center justify-center"
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
