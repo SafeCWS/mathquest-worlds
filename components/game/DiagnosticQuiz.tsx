@@ -136,14 +136,16 @@ export function DiagnosticQuiz({ onComplete }: DiagnosticQuizProps) {
                 className={`
                   p-6 rounded-2xl text-3xl font-bold transition-all
                   ${showCorrect ? 'bg-green-500 text-white ring-4 ring-green-300' : ''}
-                  ${showWrong ? 'bg-red-500 text-white ring-4 ring-red-300' : ''}
+                  /* Phase 4.3: wrong = dimmed gray, NOT red. Same forgiving
+                     posture as AnimatedAnswer. */
+                  ${showWrong ? 'bg-gray-200 text-gray-500 opacity-60' : ''}
                   ${!showFeedback ? 'bg-purple-100 hover:bg-purple-200 text-purple-700' : ''}
                   ${showFeedback && !isSelected && !isCorrect ? 'opacity-40' : ''}
                 `}
               >
                 {option}
                 {showCorrect && ' ✓'}
-                {showWrong && ' ✗'}
+                {/* Phase 4.3: ✗ removed — dim + opacity is the full signal */}
               </motion.button>
             )
           })}

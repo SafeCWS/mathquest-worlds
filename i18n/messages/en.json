@@ -138,6 +138,21 @@
     },
     "avatarChooseAria": "Choose {label} character"
   },
+  "levelGate": {
+    "lock": {
+      "almostThereOne": "Almost there! Just 1 more game on Level {prevLevel}.",
+      "almostThereMany": "Almost there! Just {remaining} more games on Level {prevLevel}.",
+      "stars": "Earn {remaining} more stars to unlock!",
+      "starsFallback": "Keep playing to unlock!"
+    },
+    "unlock": {
+      "title": "Level {nextLevel} unlocked!",
+      "messageWithName": "{name}! You unlocked Level {nextLevel}!",
+      "messageNoName": "You unlocked Level {nextLevel}!",
+      "subtitle": "New adventure ahead"
+    },
+    "pipsAria": "{pips} of 3 games complete"
+  },
   "wardrobe": {
     "title": "Wardrobe",
     "tabs": {

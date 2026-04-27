@@ -3,17 +3,20 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useRouter, useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useCharacterStore } from '@/lib/stores/characterStore'
 import { useProgressStore } from '@/lib/stores/progressStore'
 import { useWorldStore } from '@/lib/stores/worldStore'
 import { CharacterPreview } from '@/components/character-creator/CharacterPreview'
 import { LEVELS, isLevelUnlocked } from '@/lib/constants/levels'
 import { getWorldById, World } from '@/lib/constants/worlds'
+import { GAMES_TO_UNLOCK } from '@/lib/stores/progressStore'
 
 export default function WorldMapPage() {
   const router = useRouter()
   const params = useParams()
   const worldId = params.worldId as string
+  const tGate = useTranslations('levelGate')
 
   const [mounted, setMounted] = useState(false)
   const [world, setWorld] = useState<World | null>(null)
@@ -90,17 +93,25 @@ export default function WorldMapPage() {
 
     // Locked. Pick the most encouraging message we can — gate-locked is
     // more actionable ("3 more games on level X") than star-locked.
+    // Voice-and-tone routed through next-intl so Spanish parallel works.
     const idx = LEVELS.findIndex((l) => l.id === levelId)
     const prevLevel = idx > 0 ? LEVELS[idx - 1] : null
     if (!gateOk && prevLevel) {
-      const remaining = Math.max(0, 3 - pipsForLevel(prevLevel.id))
-      const games = remaining === 1 ? 'game' : 'games'
-      setLockToast(`Almost there! Just ${remaining} more ${games} on Level ${prevLevel.id}.`)
+      const remaining = Math.max(0, GAMES_TO_UNLOCK - pipsForLevel(prevLevel.id))
+      // Pluralization handled by separate keys to keep i18n simple — Spanish
+      // singular/plural rules differ from English, hence the explicit split.
+      setLockToast(
+        remaining === 1
+          ? tGate('lock.almostThereOne', { prevLevel: prevLevel.id })
+          : tGate('lock.almostThereMany', { prevLevel: prevLevel.id, remaining })
+      )
     } else if (!starsOk) {
       const level = LEVELS.find((l) => l.id === levelId)
-      setLockToast(level
-        ? `Earn ${level.unlockStars - totalStars} more stars to unlock!`
-        : 'Keep playing to unlock!')
+      setLockToast(
+        level
+          ? tGate('lock.stars', { remaining: level.unlockStars - totalStars })
+          : tGate('lock.starsFallback')
+      )
     }
     // Auto-clear so we don't pin a stale toast across taps.
     setTimeout(() => setLockToast(null), 2200)
@@ -233,7 +244,7 @@ export default function WorldMapPage() {
                       {/* Phase 4.1 pip counter — three stars that fill as
                           the kid completes successful rounds on this level.
                           Filled = bright yellow, empty = dim gray. */}
-                      <div className="flex gap-0.5 mt-1" aria-label={`${pips} of 3 games complete`}>
+                      <div className="flex gap-0.5 mt-1" aria-label={tGate('pipsAria', { pips })}>
                         {[...Array(3)].map((_, i) => (
                           <span
                             key={i}

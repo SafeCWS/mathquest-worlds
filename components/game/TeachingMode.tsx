@@ -312,16 +312,18 @@ export function TeachingMode({ problem, onComplete, worldEmoji = '🌟' }: Teach
                 </div>
               </div>
 
-              {/* Take away explanation */}
+              {/* Take away explanation. Phase 4.3 — switched from red+❌
+                  to amber+➖ so subtraction reads as "smaller now", not "bad".
+                  Subtraction is a friendly operation, not a penalty. */}
               <AnimatePresence>
                 {animatingCount >= 2 && (
                   <motion.div
-                    className="bg-red-50 p-3 rounded-xl mb-4"
+                    className="bg-amber-50 p-3 rounded-xl mb-4"
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                   >
-                    <p className="text-red-600 font-bold">
-                      Take away {problem.num2}! ❌
+                    <p className="text-amber-700 font-bold">
+                      Take away {problem.num2}! ➖
                     </p>
                   </motion.div>
                 )}

@@ -138,6 +138,21 @@
     },
     "avatarChooseAria": "Elige el personaje {label}"
   },
+  "levelGate": {
+    "lock": {
+      "almostThereOne": "¡Casi! Solo 1 juego más en el Nivel {prevLevel}.",
+      "almostThereMany": "¡Casi! Solo {remaining} juegos más en el Nivel {prevLevel}.",
+      "stars": "¡Gana {remaining} estrellas más para desbloquear!",
+      "starsFallback": "¡Sigue jugando para desbloquear!"
+    },
+    "unlock": {
+      "title": "¡Nivel {nextLevel} desbloqueado!",
+      "messageWithName": "¡{name}! ¡Desbloqueaste el Nivel {nextLevel}!",
+      "messageNoName": "¡Desbloqueaste el Nivel {nextLevel}!",
+      "subtitle": "Una nueva aventura"
+    },
+    "pipsAria": "{pips} de 3 juegos completos"
+  },
   "wardrobe": {
     "title": "Ropero",
     "tabs": {
