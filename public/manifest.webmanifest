@@ -1,7 +1,7 @@
 {
   "name": "MathQuest Worlds",
   "short_name": "MathQuest",
-  "description": "A math adventure for young learners. Earn stars, unlock worlds, master the times tables.",
+  "description": "A math adventure for young learners. Earn stars and unlock new worlds as you grow.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -14,7 +14,7 @@ const fredoka = Fredoka({
 export const metadata: Metadata = {
   title: 'MathQuest Worlds - Math Adventure!',
   description:
-    'A fun math learning adventure with multiple worlds to explore! Perfect for 2nd graders.',
+    'A math adventure for young learners. Earn stars and unlock new worlds as you grow.',
   keywords: ['math', 'kids', 'learning', 'game', 'education', 'adventure'],
   authors: [{ name: 'MathQuest Worlds' }],
   // PWA manifest — Next.js emits <link rel="manifest" href="/manifest.webmanifest">
