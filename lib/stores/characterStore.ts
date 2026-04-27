@@ -13,6 +13,7 @@ import {
   PETS,
   EFFECTS
 } from '@/lib/constants/characterItems'
+import { CURRENT_SCHEMA_VERSION, migrate } from '@/lib/character/schema'
 
 // Avatar styles available for selection
 export type AvatarStyle = 'explorer' | 'wizard' | 'astronaut' | 'pirate' | 'ninja' | 'fairy' | 'robot' | 'superhero' | 'unicorn' | 'scientist' | 'dragon' | 'mermaid'
@@ -83,6 +84,16 @@ export interface CharacterState {
   setAnimationState: (state: CharacterState['animationState']) => void
   setEmotion: (emotion: CharacterState['emotion']) => void
   randomizeCharacter: () => void
+  /**
+   * Randomize ALL 11 customization fields.
+   *
+   * Phase 3.1 fix — the legacy `randomizeCharacter` only touched 4 of 11 fields
+   * (avatarStyle, primaryColor, skinTone, hairColor), which left things like
+   * outfit, accessories, eye shape, and pet stuck on whatever the kid had
+   * before. The "Surprise Me!" button is supposed to feel like a complete
+   * re-roll, so this method covers everything.
+   */
+  randomizeAll: () => void
   saveCharacter: () => void
   resetCharacter: () => void
 }
@@ -170,17 +181,48 @@ export const useCharacterStore = create<CharacterState>()(
 
       setEmotion: (emotion) => set({ emotion }),
 
-      randomizeCharacter: () => {
-        // Randomize avatar style and colors
+      // Single source-of-truth random function. Both legacy `randomizeCharacter`
+      // and the Phase-3 `randomizeAll` call this — keeps behaviour identical
+      // and lets us delete the legacy alias once nothing imports it.
+      randomizeAll: () => {
         const freeHairColors = HAIR_COLORS.filter((h) => h.unlockType === 'free')
+        const freeAccessories = ACCESSORIES.filter((a) => a.unlockType === 'free')
+        const freeEffects = EFFECTS.filter((e) => e.unlockType === 'free')
+
+        // Pick 0–2 accessories at random (the toggleAccessory cap is 3, but a
+        // re-roll that always maxes out feels noisy; 0–2 keeps it readable).
+        const accessoryCount = Math.floor(Math.random() * 3)
+        const shuffledAcc = [...freeAccessories].sort(() => Math.random() - 0.5)
+        const pickedAccessories = shuffledAcc
+          .slice(0, accessoryCount)
+          .map((a) => a.id)
+          .filter((id) => id !== 'acc-none')
+
+        // Pick 0–1 free effect (kids' free tier is mostly 'none'; we keep the
+        // option to roll into it so re-rolls clear effects sometimes).
+        const pickedEffect = randomItem(freeEffects)
+        const effects =
+          pickedEffect.id === 'effect-none' ? [] : [pickedEffect.id]
 
         set({
           avatarStyle: randomItem(AVATAR_STYLES),
           primaryColor: randomItem(PRIMARY_COLORS),
           skinTone: randomItem(SKIN_TONES),
+          hairStyle: randomItem(HAIR_STYLES).id,
           hairColor: randomItem(freeHairColors).color,
-          effects: []
+          eyeShape: randomItem(EYE_SHAPES).id,
+          eyeColor: randomItem(EYE_COLORS),
+          outfit: randomItem(OUTFITS).id,
+          accessories: pickedAccessories,
+          petBuddy: randomItem(PETS).id,
+          effects,
         })
+      },
+
+      // Legacy entry point — kept as an alias so older imports keep compiling.
+      // Delegates to randomizeAll so behaviour is unified.
+      randomizeCharacter: () => {
+        get().randomizeAll()
       },
 
       saveCharacter: () => {
@@ -193,10 +235,25 @@ export const useCharacterStore = create<CharacterState>()(
     }),
     {
       name: 'mathquest-character',
-      version: 1,
+      version: CURRENT_SCHEMA_VERSION,
+      // migrate() handles v1→v2 (and any future Vn→Vn+1) shape changes for the
+      // persisted blob. Zustand calls this BEFORE merging into the live store,
+      // so any keys we drop here never make it into state.
+      //
+      // Why migrate() lives in lib/character/schema.ts and not inline:
+      // keeps the type definitions (CharacterStateV1, V2) co-located with the
+      // migration logic, and makes the migration testable in isolation.
+      migrate: (persistedState, _version) => {
+        const migrated = migrate(persistedState)
+        // Strip our schema markers — the rest of the app reads via
+        // CharacterState which doesn't know about schemaVersion / updatedAt.
+        // (Zustand will merge whatever we return here over `defaultCharacter`.)
+        const { schemaVersion: _sv, updatedAt: _ts, ...rest } = migrated
+        return rest as Partial<CharacterState>
+      },
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true)
-      }
+      },
     }
   )
 )
