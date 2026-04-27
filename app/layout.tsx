@@ -16,7 +16,27 @@ export const metadata: Metadata = {
   description:
     'A fun math learning adventure with multiple worlds to explore! Perfect for 2nd graders.',
   keywords: ['math', 'kids', 'learning', 'game', 'education', 'adventure'],
-  authors: [{ name: 'MathQuest Worlds' }]
+  authors: [{ name: 'MathQuest Worlds' }],
+  // PWA manifest — Next.js emits <link rel="manifest" href="/manifest.webmanifest">
+  // and the iOS-specific tags below from this metadata block.
+  manifest: '/manifest.webmanifest',
+  // iOS "Add to Home Screen" support: status-bar style + home-screen icon.
+  // `capable: true` makes the standalone window hide the Safari chrome.
+  appleWebApp: {
+    capable: true,
+    title: 'MathQuest',
+    statusBarStyle: 'default'
+  },
+  icons: {
+    icon: [
+      { url: '/icons/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' }
+    ],
+    apple: [
+      { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }
+    ]
+  }
 }
 
 export const viewport: Viewport = {
