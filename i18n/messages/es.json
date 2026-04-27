@@ -57,6 +57,35 @@
     "startAdventure": "✨ ¡Empieza la aventura!",
     "defaultName": "Aventurero"
   },
+  "mascot": {
+    "greetingReturning": "¡Hola, {name}! ¿Lista para la aventura?",
+    "greetingNew": "¡Hola! ¡Vamos a elegir tu personaje!",
+    "fallbackName": "amiga"
+  },
+  "tiles": {
+    "mathGames": "Juegos de mate",
+    "multiplication": "Multiplicar",
+    "wardrobe": "Ropero",
+    "progress": "Progreso",
+    "lockedToast": "¡Ya casi! Sigue jugando.",
+    "lockedAriaSuffix": "(bloqueado)"
+  },
+  "stats": {
+    "streakStart": "¡Empieza una racha hoy!",
+    "starsLabel": "estrellas",
+    "streakSuffix": "días seguidos"
+  },
+  "slideOver": {
+    "settingsTitle": "Ajustes",
+    "parentsTitle": "Para padres",
+    "close": "Cerrar panel",
+    "language": "Idioma",
+    "musicVolume": "Volumen de música",
+    "sfxVolume": "Efectos de sonido",
+    "openParents": "Para padres →",
+    "fullParentDashboard": "Abrir panel completo",
+    "muteToggle": "Silenciar sonidos"
+  },
   "preferences": {
     "questionWhatToLearn": "¡Hola {name}! ¿Qué quieres aprender?",
     "questionHowToPlay": "¿Cómo quieres jugar?",
