@@ -45,7 +45,9 @@ export default function PreferencesPage() {
   const t = useTranslations('preferences')
   const tCommon = useTranslations('common')
   const tMascot = useTranslations('mascot')
-  const [mounted, setMounted] = useState(false)
+  // Phase 4 yokoten cleanup: removed dead `mounted` state. Both
+  // characterStore (`charHydrated`) and gamePreferencesStore (`_hasHydrated`)
+  // already gate the loading return below — `mounted` was redundant.
   const [guide] = useState(
     () => GUIDE_CHARACTERS[Math.floor(Math.random() * GUIDE_CHARACTERS.length)]
   )
@@ -71,11 +73,7 @@ export default function PreferencesPage() {
     }
   }, [_hasHydrated, operations, gameStyle])
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  if (!mounted || !_hasHydrated || !charHydrated) {
+  if (!_hasHydrated || !charHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-purple-400 to-pink-400">
         <motion.div

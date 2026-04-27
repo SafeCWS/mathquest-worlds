@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useRouter } from 'next/navigation'
 import { useLocale, useTranslations } from 'next-intl'
@@ -37,19 +37,24 @@ export default function ParentDashboard() {
   const tCommon = useTranslations('common')
   const tMascot = useTranslations('mascot')
   const locale = useLocale()
-  const [mounted, setMounted] = useState(false)
   const [authenticated, setAuthenticated] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>('overview')
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [newPin, setNewPin] = useState('')
   const [pinError, setPinError] = useState('')
 
-  const { characterName, hasCreatedCharacter, resetCharacter } = useCharacterStore()
+  // Phase 4 yokoten cleanup: replace dead `mounted` flag with the
+  // characterStore hydration gate. Auth gate (ParentGate) takes seconds
+  // anyway, so hydration is realistically done before render — but we
+  // still gate the loading return on `_hasHydrated` so the first frame
+  // doesn't flash "0 stars / no sessions" against a returning-parent's
+  // real numbers. Note: hasCreatedCharacter check NOT used here because
+  // a parent should still be able to view the dashboard even on a fresh
+  // install (they may have just set up the device for a kid).
+  const { _hasHydrated, characterName, hasCreatedCharacter, resetCharacter } = useCharacterStore()
   const { totalStars, currentStreak, longestStreak, diagnosticResult, skillLevel, moduleProgress, resetProgress } = useProgressStore()
   const { worldProgress, resetWorldProgress } = useWorldStore()
   const { totalTimePlayedMs, totalSessions, worldStats, operationStats, getWeeklyPlayTime, getStrengths, getAreasForPractice, getAccuracyTrend, getRecentSessions, setParentPin, exportData, resetAllAnalytics } = useAnalyticsStore()
-
-  useEffect(() => { setMounted(true) }, [])
 
   const handleExportData = useCallback(() => {
     const data = exportData()
@@ -84,7 +89,7 @@ export default function ParentDashboard() {
     router.push('/')
   }, [resetProgress, resetWorldProgress, resetAllAnalytics, resetCharacter, router])
 
-  if (!mounted) return <div className="min-h-screen bg-slate-100 flex items-center justify-center"><div className="text-4xl animate-pulse">{tCommon('loading')}</div></div>
+  if (!_hasHydrated) return <div className="min-h-screen bg-slate-100 flex items-center justify-center"><div className="text-4xl animate-pulse">{tCommon('loading')}</div></div>
 
   if (!authenticated) return <ParentGate onSuccess={() => setAuthenticated(true)} onCancel={() => router.push('/')} />
 

@@ -18,7 +18,6 @@ export default function WorldMapPage() {
   const worldId = params.worldId as string
   const tGate = useTranslations('levelGate')
 
-  const [mounted, setMounted] = useState(false)
   const [world, setWorld] = useState<World | null>(null)
 
   const { _hasHydrated, characterName, hasCreatedCharacter } = useCharacterStore()
@@ -35,8 +34,6 @@ export default function WorldMapPage() {
   const [lockToast, setLockToast] = useState<string | null>(null)
 
   useEffect(() => {
-    setMounted(true)
-
     // Phase 4.F regression fix: gate the routing decisions on hydration.
     // Without this, the first render sees hasCreatedCharacter=false (the
     // default Zustand state) and bounces the kid back to "/" before the
@@ -58,7 +55,7 @@ export default function WorldMapPage() {
     }
   }, [_hasHydrated, worldId, hasCreatedCharacter, router, setCurrentWorld])
 
-  if (!mounted || !world) {
+  if (!_hasHydrated || !world) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-6xl animate-pulse">{world?.emoji || '🌍'}</div>
