@@ -61,6 +61,21 @@ export default async function RootLayout({
 
   return (
     <html lang={locale}>
+      <head>
+        {/*
+          Preconnect to Google Fonts so the TLS+DNS handshake to fonts.googleapis.com
+          and fonts.gstatic.com starts in parallel with the HTML parse, instead of
+          blocking until the CSS that references them lands. Drops first-paint font
+          latency by ~50-100ms on cold connections — important on the office's
+          50 Mbps hardware.
+        */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className={`${fredoka.variable} antialiased`}>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <AudioUnlock>{children}</AudioUnlock>
