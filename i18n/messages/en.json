@@ -54,8 +54,7 @@
     "multiplicationGamesHint": "10 tables • 6 game modes",
     "wardrobe": "👗 Wardrobe",
     "progress": "📊 Progress",
-    "startAdventure": "✨ Start Adventure!",
-    "defaultName": "Adventurer"
+    "startAdventure": "✨ Start Adventure!"
   },
   "mascot": {
     "greetingReturning": "Hi, {name}! Ready for adventure?",
@@ -139,6 +138,21 @@
     },
     "avatarChooseAria": "Choose {label} character"
   },
+  "levelGate": {
+    "lock": {
+      "almostThereOne": "Almost there! Just 1 more game on Level {prevLevel}.",
+      "almostThereMany": "Almost there! Just {remaining} more games on Level {prevLevel}.",
+      "stars": "Earn {remaining} more stars to unlock!",
+      "starsFallback": "Keep playing to unlock!"
+    },
+    "unlock": {
+      "title": "Level {nextLevel} unlocked!",
+      "messageWithName": "{name}! You unlocked Level {nextLevel}!",
+      "messageNoName": "You unlocked Level {nextLevel}!",
+      "subtitle": "New adventure ahead"
+    },
+    "pipsAria": "{pips} of 3 games complete"
+  },
   "wardrobe": {
     "title": "Wardrobe",
     "tabs": {
@@ -158,7 +172,6 @@
   "preferences": {
     "questionWhatToLearn": "Hey {name}! What do you want to learn?",
     "questionHowToPlay": "How do you want to play?",
-    "defaultName": "friend",
     "operations": {
       "counting": "Counting",
       "countingDescription": "Count fun things!",
@@ -188,7 +201,6 @@
     "title": "Parent Dashboard",
     "backToGame": "Back to Game",
     "skillLevel": "Skill Level:",
-    "defaultName": "Adventurer",
     "tabs": {
       "overview": "Overview",
       "skills": "Skills",

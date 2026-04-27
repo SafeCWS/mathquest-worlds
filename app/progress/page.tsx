@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { motion } from 'motion/react'
 import { useRouter } from 'next/navigation'
 import { useCharacterStore } from '@/lib/stores/characterStore'
@@ -16,9 +16,12 @@ import { WORLDS } from '@/lib/constants/worlds'
 
 export default function ProgressPage() {
   const router = useRouter()
-  const [mounted, setMounted] = useState(false)
 
-  const { characterName, hasCreatedCharacter } = useCharacterStore()
+  // Phase 4 yokoten of Step F (worldId page): gate routing + render on
+  // _hasHydrated. Without this, the first render sees hasCreatedCharacter
+  // = false (default Zustand state) and bounces returning kids back to
+  // "/" before the persisted save loads — silent lockout from /progress.
+  const { _hasHydrated, characterName, hasCreatedCharacter } = useCharacterStore()
   const {
     totalStars,
     currentStreak,
@@ -32,13 +35,13 @@ export default function ProgressPage() {
   const { worldProgress, unlockedWorlds } = useWorldStore()
 
   useEffect(() => {
-    setMounted(true)
+    if (!_hasHydrated) return
     if (!hasCreatedCharacter) {
       router.push('/')
     }
-  }, [hasCreatedCharacter, router])
+  }, [_hasHydrated, hasCreatedCharacter, router])
 
-  if (!mounted || !hasCreatedCharacter) {
+  if (!_hasHydrated || !hasCreatedCharacter) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-6xl animate-pulse">📊</div>

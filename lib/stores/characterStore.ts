@@ -11,24 +11,18 @@ import {
   OUTFITS,
   ACCESSORIES,
   PETS,
-  EFFECTS
+  EFFECTS,
+  PRIMARY_COLORS
 } from '@/lib/constants/characterItems'
 import { CURRENT_SCHEMA_VERSION, migrate } from '@/lib/character/schema'
 
 // Avatar styles available for selection
 export type AvatarStyle = 'explorer' | 'wizard' | 'astronaut' | 'pirate' | 'ninja' | 'fairy' | 'robot' | 'superhero' | 'unicorn' | 'scientist' | 'dragon' | 'mermaid'
 
-// Available primary colors for avatar customization
-export const PRIMARY_COLORS = [
-  '#4A90D9', // Blue
-  '#E53E7E', // Pink
-  '#38A169', // Green
-  '#DD6B20', // Orange
-  '#805AD5', // Purple
-  '#D69E2E', // Gold
-  '#E53E3E', // Red
-  '#319795', // Teal
-]
+// Re-export PRIMARY_COLORS so existing consumers (`app/wardrobe/page.tsx`,
+// `app/create-character/page.tsx`) keep compiling without import-path churn.
+// Source of truth is `lib/constants/characterItems.ts`. See Phase 4.0.
+export { PRIMARY_COLORS }
 
 export interface CharacterState {
   // Hydration tracking for SSR
@@ -99,7 +93,9 @@ export interface CharacterState {
 }
 
 // Get random item from array
-const randomItem = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]
+// Accept both mutable and `as const` arrays so we can pull from frozen
+// constant tuples like PRIMARY_COLORS without copying them at every roll.
+const randomItem = <T>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)]
 
 // Avatar style options
 const AVATAR_STYLES: AvatarStyle[] = ['explorer', 'wizard', 'astronaut', 'pirate', 'ninja', 'fairy', 'robot', 'superhero', 'unicorn', 'scientist', 'dragon', 'mermaid']
@@ -243,11 +239,17 @@ export const useCharacterStore = create<CharacterState>()(
       // Why migrate() lives in lib/character/schema.ts and not inline:
       // keeps the type definitions (CharacterStateV1, V2) co-located with the
       // migration logic, and makes the migration testable in isolation.
+      //
+      // Phase 4.0 decision on schemaVersion bookkeeping:
+      // We strip `schemaVersion` and `updatedAt` from the merged blob and rely
+      // on Zustand's own `version: CURRENT_SCHEMA_VERSION` config (above) to
+      // decide whether `migrate()` runs on next rehydrate. This keeps
+      // CharacterState clean of bookkeeping fields the app never reads.
+      // The schema markers DO live inside migrate()'s return value (used by
+      // tests and the v1→v2 type guard in schema.ts), they just don't reach
+      // live state.
       migrate: (persistedState, _version) => {
         const migrated = migrate(persistedState)
-        // Strip our schema markers — the rest of the app reads via
-        // CharacterState which doesn't know about schemaVersion / updatedAt.
-        // (Zustand will merge whatever we return here over `defaultCharacter`.)
         const { schemaVersion: _sv, updatedAt: _ts, ...rest } = migrated
         return rest as Partial<CharacterState>
       },

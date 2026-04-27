@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useRouter, useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useCharacterStore } from '@/lib/stores/characterStore'
 import { useProgressStore } from '@/lib/stores/progressStore'
 import { useWorldStore } from '@/lib/stores/worldStore'
@@ -98,6 +99,7 @@ export default function GamePage() {
   const worldId = params.worldId as string
   const levelId = parseInt(params.level as string)
   const moduleId = parseInt(params.module as string)
+  const tGate = useTranslations('levelGate')
 
   const [mounted, setMounted] = useState(false)
   const [world, setWorld] = useState<World | null>(null)
@@ -118,7 +120,15 @@ export default function GamePage() {
   })
 
   const { characterName, avatarStyle, skinTone, hairColor, primaryColor } = useCharacterStore()
-  const { totalStars, recordModuleComplete, incrementQuestionsToday, addStars, skillLevel, completedLevels } = useProgressStore()
+  const {
+    totalStars,
+    recordModuleComplete,
+    recordGameComplete,
+    incrementQuestionsToday,
+    addStars,
+    skillLevel,
+    completedLevels,
+  } = useProgressStore()
   const { recordLevelComplete, worldProgress } = useWorldStore()
   const {
     checkAndUnlockStarAchievements,
@@ -326,6 +336,18 @@ export default function GamePage() {
         addStars(totalStarsEarned)
         recordLevelComplete(worldId, levelId, totalStarsEarned)
 
+        // Phase 4.1 — feed the level gate. We add 1 to correctAnswers
+        // because the current correct answer hasn't been recorded into
+        // the gameStore yet at this point in the flow (submitAnswer fires
+        // synchronously above, but `correctAnswers` is closed-over from
+        // the previous render). totalProblems is stable for the round.
+        const finalCorrect = correctAnswers + 1
+        const scorePct = totalProblems > 0 ? finalCorrect / totalProblems : 0
+        const gateResult = recordGameComplete(levelId, scorePct)
+        // gateResult.unlocked is consumed below in the celebration cascade
+        // (where we render the mascot speech bubble + persist the local
+        // unlocked state for any post-celebration UI).
+
         music.playLevelCompleteMelody()
 
         // Check for achievements after recording progress
@@ -343,8 +365,35 @@ export default function GamePage() {
         const isWorldComplete = currentWorldProgress?.fullyCompleted || false
         const worldAchievements = checkAndUnlockWorldAchievements(worldId, isWorldComplete)
 
-        // Show celebration for any achievement unlocked (priority: world > level > stars)
-        if (worldAchievements.length > 0) {
+        // Phase 4.4 — Level-gate unlock takes top priority. The kid just
+        // hit pip 3/3 on this level — that's the headline event for them,
+        // higher signal than a star-milestone (which fires at arbitrary
+        // totals like 15/40/70). Achievements still queue underneath; the
+        // CelebrationOverlay's autoDismissMs (≤2s per §4.4) keeps the
+        // sequence short — no kid-trapping celebration loops.
+        if (gateResult.unlocked !== null) {
+          const nextLevelId = gateResult.unlocked
+          const nameKey = (characterName && characterName.trim())
+            ? 'unlock.messageWithName'
+            : 'unlock.messageNoName'
+          showCelebration({
+            type: 'level_complete',
+            title: tGate('unlock.title', { nextLevel: nextLevelId }),
+            subtitle: tGate(nameKey, {
+              name: characterName,
+              nextLevel: nextLevelId,
+            }),
+            // Star + key = "you opened a new door". Resists the temptation
+            // to use a generic 🏆 (which we save for world-complete).
+            emoji: '🌟',
+            stars: 3,
+            // Plan §4.4 mandates ≤2s for unlock celebrations — kids should
+            // feel the win and move forward, not sit through a 3.5s loop.
+            // 1800ms = particle burst + scale-in + read time, then exit.
+            autoDismissMs: 1800,
+          })
+          // Show celebration for any achievement unlocked (priority: world > level > stars)
+        } else if (worldAchievements.length > 0) {
           const achievement = worldAchievements[0]
           showCelebration({
             type: 'world_complete',
@@ -413,7 +462,7 @@ export default function GamePage() {
         }
       }
     }, 1200)
-  }, [submitAnswer, currentProblem, incrementQuestionsToday, currentStreak, nextProblem, endGame, recordModuleComplete, addStars, recordLevelComplete, levelId, moduleId, worldId, correctAnswers, startTime, attemptHistory, totalStars, completedLevels, worldProgress, checkAndUnlockStarAchievements, checkAndUnlockLevelAchievements, checkAndUnlockWorldAchievements, showCelebration])
+  }, [submitAnswer, currentProblem, incrementQuestionsToday, currentStreak, nextProblem, endGame, recordModuleComplete, recordGameComplete, addStars, recordLevelComplete, levelId, moduleId, worldId, correctAnswers, totalProblems, startTime, attemptHistory, totalStars, completedLevels, worldProgress, checkAndUnlockStarAchievements, checkAndUnlockLevelAchievements, checkAndUnlockWorldAchievements, showCelebration, tGate, characterName])
 
   // Handle wrong answer
   const handleWrong = useCallback((timestamp: number = Date.now()) => {

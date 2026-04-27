@@ -60,6 +60,14 @@ export function AnimatedAnswer({
 
   return (
     <motion.button
+      // Phase 4.3 — forgiveness redesign:
+      //   - Wrong answer no longer turns red (was: red-400→red-600 gradient).
+      //     Now it dims to a desaturated gray and applies a gentle wiggle
+      //     (3× horizontal at 5px, 200ms — the Toca Boca "not mad about
+      //     it" signature). Kid sees "that wasn't it, try the other one"
+      //     without any sense of failure.
+      //   - Correct answer keeps the green glow and rotation — celebration
+      //     stays loud, mistakes go quiet.
       className={`
         ${sizeClasses[size]}
         rounded-2xl font-bold
@@ -67,7 +75,7 @@ export function AnimatedAnswer({
         relative overflow-visible
         ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
         ${isSelected && isCorrect ? 'bg-gradient-to-br from-green-400 to-green-600' : ''}
-        ${isSelected && !isCorrect ? 'bg-gradient-to-br from-red-400 to-red-600' : ''}
+        ${isSelected && !isCorrect ? 'bg-gradient-to-br from-gray-200 to-gray-300 opacity-60' : ''}
         ${!isSelected ? 'bg-gradient-to-br from-white to-gray-100 hover:from-blue-50 hover:to-blue-100' : ''}
         ${!isSelected ? 'border-4 border-gray-300 hover:border-blue-400' : ''}
         ${!isSelected ? 'shadow-lg hover:shadow-xl' : ''}
@@ -89,8 +97,10 @@ export function AnimatedAnswer({
           rotate: [0, 360],
           transition: { duration: 0.6 }
         } : isSelected && !isCorrect ? {
-          x: [0, -10, 10, -10, 10, 0],
-          transition: { duration: 0.5 }
+          // Gentle 3× wiggle, 5px amplitude, 200ms — half the duration and
+          // half the amplitude of the old wiggle. Forgiving, not punitive.
+          x: [0, -5, 5, -5, 5, 0],
+          transition: { duration: 0.2 }
         } : {}
       }
       style={{
@@ -134,15 +144,9 @@ export function AnimatedAnswer({
         </motion.div>
       ))}
 
-      {/* Wrong answer shake effect overlay */}
-      {isSelected && !isCorrect && showFeedback && (
-        <motion.div
-          className="absolute inset-0 bg-red-500 opacity-20 rounded-2xl"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: [0, 0.4, 0] }}
-          transition={{ duration: 0.5 }}
-        />
-      )}
+      {/* Phase 4.3 — Old red flash overlay removed. The wiggle + dim
+          (handled in the parent button's animate + bg classes) now does the
+          full job of "that wasn't it" without any red. */}
 
       {/* Hover glow effect */}
       {!isSelected && !disabled && (
@@ -169,17 +173,8 @@ export function AnimatedAnswer({
         </motion.div>
       )}
 
-      {/* Wrong X mark */}
-      {isSelected && !isCorrect && (
-        <motion.div
-          className="absolute -top-2 -right-2 text-2xl bg-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg"
-          initial={{ scale: 0, rotate: 180 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{ type: 'spring', damping: 10 }}
-        >
-          ✗
-        </motion.div>
-      )}
+      {/* Phase 4.3 — Wrong X mark removed. The dim + wiggle is the full
+          "not this one" affordance now. Kid never sees a ✗ on their tablet. */}
     </motion.button>
   )
 }

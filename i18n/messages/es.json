@@ -54,8 +54,7 @@
     "multiplicationGamesHint": "10 tablas • 6 modos de juego",
     "wardrobe": "👗 Ropero",
     "progress": "📊 Progreso",
-    "startAdventure": "✨ ¡Empieza la aventura!",
-    "defaultName": "Aventurero"
+    "startAdventure": "✨ ¡Empieza la aventura!"
   },
   "mascot": {
     "greetingReturning": "¡Hola, {name}! ¿Lista para la aventura?",
@@ -139,6 +138,21 @@
     },
     "avatarChooseAria": "Elige el personaje {label}"
   },
+  "levelGate": {
+    "lock": {
+      "almostThereOne": "¡Casi! Solo 1 juego más en el Nivel {prevLevel}.",
+      "almostThereMany": "¡Casi! Solo {remaining} juegos más en el Nivel {prevLevel}.",
+      "stars": "¡Gana {remaining} estrellas más para desbloquear!",
+      "starsFallback": "¡Sigue jugando para desbloquear!"
+    },
+    "unlock": {
+      "title": "¡Nivel {nextLevel} desbloqueado!",
+      "messageWithName": "¡{name}! ¡Desbloqueaste el Nivel {nextLevel}!",
+      "messageNoName": "¡Desbloqueaste el Nivel {nextLevel}!",
+      "subtitle": "Una nueva aventura"
+    },
+    "pipsAria": "{pips} de 3 juegos completos"
+  },
   "wardrobe": {
     "title": "Ropero",
     "tabs": {
@@ -158,7 +172,6 @@
   "preferences": {
     "questionWhatToLearn": "¡Hola {name}! ¿Qué quieres aprender?",
     "questionHowToPlay": "¿Cómo quieres jugar?",
-    "defaultName": "amigo",
     "operations": {
       "counting": "Contar",
       "countingDescription": "¡Cuenta cosas divertidas!",
@@ -188,7 +201,6 @@
     "title": "Panel de padres",
     "backToGame": "Volver al juego",
     "skillLevel": "Nivel:",
-    "defaultName": "Aventurero",
     "tabs": {
       "overview": "Resumen",
       "skills": "Habilidades",

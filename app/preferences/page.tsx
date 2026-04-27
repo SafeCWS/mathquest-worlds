@@ -44,7 +44,10 @@ export default function PreferencesPage() {
   const router = useRouter()
   const t = useTranslations('preferences')
   const tCommon = useTranslations('common')
-  const [mounted, setMounted] = useState(false)
+  const tMascot = useTranslations('mascot')
+  // Phase 4 yokoten cleanup: removed dead `mounted` state. Both
+  // characterStore (`charHydrated`) and gamePreferencesStore (`_hasHydrated`)
+  // already gate the loading return below — `mounted` was redundant.
   const [guide] = useState(
     () => GUIDE_CHARACTERS[Math.floor(Math.random() * GUIDE_CHARACTERS.length)]
   )
@@ -70,11 +73,7 @@ export default function PreferencesPage() {
     }
   }, [_hasHydrated, operations, gameStyle])
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  if (!mounted || !_hasHydrated || !charHydrated) {
+  if (!_hasHydrated || !charHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-purple-400 to-pink-400">
         <motion.div
@@ -154,7 +153,7 @@ export default function PreferencesPage() {
             />
             <p className="text-xl md:text-2xl font-bold text-gray-800">
               {step === 'operations'
-                ? t('questionWhatToLearn', { name: characterName || t('defaultName') })
+                ? t('questionWhatToLearn', { name: characterName || tMascot('fallbackName') })
                 : t('questionHowToPlay')}
             </p>
             <p className="text-sm md:text-lg text-gray-600 mt-1">{t(guideVoiceKey)}</p>

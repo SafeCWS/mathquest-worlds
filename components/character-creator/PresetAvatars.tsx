@@ -154,8 +154,11 @@ export function AvatarSelector({
       {avatarStyles.map((style) => {
         const label = t(`avatarLabels.${style}`)
         const emoji = t(`avatarEmojis.${style}`)
+        // Phase 4.0 carry-over: outer wrapper has no animation props, so it
+        // doesn't need to be a Motion node. Plain <div> drops a Motion mount
+        // per avatar (12× per render) without changing visuals.
         return (
-          <motion.div
+          <div
             key={style}
             className="flex flex-col items-center gap-2"
           >
@@ -173,7 +176,7 @@ export function AvatarSelector({
             <span className={`text-sm font-medium ${selectedStyle === style ? 'text-yellow-700' : 'text-gray-700'}`}>
               <span aria-hidden="true">{emoji}</span> {label}
             </span>
-          </motion.div>
+          </div>
         )
       })}
     </div>
