@@ -12,8 +12,14 @@ export { auth as middleware } from '@/auth'
 // `app/admin.panel/page.tsx`, auth would silently break. Enumerating
 // the exact asset extensions here is fail-closed: a new route with a
 // dot in its name will keep auth protection.
+//
+// `webmanifest` is in the allowlist because PWA install on iOS/Android
+// requires the browser to fetch /manifest.webmanifest BEFORE the user
+// is logged in (the "Add to Home Screen" prompt fires on the public
+// /login page). Without this, anonymous users get a screenshot icon
+// + Safari chrome instead of the proper standalone PWA install.
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api/auth|api/health|login|.*\\.(?:svg|png|jpg|jpeg|gif|ico|woff|woff2|ttf|eot|css|js|mjs|map|mp3|wav|ogg|mp4|webm|webp|avif|pdf|txt|json|xml)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/auth|api/health|login|.*\\.(?:svg|png|jpg|jpeg|gif|ico|woff|woff2|ttf|eot|css|js|mjs|map|mp3|wav|ogg|mp4|webm|webp|avif|pdf|txt|json|xml|webmanifest)$).*)',
   ],
 }
