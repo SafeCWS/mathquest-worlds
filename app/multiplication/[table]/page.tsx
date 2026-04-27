@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import { motion } from 'motion/react'
 import Link from 'next/link'
@@ -177,7 +177,6 @@ function ProgressRing({
 }
 
 export default function TableDetailPage() {
-  const [mounted, setMounted] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const params = useParams()
   const tableNumber = Number(params.table)
@@ -188,14 +187,14 @@ export default function TableDetailPage() {
     speedChallengeUnlocked,
   } = useMultiplicationStore()
   const getTableEmoji = useEmojiThemeStore((s) => s.getTableEmoji)
-  const currentEmoji = mounted && _hasHydrated ? getTableEmoji(tableNumber) : '⭐'
+  // Once `_hasHydrated` is true, Zustand has finished rehydrating from
+  // localStorage. The early-return below ensures we never render this
+  // expression in the SSR/CSR-mismatch window. (Phase 5 yokoten — was
+  // gated by a redundant `mounted` flag before.)
+  const currentEmoji = _hasHydrated ? getTableEmoji(tableNumber) : '⭐'
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  // Wait for both client mount AND Zustand hydration
-  if (!mounted || !_hasHydrated) {
+  // Wait for Zustand hydration to gate against SSR/CSR mismatch.
+  if (!_hasHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-indigo-300 via-purple-300 to-pink-300">
         <motion.div
