@@ -86,6 +86,75 @@
     "fullParentDashboard": "Open full dashboard",
     "muteToggle": "Mute all sounds"
   },
+  "characterCreator": {
+    "title": "Make your character",
+    "tabs": {
+      "character": "Character",
+      "color": "Color",
+      "name": "Name"
+    },
+    "sections": {
+      "skinTone": "Skin",
+      "hairColor": "Hair",
+      "outfitColor": "Outfit"
+    },
+    "surpriseMe": "Surprise me!",
+    "surpriseMeAria": "Surprise me with a random character",
+    "namePrompt": "What should we call you?",
+    "nameInputLabel": "Type your name",
+    "nameInputPlaceholder": "Type your name",
+    "nameLetsGo": "Let's go!",
+    "nameLetsGoAria": "Start your adventure",
+    "nameWaitingHint": "Type your name to get started",
+    "backHome": "Back",
+    "backHomeAria": "Back to home",
+    "previewAria": "Preview of your character",
+    "avatarLabels": {
+      "explorer": "Explorer",
+      "wizard": "Wizard",
+      "astronaut": "Astronaut",
+      "pirate": "Pirate",
+      "ninja": "Ninja",
+      "fairy": "Fairy",
+      "robot": "Robot",
+      "superhero": "Superhero",
+      "unicorn": "Unicorn",
+      "scientist": "Scientist",
+      "dragon": "Dragon",
+      "mermaid": "Mermaid"
+    },
+    "avatarEmojis": {
+      "explorer": "🌴",
+      "wizard": "✨",
+      "astronaut": "🚀",
+      "pirate": "🏴‍☠️",
+      "ninja": "🥷",
+      "fairy": "🧚",
+      "robot": "🤖",
+      "superhero": "🦸",
+      "unicorn": "🦄",
+      "scientist": "🔬",
+      "dragon": "🐲",
+      "mermaid": "🧜‍♀️"
+    },
+    "avatarChooseAria": "Choose {label} character"
+  },
+  "wardrobe": {
+    "title": "Wardrobe",
+    "tabs": {
+      "character": "Character",
+      "color": "Color"
+    },
+    "sections": {
+      "skinTone": "Skin",
+      "hairColor": "Hair",
+      "outfitColor": "Outfit",
+      "fantasyHint": "More colors unlock with stars"
+    },
+    "backToWorlds": "Back",
+    "backToWorldsAria": "Back to worlds",
+    "starsAria": "{count} stars earned"
+  },
   "preferences": {
     "questionWhatToLearn": "Hey {name}! What do you want to learn?",
     "questionHowToPlay": "How do you want to play?",

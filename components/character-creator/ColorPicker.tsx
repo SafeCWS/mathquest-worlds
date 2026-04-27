@@ -7,7 +7,14 @@ interface ColorPickerProps {
   selectedColor: string
   onSelect: (color: string) => void
   lockedColors?: string[]
-  size?: 'small' | 'medium' | 'large'
+  /**
+   * Phase 3.2 — `small` (32px) was removed because it failed the kids' touch
+   * standard (Apple HIG / WCAG 2.5.5: 44px floor; we hold ourselves to 60px).
+   * `medium` is now 64px and `large` is 80px so a 4-year-old can land a finger
+   * cleanly. If a caller needs a denser layout, use `medium` and rely on the
+   * 12px gap-3 from the surrounding flex/grid.
+   */
+  size?: 'medium' | 'large'
   groupLabel?: string
 }
 
@@ -20,9 +27,8 @@ export function ColorPicker({
   groupLabel = 'Choose a color',
 }: ColorPickerProps) {
   const sizeClasses = {
-    small: 'w-8 h-8',
-    medium: 'w-12 h-12',
-    large: 'w-16 h-16'
+    medium: 'w-16 h-16',
+    large: 'w-20 h-20'
   }
 
   return (

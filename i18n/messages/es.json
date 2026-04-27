@@ -86,6 +86,75 @@
     "fullParentDashboard": "Abrir panel completo",
     "muteToggle": "Silenciar sonidos"
   },
+  "characterCreator": {
+    "title": "Crea tu personaje",
+    "tabs": {
+      "character": "Personaje",
+      "color": "Color",
+      "name": "Nombre"
+    },
+    "sections": {
+      "skinTone": "Piel",
+      "hairColor": "Cabello",
+      "outfitColor": "Ropa"
+    },
+    "surpriseMe": "¡Sorpréndeme!",
+    "surpriseMeAria": "Sorpréndeme con un personaje al azar",
+    "namePrompt": "¿Cómo te llamas?",
+    "nameInputLabel": "Escribe tu nombre",
+    "nameInputPlaceholder": "Escribe tu nombre",
+    "nameLetsGo": "¡Vamos!",
+    "nameLetsGoAria": "Empieza tu aventura",
+    "nameWaitingHint": "Escribe tu nombre para empezar",
+    "backHome": "Atrás",
+    "backHomeAria": "Volver al inicio",
+    "previewAria": "Vista previa de tu personaje",
+    "avatarLabels": {
+      "explorer": "Exploradora",
+      "wizard": "Maga",
+      "astronaut": "Astronauta",
+      "pirate": "Pirata",
+      "ninja": "Ninja",
+      "fairy": "Hada",
+      "robot": "Robot",
+      "superhero": "Superheroína",
+      "unicorn": "Unicornio",
+      "scientist": "Científica",
+      "dragon": "Dragón",
+      "mermaid": "Sirena"
+    },
+    "avatarEmojis": {
+      "explorer": "🌴",
+      "wizard": "✨",
+      "astronaut": "🚀",
+      "pirate": "🏴‍☠️",
+      "ninja": "🥷",
+      "fairy": "🧚",
+      "robot": "🤖",
+      "superhero": "🦸",
+      "unicorn": "🦄",
+      "scientist": "🔬",
+      "dragon": "🐲",
+      "mermaid": "🧜‍♀️"
+    },
+    "avatarChooseAria": "Elige el personaje {label}"
+  },
+  "wardrobe": {
+    "title": "Ropero",
+    "tabs": {
+      "character": "Personaje",
+      "color": "Color"
+    },
+    "sections": {
+      "skinTone": "Piel",
+      "hairColor": "Cabello",
+      "outfitColor": "Ropa",
+      "fantasyHint": "Más colores se desbloquean con estrellas"
+    },
+    "backToWorlds": "Atrás",
+    "backToWorldsAria": "Volver a los mundos",
+    "starsAria": "{count} estrellas ganadas"
+  },
   "preferences": {
     "questionWhatToLearn": "¡Hola {name}! ¿Qué quieres aprender?",
     "questionHowToPlay": "¿Cómo quieres jugar?",
