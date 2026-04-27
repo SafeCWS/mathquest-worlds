@@ -57,6 +57,35 @@
     "startAdventure": "✨ Start Adventure!",
     "defaultName": "Adventurer"
   },
+  "mascot": {
+    "greetingReturning": "Hi, {name}! Ready for adventure?",
+    "greetingNew": "Hi! Let's pick what you look like!",
+    "fallbackName": "friend"
+  },
+  "tiles": {
+    "mathGames": "Math Games",
+    "multiplication": "Multiplication",
+    "wardrobe": "Wardrobe",
+    "progress": "Progress",
+    "lockedToast": "Almost there! Keep playing.",
+    "lockedAriaSuffix": "(locked)"
+  },
+  "stats": {
+    "streakStart": "Start a streak today!",
+    "starsLabel": "stars",
+    "streakSuffix": "day streak"
+  },
+  "slideOver": {
+    "settingsTitle": "Settings",
+    "parentsTitle": "For parents",
+    "parentsBody": "Progress, stars, recent sessions, and skill assessment are on the parent dashboard. PIN required.",
+    "close": "Close panel",
+    "language": "Language",
+    "sfxVolume": "Sound effects",
+    "openParents": "For parents →",
+    "fullParentDashboard": "Open full dashboard",
+    "muteToggle": "Mute all sounds"
+  },
   "preferences": {
     "questionWhatToLearn": "Hey {name}! What do you want to learn?",
     "questionHowToPlay": "How do you want to play?",
