@@ -387,6 +387,10 @@ export default function GamePage() {
             // to use a generic 🏆 (which we save for world-complete).
             emoji: '🌟',
             stars: 3,
+            // Plan §4.4 mandates ≤2s for unlock celebrations — kids should
+            // feel the win and move forward, not sit through a 3.5s loop.
+            // 1800ms = particle burst + scale-in + read time, then exit.
+            autoDismissMs: 1800,
           })
           // Show celebration for any achievement unlocked (priority: world > level > stars)
         } else if (worldAchievements.length > 0) {

@@ -40,6 +40,11 @@ export interface CelebrationData {
   subtitle?: string
   emoji: string
   stars?: number
+  // Phase 4.4 — caller can override the per-celebration auto-dismiss
+  // window. Used for unlock celebrations (1800ms per plan §4.4) so kids
+  // don't sit through a 3.5s loop after every level unlock. Falls back to
+  // the prop default when omitted.
+  autoDismissMs?: number
 }
 
 interface CelebrationOverlayProps {
@@ -130,6 +135,11 @@ export function CelebrationOverlay({
     setTimeout(onDismiss, 300) // Wait for exit animation
   }, [onDismiss])
 
+  // Per-celebration override beats the prop default. Lets unlock
+  // celebrations run at 1800ms (plan §4.4) without changing the prop
+  // signature for other callers that still want the 3.5s default.
+  const effectiveDismissMs = celebration?.autoDismissMs ?? autoDismissMs
+
   // Initialize celebration
   useEffect(() => {
     if (celebration) {
@@ -143,10 +153,10 @@ export function CelebrationOverlay({
       sounds.playCelebration()
 
       // Auto-dismiss timer
-      const timer = setTimeout(handleDismiss, autoDismissMs)
+      const timer = setTimeout(handleDismiss, effectiveDismissMs)
       return () => clearTimeout(timer)
     }
-  }, [celebration, autoDismissMs, handleDismiss])
+  }, [celebration, effectiveDismissMs, handleDismiss])
 
   if (!celebration) return null
 
