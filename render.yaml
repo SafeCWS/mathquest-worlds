@@ -26,14 +26,13 @@ services:
       # silently breaking at first login attempt.
       # Values fed from Keychain:
       #   security find-generic-password -a mathquest-worlds -s auth-secret -w
-      #   security find-generic-password -a mathquest-worlds -s google-client-id -w
-      #   security find-generic-password -a mathquest-worlds -s google-client-secret -w
-      #   security find-generic-password -a mathquest-worlds -s allowed-email -w
+      #   security find-generic-password -a mathquest-worlds -s simple-auth-users-json -w
       - key: AUTH_SECRET
         sync: false
-      - key: GOOGLE_CLIENT_ID
-        sync: false
-      - key: GOOGLE_CLIENT_SECRET
-        sync: false
-      - key: ALLOWED_EMAIL
+      # SIMPLE_AUTH_USERS is a JSON array of {email, password} objects.
+      # The orchestrator builds it inline by reading per-user passwords
+      # from Keychain (e.g. -s carolina-password, -s tatiana-password)
+      # and PUTs it to Render env vars via the Python pattern in
+      # feedback_render_env_vars_python.md (shell pipes drop keys).
+      - key: SIMPLE_AUTH_USERS
         sync: false

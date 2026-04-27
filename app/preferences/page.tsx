@@ -3,68 +3,55 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useGamePreferencesStore, MathOperation, GameStyle } from '@/lib/stores/gamePreferencesStore'
 import { useCharacterStore } from '@/lib/stores/characterStore'
 import { PresetAvatar } from '@/components/character-creator/PresetAvatars'
 import { ParallaxBackground } from '@/components/backgrounds/ParallaxBackground'
+import { LanguageToggle } from '@/components/LanguageToggle'
 
-const GUIDE_CHARACTERS = [
-  { emoji: '🦉', name: 'Professor Owl', voice: "Hoo hoo! Let's learn!" },
-  { emoji: '🦊', name: 'Clever Fox', voice: 'Pick what sounds fun!' },
-  { emoji: '🐼', name: 'Panda Pal', voice: "I'll help you!" }
+// Guide character IDs map to translation keys for both name and voice.
+// IDs are stable (used for random selection); display strings come from
+// `i18n/messages/*.json` so they translate with the locale.
+type GuideId = 'owl' | 'fox' | 'panda'
+const GUIDE_CHARACTERS: { id: GuideId; emoji: string }[] = [
+  { id: 'owl', emoji: '🦉' },
+  { id: 'fox', emoji: '🦊' },
+  { id: 'panda', emoji: '🐼' }
 ]
 
+// OPERATIONS / GAME_STYLES keep their stable IDs (state keys, store
+// values). Display strings (`name`, `description`) are pulled by ID at
+// render time via t(`operations.${id}`) etc.
 const OPERATIONS: {
   id: MathOperation
-  name: string
   emoji: string
-  description: string
   color: string
   example: string
 }[] = [
-  {
-    id: 'counting',
-    name: 'Counting',
-    emoji: '🔢',
-    description: 'Count fun things!',
-    color: 'from-blue-400 to-blue-600',
-    example: '🐱🐱🐱 = 3'
-  },
-  {
-    id: 'addition',
-    name: 'Adding',
-    emoji: '➕',
-    description: 'Put together!',
-    color: 'from-green-400 to-green-600',
-    example: '2 + 3 = 5'
-  },
-  {
-    id: 'subtraction',
-    name: 'Taking Away',
-    emoji: '➖',
-    description: 'Take some away!',
-    color: 'from-orange-400 to-red-500',
-    example: '5 - 2 = 3'
-  }
+  { id: 'counting', emoji: '🔢', color: 'from-blue-400 to-blue-600', example: '🐱🐱🐱 = 3' },
+  { id: 'addition', emoji: '➕', color: 'from-green-400 to-green-600', example: '2 + 3 = 5' },
+  { id: 'subtraction', emoji: '➖', color: 'from-orange-400 to-red-500', example: '5 - 2 = 3' }
 ]
 
-const GAME_STYLES: {
-  id: GameStyle
-  name: string
-  emoji: string
-  description: string
-}[] = [
-  { id: 'tap', name: 'Tap', emoji: '👆', description: 'Tap the answer!' },
-  { id: 'drag', name: 'Drag', emoji: '🖐️', description: 'Drag and drop!' },
-  { id: 'mixed', name: 'Surprise Me!', emoji: '🎲', description: 'Mix it up!' }
+const GAME_STYLES: { id: GameStyle; emoji: string }[] = [
+  { id: 'tap', emoji: '👆' },
+  { id: 'drag', emoji: '🖐️' },
+  { id: 'mixed', emoji: '🎲' }
 ]
 
 export default function PreferencesPage() {
   const router = useRouter()
+  const t = useTranslations('preferences')
+  const tCommon = useTranslations('common')
   const [mounted, setMounted] = useState(false)
   const [guide] = useState(
     () => GUIDE_CHARACTERS[Math.floor(Math.random() * GUIDE_CHARACTERS.length)]
   )
+  const guideNameKey =
+    guide.id === 'owl' ? 'guideNameOwl' : guide.id === 'fox' ? 'guideNameFox' : 'guideNamePanda'
+  const guideVoiceKey =
+    guide.id === 'owl' ? 'guideVoiceOwl' : guide.id === 'fox' ? 'guideVoiceFox' : 'guideVoicePanda'
   const [step, setStep] = useState<'operations' | 'style'>('operations')
 
   const { operations, gameStyle, setOperations, setGameStyle, _hasHydrated } =
@@ -134,6 +121,9 @@ export default function PreferencesPage() {
   return (
     <ParallaxBackground theme="welcome" intensity="subtle">
       <main className="min-h-screen flex flex-col p-4 relative">
+        <div className="absolute top-4 right-4 z-30">
+          <LanguageToggle />
+        </div>
         {/* Header with guide character */}
         <motion.div
           className="flex items-start gap-4 mb-6"
@@ -164,10 +154,11 @@ export default function PreferencesPage() {
             />
             <p className="text-xl md:text-2xl font-bold text-gray-800">
               {step === 'operations'
-                ? `Hey ${characterName || 'friend'}! What do you want to learn?`
-                : 'How do you want to play?'}
+                ? t('questionWhatToLearn', { name: characterName || t('defaultName') })
+                : t('questionHowToPlay')}
             </p>
-            <p className="text-sm md:text-lg text-gray-600 mt-1">{guide.voice}</p>
+            <p className="text-sm md:text-lg text-gray-600 mt-1">{t(guideVoiceKey)}</p>
+            <p className="sr-only">{t(guideNameKey)}</p>
           </motion.div>
 
           {/* Player avatar */}
@@ -232,14 +223,14 @@ export default function PreferencesPage() {
                         className={`text-2xl md:text-3xl font-bold mb-2
                                     ${selectedOps.includes(op.id) ? 'text-white' : 'text-gray-800'}`}
                       >
-                        {op.name}
+                        {t(`operations.${op.id}`)}
                       </h3>
 
                       {/* Description */}
                       <p
                         className={`text-lg ${selectedOps.includes(op.id) ? 'text-white/90' : 'text-gray-600'}`}
                       >
-                        {op.description}
+                        {t(`operations.${op.id}Description`)}
                       </p>
 
                       {/* Example */}
@@ -275,7 +266,7 @@ export default function PreferencesPage() {
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.5 }}
                 >
-                  Tap to pick what you want! You can pick more than one! 🌈
+                  {t('hint')}
                 </motion.p>
               </motion.div>
             ) : (
@@ -317,12 +308,12 @@ export default function PreferencesPage() {
                         className={`text-2xl md:text-3xl font-bold mb-2
                                     ${selectedStyle === style.id ? 'text-white' : 'text-gray-800'}`}
                       >
-                        {style.name}
+                        {t(`gameStyles.${style.id}`)}
                       </h3>
                       <p
                         className={`text-lg ${selectedStyle === style.id ? 'text-white/90' : 'text-gray-600'}`}
                       >
-                        {style.description}
+                        {t(`gameStyles.${style.id}Description`)}
                       </p>
                     </motion.button>
                   ))}
@@ -346,7 +337,7 @@ export default function PreferencesPage() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            ← Back
+            {tCommon('back')}
           </motion.button>
 
           <motion.button
@@ -365,7 +356,7 @@ export default function PreferencesPage() {
             }}
             transition={{ boxShadow: { duration: 1.5, repeat: Infinity } }}
           >
-            {step === 'operations' ? 'Next →' : "Let's Play! 🎮"}
+            {step === 'operations' ? tCommon('next') : t('letsPlay')}
           </motion.button>
         </motion.div>
 

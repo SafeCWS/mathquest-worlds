@@ -1,0 +1,193 @@
+{
+  "common": {
+    "back": "← Back",
+    "next": "Next →",
+    "settings": "Settings",
+    "forParents": "For Parents",
+    "loading": "Loading..."
+  },
+  "languageToggle": {
+    "label": "Language",
+    "english": "EN",
+    "spanish": "ES"
+  },
+  "login": {
+    "tagline": "A Math Adventure! 🌟",
+    "emailLabel": "Email",
+    "passwordLabel": "Password",
+    "emailPlaceholder": "you@example.com",
+    "passwordPlaceholder": "••••••••",
+    "signIn": "Sign in",
+    "signingIn": "Signing in…",
+    "errorBadCredentials": "Hmm, that email or password didn’t match 🐉",
+    "errorGeneric": "Something went wrong. Please try again 🌟",
+    "familyOnly": "Family members only 💛"
+  },
+  "home": {
+    "tagline": "A Math Adventure! 🌟",
+    "welcomeBack": "Welcome back, {name}! 🎉",
+    "welcomeNew": "Create your adventurer and explore magical worlds while learning math! 🚀",
+    "streakDays": "{days} day streak!",
+    "chooseAdventure": "Choose your adventure:",
+    "mathGames": "🎮 Math Games",
+    "mathGamesSubtitle": "Explore 7 magical worlds!",
+    "mathGamesHint": "Counting • Addition • More!",
+    "multiplicationGames": "✖️ Multiplication Games",
+    "multiplicationGamesSubtitle": "Practice your times tables!",
+    "multiplicationGamesHint": "10 tables • 6 game modes",
+    "wardrobe": "👗 Wardrobe",
+    "progress": "📊 Progress",
+    "startAdventure": "✨ Start Adventure!",
+    "defaultName": "Adventurer"
+  },
+  "preferences": {
+    "questionWhatToLearn": "Hey {name}! What do you want to learn?",
+    "questionHowToPlay": "How do you want to play?",
+    "defaultName": "friend",
+    "operations": {
+      "counting": "Counting",
+      "countingDescription": "Count fun things!",
+      "addition": "Adding",
+      "additionDescription": "Put together!",
+      "subtraction": "Taking Away",
+      "subtractionDescription": "Take some away!"
+    },
+    "gameStyles": {
+      "tap": "Tap",
+      "tapDescription": "Tap the answer!",
+      "drag": "Drag",
+      "dragDescription": "Drag and drop!",
+      "mixed": "Surprise Me!",
+      "mixedDescription": "Mix it up!"
+    },
+    "guideVoiceOwl": "Hoo hoo! Let's learn!",
+    "guideVoiceFox": "Pick what sounds fun!",
+    "guideVoicePanda": "I'll help you!",
+    "guideNameOwl": "Professor Owl",
+    "guideNameFox": "Clever Fox",
+    "guideNamePanda": "Panda Pal",
+    "hint": "Tap to pick what you want! You can pick more than one! 🌈",
+    "letsPlay": "Let's Play! 🎮"
+  },
+  "parent": {
+    "title": "Parent Dashboard",
+    "backToGame": "Back to Game",
+    "skillLevel": "Skill Level:",
+    "defaultName": "Adventurer",
+    "tabs": {
+      "overview": "Overview",
+      "skills": "Skills",
+      "worlds": "Worlds",
+      "activity": "Activity",
+      "settings": "Settings"
+    },
+    "stats": {
+      "totalStars": "Total Stars",
+      "currentStreak": "Current Streak",
+      "thisWeek": "This Week",
+      "totalSessions": "Total Sessions",
+      "streakDays": "{days} days"
+    },
+    "overview": {
+      "overallProgress": "Overall Progress",
+      "modulesCompleted": "{done} of {total} modules completed ({percent}%)",
+      "quickInsights": "Quick Insights",
+      "recommendedFocus": "Recommended focus this week:",
+      "needsPractice": "{areas} - needs more practice",
+      "greatProgress": "Great progress!",
+      "strongIn": "Strong in: {areas}",
+      "keepPlaying": "Keep playing to see personalized recommendations!"
+    },
+    "skills": {
+      "diagnosticResults": "Diagnostic Results",
+      "score": "Score",
+      "level": "Level",
+      "completed": "Completed: {date}",
+      "noDiagnostic": "No diagnostic completed yet. The child should complete the diagnostic quiz to see skill assessment.",
+      "skillsByOperation": "Skills by Operation",
+      "accuracySuffix": "{percent}% accuracy",
+      "attempts": "{count} attempts",
+      "noSkillData": "No skill data yet. Play some modules to see progress!",
+      "strengths": "Strengths",
+      "areasForPractice": "Areas for Practice"
+    },
+    "worlds": {
+      "levelsDone": "Levels Done",
+      "stars": "Stars",
+      "time": "Time",
+      "byId": {
+        "lovelycat": {
+          "name": "Lovely Cat Party",
+          "description": "A dreamy cat paradise with sparkles and bows! 🎀✨"
+        },
+        "jungle": {
+          "name": "Jungle Adventure",
+          "description": "Explore the tropical rainforest!"
+        },
+        "space": {
+          "name": "Space Galaxy",
+          "description": "Blast off to outer space!"
+        },
+        "ocean": {
+          "name": "Ocean Kingdom",
+          "description": "Dive into the underwater world!"
+        },
+        "fairy": {
+          "name": "Fairy Kingdom",
+          "description": "Enter the enchanted forest!"
+        },
+        "dino": {
+          "name": "Dino Land",
+          "description": "Travel back to prehistoric times!"
+        },
+        "candy": {
+          "name": "Candy World",
+          "description": "Sweet adventures await!"
+        },
+        "rainbow": {
+          "name": "Rainbow Realm",
+          "description": "The ultimate magical world!"
+        }
+      }
+    },
+    "skillLevels": {
+      "beginner": "Beginner",
+      "intermediate": "Intermediate",
+      "advanced": "Advanced"
+    },
+    "operationLabels": {
+      "counting": "Counting",
+      "addition": "Addition",
+      "subtraction": "Subtraction",
+      "multiplication": "Multiplication",
+      "division": "Division"
+    },
+    "activity": {
+      "last7Days": "Last 7 Days Accuracy",
+      "noActivity": "No activity data for the last 7 days.",
+      "recentSessions": "Recent Sessions",
+      "noRecentSessions": "No recent sessions.",
+      "modulesAccuracy": "{modules} modules, {accuracy}% accuracy",
+      "totals": "Totals",
+      "allTimePlay": "All Time Play",
+      "bestStreak": "Best Streak",
+      "streakDays": "{days} days"
+    },
+    "settings": {
+      "changePin": "Change Parent PIN",
+      "newPinPlaceholder": "New 4-digit PIN",
+      "update": "Update",
+      "pinFourDigits": "PIN must be 4 digits",
+      "pinUpdated": "PIN updated successfully!",
+      "exportData": "Export Data",
+      "exportDescription": "Download all progress data as a JSON file.",
+      "downloadData": "Download Data",
+      "dangerZone": "Danger Zone",
+      "resetDescription": "Reset all progress. This action cannot be undone.",
+      "resetAll": "Reset All Progress",
+      "resetConfirm": "Are you sure? This will delete ALL progress, characters, and achievements.",
+      "resetYes": "Yes, Reset Everything",
+      "resetCancel": "Cancel"
+    }
+  }
+}

@@ -1,4 +1,10 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+// next-intl plugin: wires the request config at `i18n/request.ts` into
+// the Next build so server components can call `getTranslations()` and
+// client components can pull from `<NextIntlClientProvider>`.
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 const isGitHubPages = Boolean(process.env.GITHUB_PAGES);
 
@@ -67,4 +73,4 @@ const nextConfig: NextConfig = {
       }),
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

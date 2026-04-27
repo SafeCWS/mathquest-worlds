@@ -25,6 +25,42 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           .toLowerCase()
           .trim()
         const password = String(credentials.password ?? '')
+        if (!email || !password) return null
+
+        // Multi-user mode (preferred): SIMPLE_AUTH_USERS is a JSON array
+        // of {email, password} objects. Each user gets its own credential.
+        // Adding/removing users = update env var + redeploy.
+        const usersJson = process.env.SIMPLE_AUTH_USERS ?? ''
+        if (usersJson.trim()) {
+          let users: Array<{ email?: unknown; password?: unknown }> = []
+          try {
+            const parsed: unknown = JSON.parse(usersJson)
+            if (Array.isArray(parsed)) users = parsed
+          } catch {
+            // Malformed JSON — fall through to legacy single-user fallback
+            // rather than locking everyone out. This is intentional: a
+            // typo in the env var should not be a global lockout event.
+            users = []
+          }
+          if (users.length > 0) {
+            for (const u of users) {
+              const uEmail = String(u?.email ?? '')
+                .toLowerCase()
+                .trim()
+              const uPassword = String(u?.password ?? '')
+              if (!uEmail || !uPassword) continue
+              if (email !== uEmail) continue
+              if (!constantTimeEqual(password, uPassword)) continue
+              return { id: email, email }
+            }
+            // Matched the multi-user code path but no user matched — reject.
+            return null
+          }
+        }
+
+        // Backward-compat: legacy single-user mode. Used during the
+        // brief window where new code is deployed but SIMPLE_AUTH_USERS
+        // is not yet set, so the existing user does not get locked out.
         const expectedEmail = (process.env.SIMPLE_AUTH_EMAIL ?? '')
           .toLowerCase()
           .trim()

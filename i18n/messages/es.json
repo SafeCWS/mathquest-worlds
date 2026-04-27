@@ -1,0 +1,193 @@
+{
+  "common": {
+    "back": "← Atrás",
+    "next": "Siguiente →",
+    "settings": "Ajustes",
+    "forParents": "Para padres",
+    "loading": "Cargando..."
+  },
+  "languageToggle": {
+    "label": "Idioma",
+    "english": "EN",
+    "spanish": "ES"
+  },
+  "login": {
+    "tagline": "¡Una aventura matemática! 🌟",
+    "emailLabel": "Correo",
+    "passwordLabel": "Contraseña",
+    "emailPlaceholder": "tu@ejemplo.com",
+    "passwordPlaceholder": "••••••••",
+    "signIn": "Iniciar sesión",
+    "signingIn": "Entrando…",
+    "errorBadCredentials": "Mmm, ese correo o contraseña no coinciden 🐉",
+    "errorGeneric": "Algo salió mal. Inténtalo de nuevo 🌟",
+    "familyOnly": "Solo familia 💛"
+  },
+  "home": {
+    "tagline": "¡Una aventura matemática! 🌟",
+    "welcomeBack": "¡Bienvenido de vuelta, {name}! 🎉",
+    "welcomeNew": "¡Crea tu aventurero y explora mundos mágicos mientras aprendes matemáticas! 🚀",
+    "streakDays": "¡{days} días seguidos!",
+    "chooseAdventure": "Elige tu aventura:",
+    "mathGames": "🎮 Juegos de mate",
+    "mathGamesSubtitle": "¡Explora 7 mundos mágicos!",
+    "mathGamesHint": "Contar • Sumar • ¡Más!",
+    "multiplicationGames": "✖️ Multiplicaciones",
+    "multiplicationGamesSubtitle": "¡Practica las tablas de multiplicar!",
+    "multiplicationGamesHint": "10 tablas • 6 modos de juego",
+    "wardrobe": "👗 Ropero",
+    "progress": "📊 Progreso",
+    "startAdventure": "✨ ¡Empieza la aventura!",
+    "defaultName": "Aventurero"
+  },
+  "preferences": {
+    "questionWhatToLearn": "¡Hola {name}! ¿Qué quieres aprender?",
+    "questionHowToPlay": "¿Cómo quieres jugar?",
+    "defaultName": "amigo",
+    "operations": {
+      "counting": "Contar",
+      "countingDescription": "¡Cuenta cosas divertidas!",
+      "addition": "Sumar",
+      "additionDescription": "¡Júntalo todo!",
+      "subtraction": "Restar",
+      "subtractionDescription": "¡Quita algunos!"
+    },
+    "gameStyles": {
+      "tap": "Tocar",
+      "tapDescription": "¡Toca la respuesta!",
+      "drag": "Arrastrar",
+      "dragDescription": "¡Arrastra y suelta!",
+      "mixed": "¡Sorpréndeme!",
+      "mixedDescription": "¡Mezcla todo!"
+    },
+    "guideVoiceOwl": "¡Uh uh! ¡Vamos a aprender!",
+    "guideVoiceFox": "¡Elige lo que te divierta!",
+    "guideVoicePanda": "¡Yo te ayudo!",
+    "guideNameOwl": "Profesor Búho",
+    "guideNameFox": "Zorro Listo",
+    "guideNamePanda": "Pandi",
+    "hint": "¡Toca lo que quieras! ¡Puedes elegir más de uno! 🌈",
+    "letsPlay": "¡A jugar! 🎮"
+  },
+  "parent": {
+    "title": "Panel de padres",
+    "backToGame": "Volver al juego",
+    "skillLevel": "Nivel:",
+    "defaultName": "Aventurero",
+    "tabs": {
+      "overview": "Resumen",
+      "skills": "Habilidades",
+      "worlds": "Mundos",
+      "activity": "Actividad",
+      "settings": "Ajustes"
+    },
+    "stats": {
+      "totalStars": "Estrellas totales",
+      "currentStreak": "Racha actual",
+      "thisWeek": "Esta semana",
+      "totalSessions": "Sesiones totales",
+      "streakDays": "{days} días"
+    },
+    "overview": {
+      "overallProgress": "Progreso general",
+      "modulesCompleted": "{done} de {total} módulos completados ({percent}%)",
+      "quickInsights": "Vistazo rápido",
+      "recommendedFocus": "Enfoque recomendado esta semana:",
+      "needsPractice": "{areas} - necesita más práctica",
+      "greatProgress": "¡Buen progreso!",
+      "strongIn": "Fuerte en: {areas}",
+      "keepPlaying": "¡Sigue jugando para ver recomendaciones personalizadas!"
+    },
+    "skills": {
+      "diagnosticResults": "Resultados del diagnóstico",
+      "score": "Puntuación",
+      "level": "Nivel",
+      "completed": "Completado: {date}",
+      "noDiagnostic": "Aún no se ha hecho el diagnóstico. El niño debe completar el quiz de diagnóstico para ver la evaluación.",
+      "skillsByOperation": "Habilidades por operación",
+      "accuracySuffix": "{percent}% de aciertos",
+      "attempts": "{count} intentos",
+      "noSkillData": "Aún no hay datos. ¡Juega algunos módulos para ver el progreso!",
+      "strengths": "Fortalezas",
+      "areasForPractice": "Áreas para practicar"
+    },
+    "worlds": {
+      "levelsDone": "Niveles hechos",
+      "stars": "Estrellas",
+      "time": "Tiempo",
+      "byId": {
+        "lovelycat": {
+          "name": "Fiesta de Gatitos",
+          "description": "¡Un paraíso de gatitos con brillos y lazos! 🎀✨"
+        },
+        "jungle": {
+          "name": "Aventura en la Jungla",
+          "description": "¡Explora la selva tropical!"
+        },
+        "space": {
+          "name": "Galaxia Espacial",
+          "description": "¡Despega al espacio!"
+        },
+        "ocean": {
+          "name": "Reino del Océano",
+          "description": "¡Sumérgete en el mundo bajo el agua!"
+        },
+        "fairy": {
+          "name": "Reino de las Hadas",
+          "description": "¡Entra al bosque encantado!"
+        },
+        "dino": {
+          "name": "Tierra de Dinos",
+          "description": "¡Viaja a la prehistoria!"
+        },
+        "candy": {
+          "name": "Mundo de Dulces",
+          "description": "¡Te esperan aventuras dulces!"
+        },
+        "rainbow": {
+          "name": "Reino del Arcoíris",
+          "description": "¡El mundo mágico definitivo!"
+        }
+      }
+    },
+    "skillLevels": {
+      "beginner": "Principiante",
+      "intermediate": "Intermedio",
+      "advanced": "Avanzado"
+    },
+    "operationLabels": {
+      "counting": "Contar",
+      "addition": "Sumar",
+      "subtraction": "Restar",
+      "multiplication": "Multiplicar",
+      "division": "Dividir"
+    },
+    "activity": {
+      "last7Days": "Aciertos de los últimos 7 días",
+      "noActivity": "No hay actividad en los últimos 7 días.",
+      "recentSessions": "Sesiones recientes",
+      "noRecentSessions": "No hay sesiones recientes.",
+      "modulesAccuracy": "{modules} módulos, {accuracy}% de aciertos",
+      "totals": "Totales",
+      "allTimePlay": "Tiempo total jugado",
+      "bestStreak": "Mejor racha",
+      "streakDays": "{days} días"
+    },
+    "settings": {
+      "changePin": "Cambiar PIN de padres",
+      "newPinPlaceholder": "Nuevo PIN de 4 dígitos",
+      "update": "Actualizar",
+      "pinFourDigits": "El PIN debe tener 4 dígitos",
+      "pinUpdated": "¡PIN actualizado!",
+      "exportData": "Exportar datos",
+      "exportDescription": "Descarga todos los datos de progreso como archivo JSON.",
+      "downloadData": "Descargar datos",
+      "dangerZone": "Zona peligrosa",
+      "resetDescription": "Borra todo el progreso. Esta acción no se puede deshacer.",
+      "resetAll": "Borrar todo el progreso",
+      "resetConfirm": "¿Estás seguro? Esto borrará TODO el progreso, los personajes y los logros.",
+      "resetYes": "Sí, borrar todo",
+      "resetCancel": "Cancelar"
+    }
+  }
+}
