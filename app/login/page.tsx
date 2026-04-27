@@ -4,9 +4,12 @@ import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { motion } from 'motion/react'
+import { useTranslations } from 'next-intl'
+import { LanguageToggle } from '@/components/LanguageToggle'
 
 function LoginCard() {
   const searchParams = useSearchParams()
+  const t = useTranslations('login')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -16,11 +19,11 @@ function LoginCard() {
     const error = searchParams.get('error')
     if (!error) return
     if (error === 'CredentialsSignin') {
-      setErrorMessage('Hmm, that email or password didn’t match 🐉')
+      setErrorMessage(t('errorBadCredentials'))
     } else {
-      setErrorMessage('Something went wrong. Please try again 🌟')
+      setErrorMessage(t('errorGeneric'))
     }
-  }, [searchParams])
+  }, [searchParams, t])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,7 +37,7 @@ function LoginCard() {
       redirect: false,
     })
     if (result?.error) {
-      setErrorMessage('Hmm, that email or password didn’t match 🐉')
+      setErrorMessage(t('errorBadCredentials'))
       setSubmitting(false)
       return
     }
@@ -75,7 +78,7 @@ function LoginCard() {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 }}
       >
-        A Math Adventure! 🌟
+        {t('tagline')}
       </motion.p>
 
       {errorMessage && (
@@ -93,7 +96,7 @@ function LoginCard() {
 
       <form onSubmit={handleSubmit} className="space-y-4 text-left">
         <label className="block">
-          <span className="text-sm font-semibold text-gray-700">Email</span>
+          <span className="text-sm font-semibold text-gray-700">{t('emailLabel')}</span>
           <input
             type="email"
             required
@@ -103,12 +106,12 @@ function LoginCard() {
             className="mt-1 w-full px-4 py-3 rounded-2xl border-2 border-indigo-200
                        focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200
                        bg-white/70 text-gray-800 text-lg outline-none transition"
-            placeholder="you@example.com"
+            placeholder={t('emailPlaceholder')}
           />
         </label>
 
         <label className="block">
-          <span className="text-sm font-semibold text-gray-700">Password</span>
+          <span className="text-sm font-semibold text-gray-700">{t('passwordLabel')}</span>
           <input
             type="password"
             required
@@ -118,7 +121,7 @@ function LoginCard() {
             className="mt-1 w-full px-4 py-3 rounded-2xl border-2 border-indigo-200
                        focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200
                        bg-white/70 text-gray-800 text-lg outline-none transition"
-            placeholder="••••••••"
+            placeholder={t('passwordPlaceholder')}
           />
         </label>
 
@@ -141,7 +144,7 @@ function LoginCard() {
           transition={{ boxShadow: { duration: 1.5, repeat: Infinity } }}
         >
           <span className="text-2xl">🔐</span>
-          <span>{submitting ? 'Signing in…' : 'Sign in'}</span>
+          <span>{submitting ? t('signingIn') : t('signIn')}</span>
         </motion.button>
       </form>
 
@@ -151,7 +154,7 @@ function LoginCard() {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.6 }}
       >
-        Family members only 💛
+        {t('familyOnly')}
       </motion.p>
     </motion.div>
   )
@@ -161,6 +164,9 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center p-4
                      bg-gradient-to-b from-sky-400 via-indigo-300 to-purple-300">
+      <div className="absolute top-4 right-4 z-30">
+        <LanguageToggle />
+      </div>
       <motion.div
         className="absolute top-10 left-0 right-0 flex justify-center gap-8 text-5xl pointer-events-none z-0"
         initial={{ opacity: 0, y: -30 }}

@@ -3,14 +3,18 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { useCharacterStore } from '@/lib/stores/characterStore'
 import { useProgressStore } from '@/lib/stores/progressStore'
 import { useUnlocksStore } from '@/lib/stores/unlocksStore'
 import { ParallaxBackground } from '@/components/backgrounds/ParallaxBackground'
 import { PresetAvatar } from '@/components/character-creator/PresetAvatars'
 import { CelebrationOverlay, CelebrationData, useCelebration } from '@/components/game/CelebrationOverlay'
+import { LanguageToggle } from '@/components/LanguageToggle'
 
 export default function WelcomePage() {
+  const t = useTranslations('home')
+  const tCommon = useTranslations('common')
   const [mounted, setMounted] = useState(false)
   const {
     _hasHydrated,
@@ -104,7 +108,7 @@ export default function WelcomePage() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3 }}
           >
-            A Math Adventure! 🌟
+            {t('tagline')}
           </motion.p>
 
           {/* Avatar display for returning players */}
@@ -162,7 +166,7 @@ export default function WelcomePage() {
                   >
                     🔥
                   </motion.span>
-                  <span className="font-bold text-orange-700 text-lg">{currentStreak} day streak!</span>
+                  <span className="font-bold text-orange-700 text-lg">{t('streakDays', { days: currentStreak })}</span>
                 </motion.div>
               )}
             </motion.div>
@@ -176,7 +180,13 @@ export default function WelcomePage() {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
             >
-              Welcome back, <span className="font-bold text-green-600">{characterName || 'Adventurer'}</span>! 🎉
+              {t.rich('welcomeBack', {
+                name: () => (
+                  <span className="font-bold text-green-600">
+                    {characterName || t('defaultName')}
+                  </span>
+                ),
+              })}
             </motion.p>
           ) : (
             <motion.p
@@ -185,7 +195,7 @@ export default function WelcomePage() {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
             >
-              Create your adventurer and explore magical worlds while learning math! 🚀
+              {t('welcomeNew')}
             </motion.p>
           )}
 
@@ -200,7 +210,7 @@ export default function WelcomePage() {
               <>
                 {/* Section label */}
                 <p className="text-sm text-gray-500 font-medium tracking-wide uppercase mb-1">
-                  Choose your adventure:
+                  {t('chooseAdventure')}
                 </p>
 
                 <Link href="/worlds">
@@ -221,9 +231,9 @@ export default function WelcomePage() {
                       boxShadow: { duration: 1.5, repeat: Infinity }
                     }}
                   >
-                    <span className="block">🎮 Math Games</span>
-                    <span className="block text-base font-semibold opacity-90">Explore 7 magical worlds!</span>
-                    <span className="block text-xs font-normal opacity-75 mt-1">Counting &bull; Addition &bull; More!</span>
+                    <span className="block">{t('mathGames')}</span>
+                    <span className="block text-base font-semibold opacity-90">{t('mathGamesSubtitle')}</span>
+                    <span className="block text-xs font-normal opacity-75 mt-1">{t('mathGamesHint')}</span>
                   </motion.button>
                 </Link>
                 <Link href="/multiplication">
@@ -244,9 +254,9 @@ export default function WelcomePage() {
                       boxShadow: { duration: 1.5, repeat: Infinity }
                     }}
                   >
-                    <span className="block">✖️ Multiplication Games</span>
-                    <span className="block text-base font-semibold opacity-90">Practice your times tables!</span>
-                    <span className="block text-xs font-normal opacity-75 mt-1">10 tables &bull; 6 game modes</span>
+                    <span className="block">{t('multiplicationGames')}</span>
+                    <span className="block text-base font-semibold opacity-90">{t('multiplicationGamesSubtitle')}</span>
+                    <span className="block text-xs font-normal opacity-75 mt-1">{t('multiplicationGamesHint')}</span>
                   </motion.button>
                 </Link>
                 <div className="flex gap-4">
@@ -258,7 +268,7 @@ export default function WelcomePage() {
                       whileHover={{ scale: 1.03 }}
                       whileTap={{ scale: 0.97 }}
                     >
-                      👗 Wardrobe
+                      {t('wardrobe')}
                     </motion.button>
                   </Link>
                   <Link href="/progress" className="flex-1">
@@ -269,7 +279,7 @@ export default function WelcomePage() {
                       whileHover={{ scale: 1.03 }}
                       whileTap={{ scale: 0.97 }}
                     >
-                      📊 Progress
+                      {t('progress')}
                     </motion.button>
                   </Link>
                 </div>
@@ -295,20 +305,21 @@ export default function WelcomePage() {
                     y: { duration: 2, repeat: Infinity, ease: 'easeInOut' }
                   }}
                 >
-                  ✨ Start Adventure!
+                  {t('startAdventure')}
                 </motion.button>
               </Link>
             )}
           </motion.div>
         </motion.div>
 
-        {/* Top right buttons - For Parents and Settings */}
+        {/* Top right buttons - Language toggle, For Parents, Settings */}
         <motion.div
-          className="absolute top-4 right-4 z-30 flex gap-2"
+          className="absolute top-4 right-4 z-30 flex gap-2 items-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1 }}
         >
+          <LanguageToggle />
           {hasCreatedCharacter && (
             <Link href="/preferences">
               <motion.button
@@ -317,7 +328,7 @@ export default function WelcomePage() {
                 whileTap={{ scale: 0.95 }}
               >
                 <span className="text-lg">⚙️</span>
-                <span className="hidden sm:inline">Settings</span>
+                <span className="hidden sm:inline">{tCommon('settings')}</span>
               </motion.button>
             </Link>
           )}
@@ -327,7 +338,7 @@ export default function WelcomePage() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              For Parents
+              {tCommon('forParents')}
             </motion.button>
           </Link>
         </motion.div>

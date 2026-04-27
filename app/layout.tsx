@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Fredoka } from 'next/font/google'
+import { NextIntlClientProvider } from 'next-intl'
+import { getLocale, getMessages } from 'next-intl/server'
 import { AudioUnlock } from '@/components/AudioUnlock'
 import './globals.css'
 
@@ -26,15 +28,23 @@ export const viewport: Viewport = {
   themeColor: '#2D5016'
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Locale + messages come from i18n/request.ts (cookie-driven). The
+  // `<html lang>` attribute is set dynamically so screen readers and
+  // browser auto-translate match the actual rendered language.
+  const locale = await getLocale()
+  const messages = await getMessages()
+
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body className={`${fredoka.variable} antialiased`}>
-        <AudioUnlock>{children}</AudioUnlock>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <AudioUnlock>{children}</AudioUnlock>
+        </NextIntlClientProvider>
       </body>
     </html>
   )
