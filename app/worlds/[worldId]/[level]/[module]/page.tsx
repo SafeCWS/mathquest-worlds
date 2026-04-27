@@ -104,6 +104,11 @@ export default function GamePage() {
   const [showFeedback, setShowFeedback] = useState(false)
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [showComplete, setShowComplete] = useState(false)
+  // Phase 4.4 — when a round-completion call into recordGameComplete returns
+  // a non-null unlocked level id, we stash it here so the post-celebration
+  // mascot-speech-bubble Step E can render it. Cleared by the speech-bubble
+  // dismiss handler (or auto-clears after 2s in the celebration component).
+  const [unlockedLevelId, setUnlockedLevelId] = useState<number | null>(null)
   const [guide] = useState(() => GUIDE_CHARACTERS[Math.floor(Math.random() * GUIDE_CHARACTERS.length)])
   const [showIntro, setShowIntro] = useState(true)
 
@@ -118,7 +123,15 @@ export default function GamePage() {
   })
 
   const { characterName, avatarStyle, skinTone, hairColor, primaryColor } = useCharacterStore()
-  const { totalStars, recordModuleComplete, incrementQuestionsToday, addStars, skillLevel, completedLevels } = useProgressStore()
+  const {
+    totalStars,
+    recordModuleComplete,
+    recordGameComplete,
+    incrementQuestionsToday,
+    addStars,
+    skillLevel,
+    completedLevels,
+  } = useProgressStore()
   const { recordLevelComplete, worldProgress } = useWorldStore()
   const {
     checkAndUnlockStarAchievements,
@@ -326,6 +339,18 @@ export default function GamePage() {
         addStars(totalStarsEarned)
         recordLevelComplete(worldId, levelId, totalStarsEarned)
 
+        // Phase 4.1 — feed the level gate. We add 1 to correctAnswers
+        // because the current correct answer hasn't been recorded into
+        // the gameStore yet at this point in the flow (submitAnswer fires
+        // synchronously above, but `correctAnswers` is closed-over from
+        // the previous render). totalProblems is stable for the round.
+        const finalCorrect = correctAnswers + 1
+        const scorePct = totalProblems > 0 ? finalCorrect / totalProblems : 0
+        const gateResult = recordGameComplete(levelId, scorePct)
+        if (gateResult.unlocked !== null) {
+          setUnlockedLevelId(gateResult.unlocked)
+        }
+
         music.playLevelCompleteMelody()
 
         // Check for achievements after recording progress
@@ -413,7 +438,7 @@ export default function GamePage() {
         }
       }
     }, 1200)
-  }, [submitAnswer, currentProblem, incrementQuestionsToday, currentStreak, nextProblem, endGame, recordModuleComplete, addStars, recordLevelComplete, levelId, moduleId, worldId, correctAnswers, startTime, attemptHistory, totalStars, completedLevels, worldProgress, checkAndUnlockStarAchievements, checkAndUnlockLevelAchievements, checkAndUnlockWorldAchievements, showCelebration])
+  }, [submitAnswer, currentProblem, incrementQuestionsToday, currentStreak, nextProblem, endGame, recordModuleComplete, recordGameComplete, addStars, recordLevelComplete, levelId, moduleId, worldId, correctAnswers, totalProblems, startTime, attemptHistory, totalStars, completedLevels, worldProgress, checkAndUnlockStarAchievements, checkAndUnlockLevelAchievements, checkAndUnlockWorldAchievements, showCelebration])
 
   // Handle wrong answer
   const handleWrong = useCallback((timestamp: number = Date.now()) => {

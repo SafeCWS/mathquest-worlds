@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { motion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useRouter, useParams } from 'next/navigation'
 import { useCharacterStore } from '@/lib/stores/characterStore'
 import { useProgressStore } from '@/lib/stores/progressStore'
@@ -19,8 +19,17 @@ export default function WorldMapPage() {
   const [world, setWorld] = useState<World | null>(null)
 
   const { characterName, hasCreatedCharacter } = useCharacterStore()
-  const { totalStars, moduleProgress } = useProgressStore()
+  const {
+    totalStars,
+    moduleProgress,
+    pipsForLevel,
+    isLevelGateUnlocked,
+  } = useProgressStore()
   const { worldProgress, setCurrentWorld } = useWorldStore()
+  // Lock-tap toast state — when kid taps a gate-locked level, we head-shake
+  // the node and show a brief toast pointing to the previous level. No
+  // dialog, no error, no scolding — just an encouraging "almost there".
+  const [lockToast, setLockToast] = useState<string | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -69,9 +78,32 @@ export default function WorldMapPage() {
   }
 
   const handleLevelSelect = (levelId: number) => {
-    if (isLevelUnlocked(levelId, totalStars)) {
+    // Two gates compose: the legacy star-based unlock (cross-world progress)
+    // AND the Phase 4.1 per-level "play 3 games" gate. Both must pass.
+    const starsOk = isLevelUnlocked(levelId, totalStars)
+    const gateOk = isLevelGateUnlocked(levelId)
+
+    if (starsOk && gateOk) {
       router.push(`/worlds/${worldId}/${levelId}/1`)
+      return
     }
+
+    // Locked. Pick the most encouraging message we can — gate-locked is
+    // more actionable ("3 more games on level X") than star-locked.
+    const idx = LEVELS.findIndex((l) => l.id === levelId)
+    const prevLevel = idx > 0 ? LEVELS[idx - 1] : null
+    if (!gateOk && prevLevel) {
+      const remaining = Math.max(0, 3 - pipsForLevel(prevLevel.id))
+      const games = remaining === 1 ? 'game' : 'games'
+      setLockToast(`Almost there! Just ${remaining} more ${games} on Level ${prevLevel.id}.`)
+    } else if (!starsOk) {
+      const level = LEVELS.find((l) => l.id === levelId)
+      setLockToast(level
+        ? `Earn ${level.unlockStars - totalStars} more stars to unlock!`
+        : 'Keep playing to unlock!')
+    }
+    // Auto-clear so we don't pin a stale toast across taps.
+    setTimeout(() => setLockToast(null), 2200)
   }
 
   return (
@@ -148,7 +180,14 @@ export default function WorldMapPage() {
           {/* Level nodes */}
           <div className="relative h-[600px]">
             {LEVELS.map((level, index) => {
-              const isUnlocked = isLevelUnlocked(level.id, totalStars)
+              // Phase 4.1 — node visual derives from BOTH gates. A level is
+              // visually unlocked only if star-progress AND game-count gate
+              // both clear. Tapping a locked node head-shakes (see
+              // `whileTap` below) and triggers the toast in handleLevelSelect.
+              const starsOk = isLevelUnlocked(level.id, totalStars)
+              const gateOk = isLevelGateUnlocked(level.id)
+              const isUnlocked = starsOk && gateOk
+              const pips = pipsForLevel(level.id)
               const progress = getLevelProgress(level.id)
               const yPos = 550 - index * 100
               const xPos = index % 2 === 0 ? 30 : 70
@@ -162,7 +201,7 @@ export default function WorldMapPage() {
                     ${
                       isUnlocked
                         ? 'bg-gradient-to-b from-yellow-300 to-yellow-500 shadow-xl cursor-pointer'
-                        : 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-gray-400 cursor-pointer'
                     }
                     ${progress.isComplete ? 'ring-4 ring-green-400' : ''}
                   `}
@@ -170,12 +209,20 @@ export default function WorldMapPage() {
                     left: `${xPos}%`,
                     top: `${(yPos / 600) * 100}%`
                   }}
+                  aria-disabled={!isUnlocked}
                   onClick={() => handleLevelSelect(level.id)}
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ delay: index * 0.15 + 0.3 }}
                   whileHover={isUnlocked ? { scale: 1.1 } : {}}
-                  whileTap={isUnlocked ? { scale: 0.95 } : {}}
+                  // Locked tap: 3-cycle horizontal head-shake at 5px (Toca
+                  // Boca-style "you can't do that, but I'm not mad about
+                  // it"). 200ms total — fast enough not to feel punitive.
+                  whileTap={
+                    isUnlocked
+                      ? { scale: 0.95 }
+                      : { x: [0, -5, 5, -5, 5, 0], transition: { duration: 0.2 } }
+                  }
                 >
                   {isUnlocked ? (
                     <>
@@ -183,15 +230,15 @@ export default function WorldMapPage() {
                       <span className="text-xs font-bold text-gray-800 mt-1">
                         Level {level.id}
                       </span>
-                      {/* Stars earned */}
-                      <div className="flex gap-0.5 mt-1">
+                      {/* Phase 4.1 pip counter — three stars that fill as
+                          the kid completes successful rounds on this level.
+                          Filled = bright yellow, empty = dim gray. */}
+                      <div className="flex gap-0.5 mt-1" aria-label={`${pips} of 3 games complete`}>
                         {[...Array(3)].map((_, i) => (
                           <span
                             key={i}
                             className={`text-xs ${
-                              i < Math.ceil(progress.totalModuleStars / 5)
-                                ? 'text-yellow-600'
-                                : 'text-gray-400'
+                              i < pips ? 'text-yellow-600' : 'text-gray-400'
                             }`}
                           >
                             ⭐
@@ -260,6 +307,30 @@ export default function WorldMapPage() {
           </motion.span>
         ))}
       </div>
+
+      {/* Phase 4.1 — Lock-tap toast. Pinned bottom-center, auto-clears after
+          2.2s (set by handleLevelSelect). Encouraging copy only — no error
+          framing, no red, no "denied" language. Same Toca Boca rule we
+          applied to the Phase 2 menu tile lock affordance. */}
+      <AnimatePresence>
+        {lockToast && (
+          <motion.div
+            role="status"
+            aria-live="polite"
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50
+                       bg-white/95 backdrop-blur-sm shadow-xl
+                       rounded-full px-6 py-3 max-w-[90vw]
+                       text-base font-medium text-gray-800"
+            initial={{ y: 40, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 40, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            <span aria-hidden="true" className="mr-2">🌟</span>
+            {lockToast}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   )
 }
