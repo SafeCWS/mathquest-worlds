@@ -6,6 +6,23 @@
     "forParents": "Para padres",
     "loading": "Cargando..."
   },
+  "a11y": {
+    "openSettings": "Abrir ajustes",
+    "openParentDashboard": "Abrir panel para padres",
+    "playMathGames": "Jugar juegos de matemáticas",
+    "playMultiplicationGames": "Jugar juegos de multiplicación",
+    "openWardrobe": "Abrir ropero",
+    "openProgress": "Abrir progreso",
+    "startAdventure": "Empieza tu aventura",
+    "selectAvatarStyle": "Elegir estilo de avatar: {label}",
+    "selectColor": "Elegir color: {label}",
+    "selectTab": "Abrir pestaña {label}",
+    "characterNameInput": "Escribe el nombre de tu personaje",
+    "saveCharacter": "Guardar personaje y continuar",
+    "languageGroup": "Selector de idioma",
+    "languageEnglish": "Cambiar a inglés",
+    "languageSpanish": "Cambiar a español"
+  },
   "languageToggle": {
     "label": "Idioma",
     "english": "EN",

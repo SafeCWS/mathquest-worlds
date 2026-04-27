@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { motion } from 'motion/react'
+import { motion, useReducedMotion } from 'motion/react'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { useCharacterStore } from '@/lib/stores/characterStore'
@@ -15,6 +15,8 @@ import { LanguageToggle } from '@/components/LanguageToggle'
 export default function WelcomePage() {
   const t = useTranslations('home')
   const tCommon = useTranslations('common')
+  const tA11y = useTranslations('a11y')
+  const reduceMotion = useReducedMotion()
   const [mounted, setMounted] = useState(false)
   const {
     _hasHydrated,
@@ -54,13 +56,22 @@ export default function WelcomePage() {
   // This fixes the mobile/iPad race condition where localStorage data loads after initial render
   if (!mounted || !_hasHydrated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-400 to-green-400">
+      <div
+        role="status"
+        aria-label={tCommon('loading')}
+        className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-400 to-green-400"
+      >
         <motion.div
+          aria-hidden="true"
           className="text-7xl"
-          animate={{
-            rotate: [0, 10, -10, 0],
-            scale: [1, 1.2, 1]
-          }}
+          animate={
+            reduceMotion
+              ? undefined
+              : {
+                  rotate: [0, 10, -10, 0],
+                  scale: [1, 1.2, 1],
+                }
+          }
           transition={{ duration: 2, repeat: Infinity }}
         >
           🌴
@@ -90,9 +101,11 @@ export default function WelcomePage() {
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text'
             }}
-            animate={{
-              backgroundPosition: ['0% center', '200% center']
-            }}
+            animate={
+              reduceMotion
+                ? undefined
+                : { backgroundPosition: ['0% center', '200% center'] }
+            }
             transition={{
               duration: 4,
               repeat: Infinity,
@@ -145,8 +158,9 @@ export default function WelcomePage() {
                 whileHover={{ scale: 1.05 }}
               >
                 <motion.span
+                  aria-hidden="true"
                   className="text-2xl"
-                  animate={{ rotate: [0, 15, -15, 0] }}
+                  animate={reduceMotion ? undefined : { rotate: [0, 15, -15, 0] }}
                   transition={{ duration: 2, repeat: Infinity }}
                 >
                   ⭐
@@ -160,8 +174,9 @@ export default function WelcomePage() {
                   whileHover={{ scale: 1.05 }}
                 >
                   <motion.span
+                    aria-hidden="true"
                     className="text-2xl"
-                    animate={{ scale: [1, 1.2, 1] }}
+                    animate={reduceMotion ? undefined : { scale: [1, 1.2, 1] }}
                     transition={{ duration: 0.5, repeat: Infinity }}
                   >
                     🔥
@@ -209,59 +224,73 @@ export default function WelcomePage() {
             {hasCreatedCharacter ? (
               <>
                 {/* Section label */}
-                <p className="text-sm text-gray-500 font-medium tracking-wide uppercase mb-1">
+                <p className="text-sm text-gray-700 font-medium tracking-wide uppercase mb-1">
                   {t('chooseAdventure')}
                 </p>
 
-                <Link href="/worlds">
+                <Link href="/worlds" aria-label={tA11y('playMathGames')}>
                   <motion.button
+                    type="button"
+                    aria-label={tA11y('playMathGames')}
                     className="w-full px-8 py-4 bg-gradient-to-r from-yellow-400 to-orange-500
                                text-white font-bold text-2xl rounded-full shadow-xl
                                border-4 border-yellow-300"
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
-                    animate={{
-                      boxShadow: [
-                        '0 0 20px rgba(255, 215, 0, 0.4)',
-                        '0 0 40px rgba(255, 215, 0, 0.7)',
-                        '0 0 20px rgba(255, 215, 0, 0.4)'
-                      ]
-                    }}
+                    animate={
+                      reduceMotion
+                        ? undefined
+                        : {
+                            boxShadow: [
+                              '0 0 20px rgba(255, 215, 0, 0.4)',
+                              '0 0 40px rgba(255, 215, 0, 0.7)',
+                              '0 0 20px rgba(255, 215, 0, 0.4)',
+                            ],
+                          }
+                    }
                     transition={{
                       boxShadow: { duration: 1.5, repeat: Infinity }
                     }}
                   >
                     <span className="block">{t('mathGames')}</span>
-                    <span className="block text-base font-semibold opacity-90">{t('mathGamesSubtitle')}</span>
-                    <span className="block text-xs font-normal opacity-75 mt-1">{t('mathGamesHint')}</span>
+                    <span className="block text-base font-semibold">{t('mathGamesSubtitle')}</span>
+                    <span className="block text-xs font-normal mt-1">{t('mathGamesHint')}</span>
                   </motion.button>
                 </Link>
-                <Link href="/multiplication">
+                <Link href="/multiplication" aria-label={tA11y('playMultiplicationGames')}>
                   <motion.button
+                    type="button"
+                    aria-label={tA11y('playMultiplicationGames')}
                     className="w-full px-8 py-4 bg-gradient-to-r from-green-400 to-teal-500
                                text-white font-bold text-2xl rounded-full shadow-xl
                                border-4 border-green-300"
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
-                    animate={{
-                      boxShadow: [
-                        '0 0 20px rgba(76, 175, 80, 0.4)',
-                        '0 0 40px rgba(76, 175, 80, 0.7)',
-                        '0 0 20px rgba(76, 175, 80, 0.4)'
-                      ]
-                    }}
+                    animate={
+                      reduceMotion
+                        ? undefined
+                        : {
+                            boxShadow: [
+                              '0 0 20px rgba(76, 175, 80, 0.4)',
+                              '0 0 40px rgba(76, 175, 80, 0.7)',
+                              '0 0 20px rgba(76, 175, 80, 0.4)',
+                            ],
+                          }
+                    }
                     transition={{
                       boxShadow: { duration: 1.5, repeat: Infinity }
                     }}
                   >
                     <span className="block">{t('multiplicationGames')}</span>
-                    <span className="block text-base font-semibold opacity-90">{t('multiplicationGamesSubtitle')}</span>
-                    <span className="block text-xs font-normal opacity-75 mt-1">{t('multiplicationGamesHint')}</span>
+                    <span className="block text-base font-semibold">{t('multiplicationGamesSubtitle')}</span>
+                    <span className="block text-xs font-normal mt-1">{t('multiplicationGamesHint')}</span>
                   </motion.button>
                 </Link>
                 <div className="flex gap-4">
-                  <Link href="/wardrobe" className="flex-1">
+                  <Link href="/wardrobe" className="flex-1" aria-label={tA11y('openWardrobe')}>
                     <motion.button
+                      type="button"
+                      aria-label={tA11y('openWardrobe')}
                       className="w-full px-6 py-3 bg-gradient-to-r from-purple-400 to-pink-500
                                  text-white font-bold text-lg rounded-full shadow-lg
                                  border-4 border-purple-300"
@@ -271,8 +300,10 @@ export default function WelcomePage() {
                       {t('wardrobe')}
                     </motion.button>
                   </Link>
-                  <Link href="/progress" className="flex-1">
+                  <Link href="/progress" className="flex-1" aria-label={tA11y('openProgress')}>
                     <motion.button
+                      type="button"
+                      aria-label={tA11y('openProgress')}
                       className="w-full px-6 py-3 bg-gradient-to-r from-blue-400 to-cyan-500
                                  text-white font-bold text-lg rounded-full shadow-lg
                                  border-4 border-blue-300"
@@ -285,21 +316,27 @@ export default function WelcomePage() {
                 </div>
               </>
             ) : (
-              <Link href="/create-character">
+              <Link href="/create-character" aria-label={tA11y('startAdventure')}>
                 <motion.button
+                  type="button"
+                  aria-label={tA11y('startAdventure')}
                   className="w-full px-8 py-5 bg-gradient-to-r from-yellow-400 to-orange-500
                              text-white font-bold text-2xl rounded-full shadow-xl
                              border-4 border-yellow-300"
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
-                  animate={{
-                    boxShadow: [
-                      '0 0 20px rgba(255, 215, 0, 0.4)',
-                      '0 0 50px rgba(255, 215, 0, 0.8)',
-                      '0 0 20px rgba(255, 215, 0, 0.4)'
-                    ],
-                    y: [0, -5, 0]
-                  }}
+                  animate={
+                    reduceMotion
+                      ? undefined
+                      : {
+                          boxShadow: [
+                            '0 0 20px rgba(255, 215, 0, 0.4)',
+                            '0 0 50px rgba(255, 215, 0, 0.8)',
+                            '0 0 20px rgba(255, 215, 0, 0.4)',
+                          ],
+                          y: [0, -5, 0],
+                        }
+                  }
                   transition={{
                     boxShadow: { duration: 1.5, repeat: Infinity },
                     y: { duration: 2, repeat: Infinity, ease: 'easeInOut' }
@@ -321,20 +358,24 @@ export default function WelcomePage() {
         >
           <LanguageToggle />
           {hasCreatedCharacter && (
-            <Link href="/preferences">
+            <Link href="/preferences" aria-label={tA11y('openSettings')}>
               <motion.button
-                className="px-4 py-2 bg-white/80 backdrop-blur-sm text-gray-600 text-sm rounded-full shadow-md hover:bg-white transition-colors flex items-center gap-1"
+                type="button"
+                aria-label={tA11y('openSettings')}
+                className="px-4 py-2 bg-white/90 backdrop-blur-sm text-gray-700 text-sm font-medium rounded-full shadow-md hover:bg-white transition-colors flex items-center gap-1"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                <span className="text-lg">⚙️</span>
+                <span aria-hidden="true" className="text-lg">⚙️</span>
                 <span className="hidden sm:inline">{tCommon('settings')}</span>
               </motion.button>
             </Link>
           )}
-          <Link href="/parent">
+          <Link href="/parent" aria-label={tA11y('openParentDashboard')}>
             <motion.button
-              className="px-4 py-2 bg-white/80 backdrop-blur-sm text-gray-600 text-sm rounded-full shadow-md hover:bg-white transition-colors"
+              type="button"
+              aria-label={tA11y('openParentDashboard')}
+              className="px-4 py-2 bg-white/90 backdrop-blur-sm text-gray-700 text-sm font-medium rounded-full shadow-md hover:bg-white transition-colors"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
@@ -345,6 +386,7 @@ export default function WelcomePage() {
 
         {/* Decorative bottom bouncing items */}
         <motion.div
+          aria-hidden="true"
           className="absolute bottom-6 left-0 right-0 flex justify-center gap-6 text-4xl pointer-events-none z-20"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -353,7 +395,7 @@ export default function WelcomePage() {
           {['🥥', '🍌', '🌺', '🦋', '🌴'].map((emoji, i) => (
             <motion.span
               key={i}
-              animate={{ y: [0, -12, 0] }}
+              animate={reduceMotion ? undefined : { y: [0, -12, 0] }}
               transition={{
                 duration: 1.5,
                 repeat: Infinity,

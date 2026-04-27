@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@types/sortablejs": "^1.15.9",
-    "howler": "^2.2.4",
     "interactjs": "^1.10.27",
     "lottie-react": "^2.4.1",
     "motion": "^12.28.1",
@@ -27,7 +26,6 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/howler": "^2.2.12",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

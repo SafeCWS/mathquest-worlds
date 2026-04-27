@@ -839,3 +839,17 @@ body {
 .encouragement-bounce {
   animation: encouragement-bounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
+
+/* Phase 1.4 a11y: respect prefers-reduced-motion across all animations.
+   Catches CSS keyframe animations (float-gentle, sparkle-pulse, etc.)
+   and any motion.div animations that slip through useReducedMotion gates. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
