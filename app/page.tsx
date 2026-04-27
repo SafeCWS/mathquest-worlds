@@ -294,7 +294,7 @@ export default function WelcomePage() {
                 onClick={() => router.push('/create-character')}
                 variant="primary"
                 aria-label={tA11y('startAdventure')}
-                className="w-full max-w-md text-3xl py-8 min-h-[160px] rounded-3xl"
+                className="w-full max-w-md text-3xl py-8 min-h-[160px] rounded-3xl border-yellow-300"
               >
                 <span className="block">{t('startAdventure')}</span>
               </KidButton>

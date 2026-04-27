@@ -105,9 +105,16 @@ export function KidButton({
     [handlePress]
   )
 
+  // Primary variant intentionally omits a border-color class — consumers supply
+  // their own (e.g. `border-yellow-300`, `border-green-300`) via className so a
+  // tile's gradient and border stay in the same color family. Tailwind compiles
+  // border-color utilities at equal specificity, so two of them in the same
+  // element resolve by stylesheet order, not className order — making it
+  // impossible for the consumer to override a baked-in variant border. Keeping
+  // `border-4` here preserves the thick frame; the color is the consumer's call.
   const variantClass =
     variant === 'primary'
-      ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-lg border-4 border-yellow-300'
+      ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-lg border-4'
       : variant === 'soft'
         ? 'bg-white/90 text-gray-700 shadow-md border-2 border-white/50'
         : 'bg-transparent text-gray-700'
