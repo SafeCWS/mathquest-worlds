@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { motion, useReducedMotion } from 'motion/react'
+import { useTranslations } from 'next-intl'
 import { avatarRenderers } from './avatars'
 import { emotionConfig, type AvatarStyle, type AvatarEmotion } from './avatars/shared'
 
@@ -111,6 +112,11 @@ export function PresetAvatar({
 }
 
 // Avatar selection grid component
+//
+// Phase 3.4 — labels and the "Choose your avatar" group label are now read
+// from the `characterCreator` i18n namespace so Spanish-speaking kids see
+// "Mago" instead of "Wizard". Emojis stay (universally readable, kid-friendly)
+// but live in i18n too so we can swap them per locale if needed.
 export function AvatarSelector({
   selectedStyle,
   onSelect,
@@ -122,6 +128,8 @@ export function AvatarSelector({
   skinTone?: string
   primaryColor?: string
 }) {
+  const t = useTranslations('characterCreator')
+
   const avatarStyles: AvatarStyle[] = [
     'explorer',
     'wizard',
@@ -137,48 +145,37 @@ export function AvatarSelector({
     'mermaid',
   ]
 
-  const avatarLabels: Record<AvatarStyle, string> = {
-    explorer: '🌴 Explorer',
-    wizard: '✨ Wizard',
-    astronaut: '🚀 Astronaut',
-    pirate: '🏴‍☠️ Pirate',
-    ninja: '🥷 Ninja',
-    fairy: '🧚 Fairy',
-    robot: '🤖 Robot',
-    superhero: '🦸 Superhero',
-    unicorn: '🦄 Unicorn',
-    scientist: '🔬 Scientist',
-    dragon: '🐲 Dragon',
-    mermaid: '🧜‍♀️ Mermaid',
-  }
-
   return (
     <div
       role="radiogroup"
-      aria-label="Choose your avatar"
+      aria-label={t('title')}
       className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4"
     >
-      {avatarStyles.map((style) => (
-        <motion.div
-          key={style}
-          className="flex flex-col items-center gap-2"
-        >
-          <PresetAvatar
-            style={style}
-            size={120}
-            selected={selectedStyle === style}
-            onClick={() => onSelect(style)}
-            skinTone={skinTone}
-            primaryColor={primaryColor}
-            animate={selectedStyle === style}
-            isInRadioGroup
-            ariaLabel={`${avatarLabels[style].replace(/[^\w\s]/g, '').trim()} avatar`}
-          />
-          <span className={`text-sm font-medium ${selectedStyle === style ? 'text-yellow-700' : 'text-gray-700'}`}>
-            {avatarLabels[style]}
-          </span>
-        </motion.div>
-      ))}
+      {avatarStyles.map((style) => {
+        const label = t(`avatarLabels.${style}`)
+        const emoji = t(`avatarEmojis.${style}`)
+        return (
+          <motion.div
+            key={style}
+            className="flex flex-col items-center gap-2"
+          >
+            <PresetAvatar
+              style={style}
+              size={120}
+              selected={selectedStyle === style}
+              onClick={() => onSelect(style)}
+              skinTone={skinTone}
+              primaryColor={primaryColor}
+              animate={selectedStyle === style}
+              isInRadioGroup
+              ariaLabel={t('avatarChooseAria', { label })}
+            />
+            <span className={`text-sm font-medium ${selectedStyle === style ? 'text-yellow-700' : 'text-gray-700'}`}>
+              <span aria-hidden="true">{emoji}</span> {label}
+            </span>
+          </motion.div>
+        )
+      })}
     </div>
   )
 }
