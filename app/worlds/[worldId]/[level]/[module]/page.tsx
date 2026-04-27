@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useRouter, useParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useCharacterStore } from '@/lib/stores/characterStore'
 import { useProgressStore } from '@/lib/stores/progressStore'
 import { useWorldStore } from '@/lib/stores/worldStore'
@@ -98,17 +99,13 @@ export default function GamePage() {
   const worldId = params.worldId as string
   const levelId = parseInt(params.level as string)
   const moduleId = parseInt(params.module as string)
+  const tGate = useTranslations('levelGate')
 
   const [mounted, setMounted] = useState(false)
   const [world, setWorld] = useState<World | null>(null)
   const [showFeedback, setShowFeedback] = useState(false)
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [showComplete, setShowComplete] = useState(false)
-  // Phase 4.4 — when a round-completion call into recordGameComplete returns
-  // a non-null unlocked level id, we stash it here so the post-celebration
-  // mascot-speech-bubble Step E can render it. Cleared by the speech-bubble
-  // dismiss handler (or auto-clears after 2s in the celebration component).
-  const [unlockedLevelId, setUnlockedLevelId] = useState<number | null>(null)
   const [guide] = useState(() => GUIDE_CHARACTERS[Math.floor(Math.random() * GUIDE_CHARACTERS.length)])
   const [showIntro, setShowIntro] = useState(true)
 
@@ -347,9 +344,9 @@ export default function GamePage() {
         const finalCorrect = correctAnswers + 1
         const scorePct = totalProblems > 0 ? finalCorrect / totalProblems : 0
         const gateResult = recordGameComplete(levelId, scorePct)
-        if (gateResult.unlocked !== null) {
-          setUnlockedLevelId(gateResult.unlocked)
-        }
+        // gateResult.unlocked is consumed below in the celebration cascade
+        // (where we render the mascot speech bubble + persist the local
+        // unlocked state for any post-celebration UI).
 
         music.playLevelCompleteMelody()
 
@@ -368,8 +365,31 @@ export default function GamePage() {
         const isWorldComplete = currentWorldProgress?.fullyCompleted || false
         const worldAchievements = checkAndUnlockWorldAchievements(worldId, isWorldComplete)
 
-        // Show celebration for any achievement unlocked (priority: world > level > stars)
-        if (worldAchievements.length > 0) {
+        // Phase 4.4 — Level-gate unlock takes top priority. The kid just
+        // hit pip 3/3 on this level — that's the headline event for them,
+        // higher signal than a star-milestone (which fires at arbitrary
+        // totals like 15/40/70). Achievements still queue underneath; the
+        // CelebrationOverlay's autoDismissMs (≤2s per §4.4) keeps the
+        // sequence short — no kid-trapping celebration loops.
+        if (gateResult.unlocked !== null) {
+          const nextLevelId = gateResult.unlocked
+          const nameKey = (characterName && characterName.trim())
+            ? 'unlock.messageWithName'
+            : 'unlock.messageNoName'
+          showCelebration({
+            type: 'level_complete',
+            title: tGate('unlock.title', { nextLevel: nextLevelId }),
+            subtitle: tGate(nameKey, {
+              name: characterName,
+              nextLevel: nextLevelId,
+            }),
+            // Star + key = "you opened a new door". Resists the temptation
+            // to use a generic 🏆 (which we save for world-complete).
+            emoji: '🌟',
+            stars: 3,
+          })
+          // Show celebration for any achievement unlocked (priority: world > level > stars)
+        } else if (worldAchievements.length > 0) {
           const achievement = worldAchievements[0]
           showCelebration({
             type: 'world_complete',
@@ -438,7 +458,7 @@ export default function GamePage() {
         }
       }
     }, 1200)
-  }, [submitAnswer, currentProblem, incrementQuestionsToday, currentStreak, nextProblem, endGame, recordModuleComplete, recordGameComplete, addStars, recordLevelComplete, levelId, moduleId, worldId, correctAnswers, totalProblems, startTime, attemptHistory, totalStars, completedLevels, worldProgress, checkAndUnlockStarAchievements, checkAndUnlockLevelAchievements, checkAndUnlockWorldAchievements, showCelebration])
+  }, [submitAnswer, currentProblem, incrementQuestionsToday, currentStreak, nextProblem, endGame, recordModuleComplete, recordGameComplete, addStars, recordLevelComplete, levelId, moduleId, worldId, correctAnswers, totalProblems, startTime, attemptHistory, totalStars, completedLevels, worldProgress, checkAndUnlockStarAchievements, checkAndUnlockLevelAchievements, checkAndUnlockWorldAchievements, showCelebration, tGate, characterName])
 
   // Handle wrong answer
   const handleWrong = useCallback((timestamp: number = Date.now()) => {
