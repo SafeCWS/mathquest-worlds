@@ -12,6 +12,7 @@ import { useWorldStore } from '@/lib/stores/worldStore'
 import { useCharacterStore } from '@/lib/stores/characterStore'
 import { WORLDS, getWorldById } from '@/lib/constants/worlds'
 import { LEVELS } from '@/lib/constants/levels'
+import { LOCALE_BCP47, type Locale } from '@/i18n/config'
 
 function formatDuration(ms: number): string {
   const minutes = Math.floor(ms / 60000)
@@ -22,10 +23,9 @@ function formatDuration(ms: number): string {
 
 function formatDate(dateStr: string, locale: string): string {
   const date = new Date(dateStr)
-  // Map next-intl locale ('en' | 'es') to BCP-47 tags. en-US for English
-  // (existing behavior), es-ES for Spanish (closer to international school
-  // Spanish than es-MX, and matches our tú-form tone).
-  const bcp47 = locale === 'es' ? 'es-ES' : 'en-US'
+  // Map next-intl locale ('en' | 'es') to BCP-47 tags via the shared
+  // LOCALE_BCP47 table in i18n/config.ts (single source of truth).
+  const bcp47 = LOCALE_BCP47[locale as Locale] ?? LOCALE_BCP47.en
   return date.toLocaleDateString(bcp47, { month: 'short', day: 'numeric' })
 }
 
@@ -88,8 +88,12 @@ export default function ParentDashboard() {
   if (!authenticated) return <ParentGate onSuccess={() => setAuthenticated(true)} onCancel={() => router.push('/')} />
 
   const weeklyTime = getWeeklyPlayTime()
+  // Store returns raw operation IDs ('addition', 'counting', …) so it stays
+  // locale-agnostic. UI maps to localized labels here at render time.
   const strengths = getStrengths()
   const areasForPractice = getAreasForPractice()
+  const strengthsLabels = strengths.map(id => t(`operationLabels.${id}`))
+  const areasForPracticeLabels = areasForPractice.map(id => t(`operationLabels.${id}`))
   const accuracyTrend = getAccuracyTrend()
   const recentSessions = getRecentSessions(7)
 
@@ -125,7 +129,7 @@ export default function ParentDashboard() {
             </div>
             <div>
               <h2 className="text-2xl font-bold text-slate-800">{characterName || t('defaultName')}</h2>
-              <p className="text-slate-500">{t('skillLevel')} <span className="font-medium capitalize text-slate-700">{skillLevel}</span></p>
+              <p className="text-slate-500">{t('skillLevel')} <span className="font-medium capitalize text-slate-700">{t(`skillLevels.${skillLevel}`)}</span></p>
             </div>
           </div>
         </div>
@@ -175,12 +179,12 @@ export default function ParentDashboard() {
                 {areasForPractice.length > 0 ? (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                     <p className="text-amber-800 font-medium">{t('overview.recommendedFocus')}</p>
-                    <p className="text-amber-700">{t('overview.needsPractice', { areas: areasForPractice.join(', ') })}</p>
+                    <p className="text-amber-700">{t('overview.needsPractice', { areas: areasForPracticeLabels.join(', ') })}</p>
                   </div>
                 ) : strengths.length > 0 ? (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <p className="text-green-800 font-medium">{t('overview.greatProgress')}</p>
-                    <p className="text-green-700">{t('overview.strongIn', { areas: strengths.join(', ') })}</p>
+                    <p className="text-green-700">{t('overview.strongIn', { areas: strengthsLabels.join(', ') })}</p>
                   </div>
                 ) : (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -203,10 +207,10 @@ export default function ParentDashboard() {
                     </div>
                     <div className="bg-slate-50 rounded-lg p-4">
                       <p className="text-slate-500 text-sm">{t('skills.level')}</p>
-                      <p className="text-2xl font-bold capitalize text-slate-800">{diagnosticResult.skillLevel}</p>
+                      <p className="text-2xl font-bold capitalize text-slate-800">{t(`skillLevels.${diagnosticResult.skillLevel}`)}</p>
                     </div>
                   </div>
-                  {diagnosticResult.completedAt && <p className="text-slate-500 text-sm">{t('skills.completed', { date: new Date(diagnosticResult.completedAt).toLocaleDateString(locale === 'es' ? 'es-ES' : 'en-US') })}</p>}
+                  {diagnosticResult.completedAt && <p className="text-slate-500 text-sm">{t('skills.completed', { date: new Date(diagnosticResult.completedAt).toLocaleDateString(LOCALE_BCP47[locale as Locale] ?? LOCALE_BCP47.en) })}</p>}
                 </div>
               ) : (
                 <div className="bg-white rounded-xl p-6 shadow-sm">
@@ -222,7 +226,7 @@ export default function ParentDashboard() {
                       return (
                         <div key={stat.operation} className="border-b border-slate-100 pb-4 last:border-0">
                           <div className="flex justify-between mb-2">
-                            <span className="font-medium capitalize text-slate-700">{stat.operation}</span>
+                            <span className="font-medium capitalize text-slate-700">{t(`operationLabels.${stat.operation}`)}</span>
                             <span className="text-slate-500">{t('skills.accuracySuffix', { percent: accuracy })}</span>
                           </div>
                           <div className="relative h-2 bg-slate-200 rounded-full overflow-hidden">
@@ -240,13 +244,13 @@ export default function ParentDashboard() {
               {strengths.length > 0 && (
                 <div className="bg-green-50 rounded-xl p-6">
                   <h3 className="text-lg font-semibold text-green-800 mb-2">{t('skills.strengths')}</h3>
-                  <p className="text-green-700">{strengths.join(', ')}</p>
+                  <p className="text-green-700">{strengthsLabels.join(', ')}</p>
                 </div>
               )}
               {areasForPractice.length > 0 && (
                 <div className="bg-amber-50 rounded-xl p-6">
                   <h3 className="text-lg font-semibold text-amber-800 mb-2">{t('skills.areasForPractice')}</h3>
-                  <p className="text-amber-700">{areasForPractice.join(', ')}</p>
+                  <p className="text-amber-700">{areasForPracticeLabels.join(', ')}</p>
                 </div>
               )}
             </motion.div>
@@ -264,8 +268,8 @@ export default function ParentDashboard() {
                     <div className="flex items-center gap-4 mb-4">
                       <div className="text-4xl">{world.emoji}</div>
                       <div>
-                        <h3 className="text-lg font-semibold text-slate-800">{world.name}</h3>
-                        <p className="text-slate-500 text-sm">{world.description}</p>
+                        <h3 className="text-lg font-semibold text-slate-800">{t(`worlds.byId.${world.id}.name`)}</h3>
+                        <p className="text-slate-500 text-sm">{t(`worlds.byId.${world.id}.description`)}</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-4 mb-4">
