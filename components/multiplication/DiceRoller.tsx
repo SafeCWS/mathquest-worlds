@@ -35,7 +35,7 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
   const recordModeScore = useMultiplicationStore(s => s.recordModeScore)
   const { celebration, showCelebration, dismissCelebration } = useCelebration()
-  const { hintLevel, showHint, resetHint, totalHintsUsed, visualProps, hintPenalty } = useHintSystem()
+  const { hintLevel, showHint, resetHint, visualProps, hintPenalty } = useHintSystem()
   const { isLocked, triggerCooldown } = useInteractionCooldown()
   const rollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -72,7 +72,8 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
       const wrong = generateWrongAnswers(product, 3, 'product')
       setChoices(shuffleAnswers([product, ...wrong]))
 
-      // Show visual BEFORE answer choices
+      // Show visual BEFORE answer choices.
+      // Default reveal is 'question-only' — TTS does NOT speak the product.
       setPhase('visual')
       speakEquation(tableNumber, target)
     }, 1500)
@@ -202,7 +203,9 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
               {tableNumber} x {targetNumber} = ?
             </span>
             <button
-              onClick={() => speakEquation(tableNumber, targetNumber)}
+              onClick={() => speakEquation(tableNumber, targetNumber, {
+                revealMode: hintLevel >= 1 ? 'with-hint' : 'question-only',
+              })}
               className="text-lg opacity-60 hover:opacity-100 transition-opacity min-w-[36px] min-h-[36px] flex items-center justify-center"
               aria-label="Read aloud"
             >
@@ -210,36 +213,27 @@ export default function DiceRoller({ tableNumber }: DiceRollerProps) {
             </button>
           </motion.div>
 
-          <div className="max-w-xs mx-auto bg-white/15 backdrop-blur-sm rounded-2xl p-3 mb-3">
+          {/* Default visual is empty — visualProps starts at hintLevel 0 = nothing shown.
+              The kid works the answer out from the dice numbers alone first.
+              Tapping the HintButton progressively unlocks groups → bridge → full reveal. */}
+          <div
+            className="max-w-xs mx-auto bg-white/15 backdrop-blur-sm rounded-2xl p-3 mb-3"
+            data-testid="visual-groups"
+            data-hint-level={hintLevel}
+          >
             <VisualMultiplication
               a={tableNumber}
               b={targetNumber}
-              show={{ groups: true, additionBridge: false, answer: false }}
+              show={visualProps}
               size="compact"
               animateIn={true}
             />
           </div>
 
-          {/* Hint button for addition bridge */}
+          {/* Progressive hint cascade: tap 1 = bridge, tap 2 = groups, tap 3 = answer */}
           <div className="flex justify-center gap-3 mb-3">
             <HintButton onTap={showHint} hintLevel={hintLevel} />
           </div>
-
-          {hintLevel > 0 && (
-            <motion.div
-              className="max-w-xs mx-auto bg-white/15 backdrop-blur-sm rounded-2xl p-2 mb-3"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-            >
-              <VisualMultiplication
-                a={tableNumber}
-                b={targetNumber}
-                show={visualProps}
-                size="compact"
-                animateIn={true}
-              />
-            </motion.div>
-          )}
 
           <div className="flex justify-center">
             <motion.button

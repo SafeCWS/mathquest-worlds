@@ -9,6 +9,8 @@ import { generateWrongAnswers, shuffleAnswers } from '@/lib/utils/multiplication
 import { sounds } from '@/lib/sounds/webAudioSounds'
 import { speak } from '@/lib/sounds/speechUtils'
 import { useInteractionCooldown } from '@/lib/hooks/useInteractionCooldown'
+import { useEmojiThemeStore } from '@/lib/stores/emojiThemeStore'
+import { EMOJI_NAME_FALLBACK } from '@/lib/constants/emojiOptions'
 import { CelebrationOverlay, useCelebration } from '@/components/game/CelebrationOverlay'
 import { WRONG_ANSWER_MESSAGES, CORRECT_ANSWER_MESSAGES, getRandomMessage } from '@/lib/constants/encouragementMessages'
 
@@ -91,6 +93,21 @@ export default function TimesTableChart({ tableNumber }: TimesTableChartProps) {
   const recordModeScore = useMultiplicationStore(s => s.recordModeScore)
   const { celebration, showCelebration, dismissCelebration } = useCelebration()
   const { isLocked, triggerCooldown } = useInteractionCooldown()
+  // Spoken name for the table's chosen emoji ("balloons" not "things").
+  // Selector pattern matches Zustand idiom; resolves on every render so a
+  // theme change in another tab is reflected after rehydrate.
+  //
+  // Hydration gate (added 2026-04-27 PACA G2): if the kid has set a custom
+  // emoji for this table, SSR would render the DEFAULT_EMOJIS name while
+  // the client rehydrates to the custom name — same shape as the Apr-19
+  // React.memo silent-damage bug. We mirror the page.tsx pattern: emit the
+  // generic 'thing'/'things' fallback until `_hasHydrated` is true, then
+  // swap in the real spoken name. Worst case the kid hears "How many
+  // things?" for one frame on a cold load — the speak() useEffect re-fires
+  // when `emojiName.plural` changes after hydration.
+  const _hasHydrated = useEmojiThemeStore(s => s._hasHydrated)
+  const getTableEmojiName = useEmojiThemeStore(s => s.getTableEmojiName)
+  const emojiName = _hasHydrated ? getTableEmojiName(tableNumber) : EMOJI_NAME_FALLBACK
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
   const colors = TABLE_COLORS[tableNumber] || TABLE_COLORS[1]
@@ -111,13 +128,14 @@ export default function TimesTableChart({ tableNumber }: TimesTableChartProps) {
     [cells]
   )
 
-  // Speak intro on mount
+  // Speak intro on mount — names the chosen emoji so audio matches the
+  // visual theme ("with balloons!" / "with bunnies!" / etc.)
   useEffect(() => {
     const t = setTimeout(() => {
-      speak(`The ${tableNumber} times table chart! Tap the question marks to fill them in.`)
+      speak(`The ${tableNumber} times table — with ${emojiName.plural}! Tap the question marks.`)
     }, 500)
     return () => clearTimeout(t)
-  }, [tableNumber])
+  }, [tableNumber, emojiName.plural])
 
   const handleCellTap = useCallback((cellIndex: number) => {
     const cell = cells[cellIndex]
@@ -125,7 +143,9 @@ export default function TimesTableChart({ tableNumber }: TimesTableChartProps) {
     if (activePopup?.cellIndex === cellIndex) return
 
     sounds.playSelect()
-    speak(`${tableNumber} times ${cell.columnNumber}. What is the answer?`)
+    // Speak the cell prompt with the chosen emoji name so audio + visual
+    // match. Never speaks the product.
+    speak(`${tableNumber} groups of ${cell.columnNumber} ${emojiName.plural}. How many ${emojiName.plural}?`)
 
     // Generate 3 choices (1 correct + 2 wrong)
     const wrong = generateWrongAnswers(cell.product, 2, 'product')
@@ -133,7 +153,7 @@ export default function TimesTableChart({ tableNumber }: TimesTableChartProps) {
 
     setActivePopup({ cellIndex, choices })
     setFeedbackMessage(null)
-  }, [cells, activePopup, tableNumber])
+  }, [cells, activePopup, tableNumber, emojiName.plural])
 
   const handleChoiceTap = useCallback((answer: number) => {
     if (isLocked || !activePopup) return
