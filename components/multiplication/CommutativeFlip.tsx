@@ -9,6 +9,7 @@ import { generateWrongAnswers, shuffleAnswers } from '@/lib/utils/multiplication
 import { sounds } from '@/lib/sounds/webAudioSounds'
 import { speak } from '@/lib/sounds/speechUtils'
 import { useInteractionCooldown } from '@/lib/hooks/useInteractionCooldown'
+import { useHintSystem, HintButton } from '@/lib/hooks/useHintSystem'
 import { CelebrationOverlay, useCelebration } from '@/components/game/CelebrationOverlay'
 import { WRONG_ANSWER_MESSAGES, CORRECT_ANSWER_MESSAGES, getRandomMessage } from '@/lib/constants/encouragementMessages'
 // TABLE_EMOJIS removed - CommutativeFlip uses dot colors, not table emojis
@@ -74,6 +75,7 @@ export default function CommutativeFlip({ tableNumber }: CommutativeFlipProps) {
   const recordModeScore = useMultiplicationStore(s => s.recordModeScore)
   const { celebration, showCelebration, dismissCelebration } = useCelebration()
   const { isLocked, triggerCooldown } = useInteractionCooldown()
+  const { hintLevel, showHint, resetHint, hintPenalty } = useHintSystem()
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
   useEffect(() => {
@@ -96,15 +98,15 @@ export default function CommutativeFlip({ tableNumber }: CommutativeFlipProps) {
     return 16
   }, [displayRows, displayCols])
 
-  // Speak the initial fact
+  // Speak the initial fact (NEVER speak the product before the quiz — kids work it out)
   useEffect(() => {
     if (phase === 'showing') {
       const timer = setTimeout(() => {
-        speak(`${rows} times ${cols} equals ${product}. That's ${rows} rows of ${cols}.`)
+        speak(`${rows} times ${cols}. That's ${rows} rows of ${cols}.`)
       }, 400)
       return () => clearTimeout(timer)
     }
-  }, [currentRound, phase, rows, cols, product])
+  }, [currentRound, phase, rows, cols])
 
   // Handle the "Flip!" button
   const handleFlip = useCallback(() => {
@@ -114,15 +116,16 @@ export default function CommutativeFlip({ tableNumber }: CommutativeFlipProps) {
     setPhase('flipped')
 
     // After flip animation completes, speak and transition to quiz
+    // (Don't speak the product — the quiz comes next.)
     timeoutsRef.current.push(setTimeout(() => {
-      speak(`See? Now it's ${cols} rows of ${rows}. Same answer! ${cols} times ${rows} also equals ${product}.`)
+      speak(`See? Now it's ${cols} rows of ${rows}. Same answer either way!`)
     }, 900))
 
     timeoutsRef.current.push(setTimeout(() => {
       speak(`What is ${cols} times ${rows}?`)
       setPhase('answering')
     }, 3500))
-  }, [phase, rows, cols, product])
+  }, [phase, rows, cols])
 
   // Handle answer selection
   const handleAnswer = useCallback((answer: number) => {
@@ -149,7 +152,8 @@ export default function CommutativeFlip({ tableNumber }: CommutativeFlipProps) {
       const nextRound = currentRound + 1
       if (nextRound >= TOTAL_ROUNDS) {
         const finalScore = isCorrect ? score + 1 : score
-        const stars = finalScore >= 5 ? 3 : finalScore >= 3 ? 2 : 1
+        const rawStars = finalScore >= 5 ? 3 : finalScore >= 3 ? 2 : 1
+        const stars = Math.max(Math.round(rawStars - hintPenalty), 1)
         setPhase('complete')
         recordModeScore(tableNumber, 'flip', stars)
         showCelebration({
@@ -165,10 +169,11 @@ export default function CommutativeFlip({ tableNumber }: CommutativeFlipProps) {
         setPhase('showing')
         setSelectedAnswer(null)
         setFeedbackMessage(null)
+        resetHint()
       }
     }, delay))
   }, [phase, product, cols, rows, currentRound, score, tableNumber,
-      recordModeScore, showCelebration, isLocked, triggerCooldown])
+      recordModeScore, showCelebration, isLocked, triggerCooldown, resetHint, hintPenalty])
 
   const handlePlayAgain = useCallback(() => {
     setRounds(generateRounds(tableNumber))
@@ -179,7 +184,8 @@ export default function CommutativeFlip({ tableNumber }: CommutativeFlipProps) {
     setFeedbackCorrect(false)
     setFeedbackMessage(null)
     setSelectedAnswer(null)
-  }, [tableNumber])
+    resetHint()
+  }, [tableNumber, resetHint])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-300 via-fuchsia-300 to-pink-400 p-4 pt-16 pb-8">
@@ -209,9 +215,9 @@ export default function CommutativeFlip({ tableNumber }: CommutativeFlipProps) {
         >
           <span className="text-xl font-extrabold text-white drop-shadow-lg">
             {isFlipped ? (
-              <>{cols} x {rows} = {product}</>
+              <>{cols} x {rows} = {phase === 'feedback' ? product : '?'}</>
             ) : (
-              <>{rows} x {cols} = {product}</>
+              <>{rows} x {cols} = {phase === 'feedback' ? product : '?'}</>
             )}
           </span>
         </motion.div>
@@ -313,22 +319,25 @@ export default function CommutativeFlip({ tableNumber }: CommutativeFlipProps) {
                   </div>
                 </motion.div>
 
-                {/* Dot count */}
-                <motion.p
-                  className="text-xs text-white/60 text-center mt-2"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                >
-                  {product} dots total
-                </motion.p>
+                {/* Dot count — hidden until feedback so the answer isn't telegraphed
+                    (the surrounding block already gates `phase !== 'complete'`). */}
+                {phase === 'feedback' && (
+                  <motion.p
+                    className="text-xs text-white/60 text-center mt-2"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                  >
+                    {product} dots total
+                  </motion.p>
+                )}
               </div>
             </div>
           </motion.div>
         </div>
       )}
 
-      {/* "Same answer!" callout after flip */}
+      {/* "Same answer!" callout after flip — product hidden until feedback */}
       <AnimatePresence>
         {(phase === 'flipped' || phase === 'answering' || phase === 'feedback') && (
           <motion.div
@@ -338,7 +347,7 @@ export default function CommutativeFlip({ tableNumber }: CommutativeFlipProps) {
             exit={{ opacity: 0 }}
           >
             <span className="text-base font-bold text-white bg-amber-500/40 backdrop-blur-sm px-4 py-1.5 rounded-full">
-              Same answer! {rows} x {cols} = {cols} x {rows} = {product}
+              Same answer! {rows} x {cols} = {cols} x {rows} {phase === 'feedback' ? `= ${product}` : ''}
             </span>
           </motion.div>
         )}
@@ -384,6 +393,36 @@ export default function CommutativeFlip({ tableNumber }: CommutativeFlipProps) {
               feedbackCorrect ? 'text-green-100' : 'text-amber-100'
             }`}>
               {feedbackMessage}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Hint button — same cascade as Dice/Frog, hidden during feedback */}
+      <AnimatePresence>
+        {phase === 'answering' && (
+          <motion.div
+            className="flex justify-center mb-3"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <HintButton onTap={showHint} hintLevel={hintLevel} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Hint reveal: skip-count addition bridge */}
+      <AnimatePresence>
+        {phase === 'answering' && hintLevel >= 1 && (
+          <motion.div
+            className="text-center mb-3"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <span className="text-sm font-bold text-white bg-amber-500/30 backdrop-blur-sm px-4 py-1.5 rounded-full">
+              {Array.from({ length: rows }, () => cols).join(' + ')} = ?
             </span>
           </motion.div>
         )}

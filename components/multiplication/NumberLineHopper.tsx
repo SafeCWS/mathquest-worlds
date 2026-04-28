@@ -9,6 +9,7 @@ import { generateWrongAnswers, shuffleAnswers } from '@/lib/utils/multiplication
 import { sounds } from '@/lib/sounds/webAudioSounds'
 import { speak, speakEquation } from '@/lib/sounds/speechUtils'
 import { useInteractionCooldown } from '@/lib/hooks/useInteractionCooldown'
+import { useHintSystem, HintButton } from '@/lib/hooks/useHintSystem'
 import { CelebrationOverlay, useCelebration } from '@/components/game/CelebrationOverlay'
 import { WRONG_ANSWER_MESSAGES, CORRECT_ANSWER_MESSAGES, getRandomMessage } from '@/lib/constants/encouragementMessages'
 
@@ -63,6 +64,7 @@ export default function NumberLineHopper({ tableNumber }: NumberLineHopperProps)
   const recordModeScore = useMultiplicationStore(s => s.recordModeScore)
   const { celebration, showCelebration, dismissCelebration } = useCelebration()
   const { isLocked, triggerCooldown } = useInteractionCooldown()
+  const { hintLevel, showHint, resetHint, hintPenalty } = useHintSystem()
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const numberLineRef = useRef<HTMLDivElement>(null)
 
@@ -93,11 +95,12 @@ export default function NumberLineHopper({ tableNumber }: NumberLineHopperProps)
     return landingSpots.join(', ')
   }, [landingSpots])
 
-  // Speak the equation at round start
+  // Speak the round prompt — does NOT mention the step ("by 3"), which would
+  // telegraph the answer. The kid figures out the step from the Hop button.
   useEffect(() => {
     if (phase === 'hopping' && hopCount === 0) {
       const timer = setTimeout(() => {
-        speak(`${step} times ${targetHops}. Let the frog hop ${targetHops} times by ${step}!`)
+        speak(`Hop the frog until you reach the answer to ${step} times ${targetHops}!`)
       }, 400)
       return () => clearTimeout(timer)
     }
@@ -125,7 +128,7 @@ export default function NumberLineHopper({ tableNumber }: NumberLineHopperProps)
     // After reaching target hops, transition to answering
     if (newHopCount >= targetHops) {
       const t = setTimeout(() => {
-        speak(`The frog hopped ${targetHops} times! What is ${step} times ${targetHops}?`)
+        speak(`The frog hopped ${targetHops} times! What is ${step} times ${targetHops}?`, { pace: 'kid-fast' })
         setPhase('answering')
       }, 700)
       timeoutsRef.current.push(t)
@@ -157,7 +160,8 @@ export default function NumberLineHopper({ tableNumber }: NumberLineHopperProps)
       const nextRound = currentRound + 1
       if (nextRound >= TOTAL_ROUNDS) {
         const finalScore = isCorrect ? score + 1 : score
-        const stars = finalScore >= 5 ? 3 : finalScore >= 3 ? 2 : 1
+        const rawStars = finalScore >= 5 ? 3 : finalScore >= 3 ? 2 : 1
+        const stars = Math.max(Math.round(rawStars - hintPenalty), 1)
         setPhase('complete')
         recordModeScore(tableNumber, 'numberline', stars)
         showCelebration({
@@ -173,10 +177,11 @@ export default function NumberLineHopper({ tableNumber }: NumberLineHopperProps)
         setPhase('hopping')
         setSelectedAnswer(null)
         setFeedbackMessage(null)
+        resetHint()
       }
     }, delay))
   }, [phase, target, step, targetHops, currentRound, score, tableNumber,
-      recordModeScore, showCelebration, isLocked, triggerCooldown])
+      recordModeScore, showCelebration, isLocked, triggerCooldown, resetHint, hintPenalty])
 
   const handlePlayAgain = useCallback(() => {
     setRounds(generateRounds(tableNumber))
@@ -187,7 +192,8 @@ export default function NumberLineHopper({ tableNumber }: NumberLineHopperProps)
     setFeedbackCorrect(false)
     setFeedbackMessage(null)
     setSelectedAnswer(null)
-  }, [tableNumber])
+    resetHint()
+  }, [tableNumber, resetHint])
 
   // Number line ticks from 0 to numberLineMax
   const nlMax = round.numberLineMax
@@ -232,7 +238,9 @@ export default function NumberLineHopper({ tableNumber }: NumberLineHopperProps)
             <span className="text-2xl">🐸</span>
             {step} x {targetHops} = ?
             <button
-              onClick={() => speakEquation(step, targetHops)}
+              onClick={() => speakEquation(step, targetHops, {
+                revealMode: hintLevel >= 1 ? 'with-hint' : 'question-only',
+              })}
               className="ml-1 opacity-60 hover:opacity-100 transition-opacity min-w-[32px] min-h-[32px]
                          flex items-center justify-center"
               aria-label="Read aloud"
@@ -256,16 +264,21 @@ export default function NumberLineHopper({ tableNumber }: NumberLineHopperProps)
         </motion.div>
       )}
 
-      {/* Running skip-count text */}
+      {/* Running skip-count text — only shows after the kid taps for a hint
+          OR after the answer is locked in (feedback). Pre-hint it would
+          telegraph the answer (3, 6, 9 → 12). */}
       <AnimatePresence>
-        {runningText && phase !== 'complete' && (
+        {runningText && phase !== 'complete' && (hintLevel >= 1 || phase === 'feedback') && (
           <motion.div
             className="text-center mb-3"
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
           >
-            <span className="text-base font-bold text-white bg-black/20 backdrop-blur-sm px-4 py-1.5 rounded-full">
+            <span
+              data-testid="skip-count-text"
+              className="text-base font-bold text-white bg-black/20 backdrop-blur-sm px-4 py-1.5 rounded-full"
+            >
               {runningText}
             </span>
           </motion.div>
@@ -452,6 +465,20 @@ export default function NumberLineHopper({ tableNumber }: NumberLineHopperProps)
             }`}>
               {feedbackMessage}
             </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Hint button — same cascade as Dice (skip-count visible at lvl 1+) */}
+      <AnimatePresence>
+        {phase === 'answering' && (
+          <motion.div
+            className="flex justify-center mb-3"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <HintButton onTap={showHint} hintLevel={hintLevel} />
           </motion.div>
         )}
       </AnimatePresence>
