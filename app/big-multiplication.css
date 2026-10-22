@@ -89,8 +89,15 @@
   }
   .action-dock .np-key {
     width: 100%;
-    height: 52px;
+    height: 56px; /* 56 px touch target (html-validator minor 1); sheet stays < 45vh */
     font-size: 30px;
   }
-  .has-dock { padding-bottom: 340px; }
+  .has-dock { padding-bottom: 356px; }
+}
+
+/* Keyboard / switch focus on the Big Multiplication screens: a 3 px ring (html-validator minor 7). */
+[data-screen^="game-"] :focus-visible,
+[data-screen="picker"] :focus-visible {
+  outline: 3px solid var(--space-primary);
+  outline-offset: 2px;
 }
