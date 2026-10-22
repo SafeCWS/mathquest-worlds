@@ -302,7 +302,7 @@ export function slotHint(story: Story, slot: SlotName, result: SlotResult): stri
     case 'swapped':
       return `So close! That number is the other one. Which number tells ${target}?`
     case 'distractor':
-      return `Good looking! That number is extra — it is not part of the math. Find ${target}.`
+      return `Good eye! That number is extra — it is not part of the math. Find ${target}.`
     default:
       return `Let's read it again together. Find the number that tells ${target}.`
   }

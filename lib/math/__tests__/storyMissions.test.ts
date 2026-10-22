@@ -184,3 +184,11 @@ test('rejects out-of-shape problems', () => {
   assert.throws(() => storyFor({ a: 42, b: 1 }, seeded(1)), RangeError)
   assert.throws(() => storyFor({ a: 42.5, b: 3 }, seeded(1)), RangeError)
 })
+
+test('distractor hint opens with "Good eye!" (copy fix, red-team #15)', () => {
+  for (const { story } of everyStory()) {
+    const h = slotHint(story, 'groups', 'distractor')
+    assert.ok(h?.startsWith('Good eye!'), String(h))
+    break
+  }
+})
