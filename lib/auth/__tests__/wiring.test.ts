@@ -7,7 +7,7 @@
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { signInErrorCode, SIGN_IN_ERROR_CODES } from '../signInErrors'
 
@@ -30,14 +30,14 @@ describe('sign-in failure contract (operator decision: one generic message)', ()
   })
 })
 
-describe('middleware matcher (L156)', () => {
+describe('middleware matcher (L156 + review HIGH: no extension bypass)', () => {
   const src = read('middleware.ts')
   const m = src.match(/matcher:\s*\[\s*'([^']+)'/)
   assert.ok(m, 'matcher string not found')
   const re = new RegExp('^' + m[1].replace(/\\\\/g, '\\') + '$')
   const isProtected = (p: string) => re.test(p)
 
-  it('logged-out routes are public', () => {
+  it('logged-out routes and static roots are public', () => {
     for (const p of [
       '/api/otp/request',
       '/api/auth/callback/credentials',
@@ -46,17 +46,71 @@ describe('middleware matcher (L156)', () => {
       '/login',
       '/manifest.webmanifest',
       '/icons/icon-192.png',
+      '/icons/apple-touch-icon.png',
       '/_next/static/chunks/x.js',
+      '/_next/static/media/font.woff2',
+      '/_next/image',
       '/favicon.ico',
+      '/robots.txt',
     ]) {
       assert.equal(isProtected(p), false, p)
     }
   })
 
-  it('app routes stay protected, including look-alikes of the OTP prefix', () => {
-    for (const p of ['/', '/worlds/1', '/progress', '/parent', '/multiplication/big', '/api/otpadmin', '/api/otp']) {
+  it('app routes stay protected, including file-extension look-alikes on dynamic routes', () => {
+    for (const p of [
+      '/',
+      '/worlds/1',
+      '/worlds/ocean.json',
+      '/multiplication/7.js',
+      '/multiplication/big',
+      '/progress',
+      '/progress.txt',
+      '/parent',
+      '/parent.css',
+      '/worlds/ocean/1/quiz.png',
+      '/api/otpadmin',
+      '/api/otp',
+      '/api/healthz',
+      '/api/health.json',
+      '/loginx',
+      '/manifest.webmanifest.js',
+      '/favicon.ico.js',
+      '/next.svg',
+      '/icons',
+    ]) {
       assert.equal(isProtected(p), true, p)
     }
+  })
+})
+
+describe('server-side session guard in every protected route segment (defence in depth)', () => {
+  const PUBLIC_SEGMENTS = new Set(['login', 'api'])
+  const segments = readdirSync(join(ROOT, 'app'), { withFileTypes: true })
+    .filter((d) => d.isDirectory() && !PUBLIC_SEGMENTS.has(d.name) && !d.name.startsWith('(') && !d.name.startsWith('_'))
+    .map((d) => d.name)
+
+  it('there are protected segments to check', () => {
+    assert.ok(segments.length >= 6, segments.join(','))
+  })
+
+  for (const seg of segments) {
+    it(`app/${seg}/layout.tsx calls requireSession()`, () => {
+      const f = `app/${seg}/layout.tsx`
+      assert.ok(existsSync(join(ROOT, f)), `${f} missing`)
+      assert.match(read(f), /await requireSession\(\)/, f)
+    })
+  }
+
+  for (const f of ['app/worlds/[worldId]/layout.tsx', 'app/multiplication/[table]/layout.tsx']) {
+    it(`${f} also calls requireSession()`, () => {
+      assert.match(read(f), /await requireSession\(\)/)
+    })
+  }
+
+  it('requireSession redirects to /login when there is no session', () => {
+    const src = read('lib/auth/requireSession.ts')
+    assert.match(src, /if \(!session\) redirect\('\/login'\)/)
   })
 })
 
