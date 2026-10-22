@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getMessages } from 'next-intl/server'
 import { AudioUnlock } from '@/components/AudioUnlock'
 import './globals.css'
+import './big-multiplication.css'
 
 const fredoka = Fredoka({
   variable: '--font-fredoka',

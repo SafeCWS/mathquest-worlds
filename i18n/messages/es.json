@@ -316,5 +316,15 @@
       "resetYes": "Sí, borrar todo",
       "resetCancel": "Cancelar"
     }
+  },
+  "timesTables": {
+    "title": "Tablas de multiplicar",
+    "subtitle": "¡Domina tus tablas!",
+    "table": "Tabla {n}",
+    "tapToStart": "¡Toca para empezar!",
+    "startHere": "¡Empieza aquí!",
+    "getStars": "¡Consigue 3 ⭐ en la Tabla {n}!",
+    "next": "¡Sigue!",
+    "back": "Atrás"
   }
 }

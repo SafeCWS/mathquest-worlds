@@ -3,23 +3,26 @@
 import { useEffect, useState, useRef } from 'react'
 import { motion } from 'motion/react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { useMultiplicationStore } from '@/lib/stores/multiplicationStore'
+import { LanguageToggle } from '@/components/LanguageToggle'
+import { EnglishOnly } from '@/components/EnglishOnly'
 // Yokoten (Phase 5): the prior `const [mounted, setMounted] = useState(false)`
 // + setMounted(true) in useEffect was redundant once Zustand's `_hasHydrated`
 // flag covers the SSR/CSR mismatch window. Same pattern was cleaned up on
 // /progress, /parent, /preferences, /worlds/[worldId] in Phase 4 G4.
 
 const TABLE_COLORS: Record<number, { from: string; to: string; border: string }> = {
-  1: { from: 'from-rose-400', to: 'to-pink-500', border: 'border-rose-300' },
-  2: { from: 'from-orange-400', to: 'to-amber-500', border: 'border-orange-300' },
-  3: { from: 'from-yellow-400', to: 'to-lime-500', border: 'border-yellow-300' },
-  4: { from: 'from-green-400', to: 'to-emerald-500', border: 'border-green-300' },
-  5: { from: 'from-teal-400', to: 'to-cyan-500', border: 'border-teal-300' },
-  6: { from: 'from-sky-400', to: 'to-blue-500', border: 'border-sky-300' },
-  7: { from: 'from-indigo-400', to: 'to-violet-500', border: 'border-indigo-300' },
-  8: { from: 'from-purple-400', to: 'to-fuchsia-500', border: 'border-purple-300' },
-  9: { from: 'from-pink-400', to: 'to-red-500', border: 'border-pink-300' },
-  10: { from: 'from-amber-400', to: 'to-yellow-500', border: 'border-amber-300' },
+  1: { from: 'from-fuchsia-600', to: 'to-pink-700', border: 'border-fuchsia-300' },
+  2: { from: 'from-orange-600', to: 'to-amber-700', border: 'border-orange-300' },
+  3: { from: 'from-yellow-600', to: 'to-lime-700', border: 'border-yellow-300' },
+  4: { from: 'from-green-600', to: 'to-emerald-700', border: 'border-green-300' },
+  5: { from: 'from-teal-600', to: 'to-cyan-700', border: 'border-teal-300' },
+  6: { from: 'from-sky-600', to: 'to-blue-700', border: 'border-sky-300' },
+  7: { from: 'from-indigo-600', to: 'to-violet-700', border: 'border-indigo-300' },
+  8: { from: 'from-purple-600', to: 'to-fuchsia-700', border: 'border-purple-300' },
+  9: { from: 'from-pink-600', to: 'to-fuchsia-700', border: 'border-pink-300' },
+  10: { from: 'from-amber-600', to: 'to-yellow-700', border: 'border-amber-300' },
 }
 
 const TABLE_EMOJIS: Record<number, string> = {
@@ -86,7 +89,40 @@ function AnimatedStarCounter({ target }: { target: number }) {
   return <span>{display}</span>
 }
 
+/** NEW Big Multiplication tile — English only (rendered inside <EnglishOnly>). */
+function BigTile() {
+  const tBig = useTranslations('bigMult')
+  return (
+    <Link href="/multiplication/big" data-testid="big-mult-tile">
+        <motion.div
+          className="relative bg-gradient-to-br from-orange-600 via-orange-600 to-amber-600
+                     rounded-3xl p-5 shadow-2xl border-4 border-yellow-200
+                     min-h-[120px] flex items-center gap-4 cursor-pointer overflow-hidden glow-pulse-invite"
+          whileHover={{ scale: 1.04, y: -4 }}
+          whileTap={{ scale: 0.94 }}
+        >
+          <motion.span
+            className="text-6xl"
+            animate={{ rotate: [0, -8, 8, 0], y: [0, -4, 0] }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+            aria-hidden="true"
+          >
+            {'\uD83C\uDFD7\uFE0F'}
+          </motion.span>
+          <div className="flex-1 text-left">
+            <p className="text-white font-bold text-2xl md:text-3xl drop-shadow">{tBig('tileTitle')}</p>
+            <p className="text-white/95 font-semibold text-lg drop-shadow">{tBig('tileSubtitle')}</p>
+          </div>
+          <span className="hidden sm:inline-block bg-white/90 text-orange-600 font-bold px-4 py-2 rounded-full shadow badge-pulse">
+            {tBig('tileCta')}
+          </span>
+        </motion.div>
+      </Link>
+  )
+}
+
 export default function MultiplicationHubPage() {
+  const tt = useTranslations('timesTables')
   const {
     _hasHydrated,
     unlockedTables,
@@ -146,22 +182,21 @@ export default function MultiplicationHubPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: BOUNCY_EASE }}
         >
-          <Link href="/">
-            <motion.button
-              className="px-4 py-2 bg-white/80 backdrop-blur-sm text-gray-600 rounded-full
-                         shadow-md hover:bg-white transition-colors text-lg min-w-[48px] min-h-[48px]
-                         flex items-center justify-center"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              {'\u2B05\uFE0F'}
-            </motion.button>
+          <Link
+            href="/"
+            aria-label={tt('back')}
+            className="px-4 py-2 bg-white/80 backdrop-blur-sm text-gray-600 rounded-full
+                       shadow-md hover:bg-white transition-colors text-lg min-w-[56px] min-h-[56px]
+                       flex items-center justify-center"
+          >
+            {'\u2B05\uFE0F'}
           </Link>
           <div className="flex-1">
-            <h1 className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg">
-              {'\u2716\uFE0F'} Times Tables
+            <h1 className="prompt-pill text-3xl md:text-4xl font-bold">
+              {'\u2716\uFE0F'} {tt('title')}
             </h1>
           </div>
+          <LanguageToggle />
           {/* Star counter with count-up animation */}
           <motion.div
             className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full shadow-md"
@@ -184,13 +219,26 @@ export default function MultiplicationHubPage() {
 
         {/* Subtitle */}
         <motion.p
-          className="text-center text-white/90 text-lg mb-6 drop-shadow"
+          className="text-center text-lg mb-6"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, ease: BOUNCY_EASE }}
         >
-          Master your multiplication facts! {'\uD83E\uDDEE'}
+          <span className="prompt-pill">{tt('subtitle')} {'\uD83E\uDDEE'}</span>
         </motion.p>
+
+        {/* Big Multiplication tile, above the 1–10 grid */}
+        <motion.div
+          className="mb-6"
+          initial={{ opacity: 0, scale: 0.6, y: 30 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.55, ease: BOUNCY_EASE }}
+        >
+          {/* NEW tile is English only (operator ruling 2026-10-22); the rest of this page keeps EN/ES. */}
+          <EnglishOnly>
+          <BigTile />
+          </EnglishOnly>
+        </motion.div>
 
         {/* Table grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -261,7 +309,7 @@ export default function MultiplicationHubPage() {
                       </motion.span>
 
                       <span className="text-white font-bold text-xl drop-shadow">
-                        Table {tableNum}
+                        {tt('table', { n: tableNum })}
                       </span>
 
                       {/* Star display */}
@@ -274,7 +322,7 @@ export default function MultiplicationHubPage() {
                             </span>
                           </>
                         ) : (
-                          <span className="text-white/60 text-sm">Tap to start!</span>
+                          <span className="text-white text-sm">{tt('tapToStart')}</span>
                         )}
                       </div>
 
@@ -292,7 +340,7 @@ export default function MultiplicationHubPage() {
                   </Link>
                 ) : (
                   <motion.div
-                    className={`relative bg-gray-400/50 backdrop-blur-sm
+                    className={`relative bg-gray-600/80 backdrop-blur-sm
                                 rounded-3xl p-5 shadow-lg border-4 border-gray-300/50
                                 min-h-[140px] flex flex-col items-center justify-center gap-2
                                 cursor-not-allowed
@@ -314,11 +362,11 @@ export default function MultiplicationHubPage() {
                     >
                       {'\uD83D\uDD12'}
                     </motion.span>
-                    <span className="text-white/70 font-bold text-xl drop-shadow">
-                      Table {tableNum}
+                    <span className="text-white font-bold text-xl drop-shadow">
+                      {tt('table', { n: tableNum })}
                     </span>
-                    <span className="text-white/50 text-xs text-center">
-                      {tableNum > 1 ? `Get 3 \u2B50 on Table ${tableNum - 1}!` : 'Start here!'}
+                    <span className="text-white text-xs text-center">
+                      {tableNum > 1 ? tt('getStars', { n: tableNum - 1 }) : tt('startHere')}
                     </span>
                     {/* "Almost there!" nudge on next-to-unlock */}
                     {isNextToUnlock && (
@@ -326,7 +374,7 @@ export default function MultiplicationHubPage() {
                         className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-xs
                                    font-bold px-2 py-1 rounded-full shadow-lg badge-pulse"
                       >
-                        Next!
+                        {tt('next')}
                       </motion.span>
                     )}
                   </motion.div>

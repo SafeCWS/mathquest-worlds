@@ -1,0 +1,96 @@
+/* Big Multiplication + OTP sign-in + Times Tables contrast styles (approved G1.5 prototype
+   ~/prototypes/mathquest-worlds-big-mult-otp, app/prototype.css, 2026-10-22).
+   Colours are derived from app/globals.css tokens only (color-mix), never re-typed.
+   L194: these rules are deliberately UNLAYERED, so they beat Tailwind 4 utilities. Every selector
+   is a class only these screens use (.prompt-pill, .action-dock, .has-dock*, .no-x-scroll, and
+   .np-* only inside .action-dock), so the times-table games' NumberPad is untouched. */
+
+/* M3 — prompts that sit on the mint/teal page gradient go on a dark pill (white text ≥ 7:1). */
+.prompt-pill {
+  display: inline-block;
+  background: color-mix(in srgb, var(--space-primary) 82%, transparent);
+  color: white;
+  border-radius: 1rem;
+  padding: 0.35rem 1rem;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+}
+
+/* M7 — phone: the current action (Count / Trade / answer pad) docks to the bottom of the screen. */
+@media (max-width: 767px) {
+  .action-dock {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    padding: 8px 12px calc(10px + var(--safe-area-inset-bottom));
+    background: color-mix(in srgb, white 94%, transparent);
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -6px 20px rgb(0 0 0 / 0.15);
+  }
+  .action-dock .dock-card {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+  }
+  .action-dock .dock-prompt {
+    color: var(--space-primary);
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+  .has-dock { padding-bottom: 430px; }
+  .has-dock-short { padding-bottom: 130px; }
+}
+
+/* B1 — never let a wide ES string scroll the page sideways. */
+.no-x-scroll { overflow-x: clip; }
+
+/* Round 4 (phone ≤ 480 px only — iPad untouched): compact answer sheet so the work stays visible.
+   Sheet ≤ 45% of the viewport; prompt + answer box share one row; keys 52 px high, 30 px digits.
+   Wrappers between the dock and the pad become display:contents so their children join the dock grid. */
+@media (max-width: 480px) {
+  .action-dock {
+    max-height: 45vh;
+    overflow-y: auto;
+    padding: 8px 10px calc(8px + var(--safe-area-inset-bottom));
+    gap: 6px;
+  }
+  .action-dock:has(.np-display) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 6px;
+  }
+  .action-dock:has(.np-display) > * { grid-column: 1 / -1; }
+  .action-dock:has(.np-display) .dock-contents,
+  .action-dock:has(.np-display) .dock-card,
+  .action-dock:has(.np-display) .np-root { display: contents; }
+  .action-dock:has(.np-display) > .dock-prompt {
+    grid-column: 1;
+    font-size: 1.5rem;
+    line-height: 1.2;
+    text-align: left;
+  }
+  .action-dock .np-label { display: none; }
+  .action-dock .np-display {
+    grid-column: 2;
+    width: 132px;
+    max-width: 132px;
+    height: 52px;
+    font-size: 2rem;
+  }
+  .action-dock .np-keys {
+    grid-column: 1 / -1;
+    width: 100%;
+    gap: 6px;
+  }
+  .action-dock .np-key {
+    width: 100%;
+    height: 52px;
+    font-size: 30px;
+  }
+  .has-dock { padding-bottom: 340px; }
+}
