@@ -949,7 +949,7 @@ export function BigMultiplication() {
               data-testid="hint-bubble"
             >
               <LiveTaps>
-              <span className={`block text-sm font-bold text-amber-800 ${compact ? 'leading-tight' : 'mb-1'}`}>{t('hintTier', { n: tier })}</span>
+              <span className={`block text-base font-bold text-amber-800 ${compact ? 'leading-tight' : 'mb-1'}`}>{t('hintTier', { n: tier })}</span>
               💡 <ReadAlongText text={hintText} word={hintReader.word} />
               {/* Compact (tight phone layouts): Read it shrinks to a 56 px 🔊 at the end of the text
                   instead of its own row; the negative margin keeps it from growing the line. */}
