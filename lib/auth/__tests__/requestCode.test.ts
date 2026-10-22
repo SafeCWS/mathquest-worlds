@@ -225,6 +225,7 @@ describe('body size (finding 3) and client IP', () => {
     })
     const request = new Request('http://localhost/api/otp/request', {
       method: 'POST',
+      headers: { 'content-type': 'application/json' },
       body,
       duplex: 'half',
     } as RequestInit & { duplex: 'half' })
@@ -253,5 +254,52 @@ describe('body size (finding 3) and client IP', () => {
       h.mails.map((m) => m.to),
       [...Array.from({ length: 10 }, (_, i) => `kid${i}@example.com`), 'kid11@example.com'],
     )
+  })
+})
+
+describe('request-origin checks (review SHOULD-5): rejections look identical', () => {
+  const post = (headers: Record<string, string>, url = 'http://localhost/api/otp/request') =>
+    new Request(url, { method: 'POST', headers, body: '{"email":"parent@example.com"}' })
+
+  async function outcome(r: Request) {
+    const h = harness()
+    const text = await bodyOf(await handleRequestCode(r, h.deps))
+    await new Promise((res) => setImmediate(res))
+    return { text, mails: h.mails.length, sleeps: h.sleeps, stored: h.store.size().challenges }
+  }
+
+  it('accepted: application/json (with charset), same-origin or no Origin', async () => {
+    for (const headers of [
+      { 'content-type': 'application/json' },
+      { 'content-type': 'application/json; charset=utf-8' },
+      { 'content-type': 'application/json', origin: 'http://localhost', 'sec-fetch-site': 'same-origin' },
+      { 'content-type': 'application/json', 'sec-fetch-site': 'none' },
+      { 'content-type': 'application/json', origin: 'https://mathquest.example', 'x-forwarded-host': 'mathquest.example' },
+      { 'content-type': 'application/json', origin: 'https://mathquest.example', host: 'mathquest.example' },
+    ]) {
+      const o = await outcome(post(headers))
+      assert.equal(o.mails, 1, JSON.stringify(headers))
+    }
+  })
+
+  it('rejected silently: same 200 body, same floor, nothing sent or stored', async () => {
+    for (const headers of [
+      {},
+      { 'content-type': 'text/plain' },
+      { 'content-type': 'application/x-www-form-urlencoded' },
+      { 'content-type': 'multipart/form-data; boundary=x' },
+      { 'content-type': 'application/jsonp' },
+      { 'content-type': 'application/json', 'sec-fetch-site': 'cross-site' },
+      { 'content-type': 'application/json', origin: 'https://evil.example' },
+      { 'content-type': 'application/json', origin: 'null' },
+      { 'content-type': 'application/json', origin: 'not a url' },
+      { 'content-type': 'application/json', origin: 'https://mathquest.example.evil.example', host: 'mathquest.example' },
+    ] as Record<string, string>[]) {
+      const o = await outcome(post(headers))
+      assert.equal(o.text, EXPECTED, JSON.stringify(headers))
+      assert.equal(o.mails, 0, JSON.stringify(headers))
+      assert.equal(o.stored, 0, JSON.stringify(headers))
+      assert.deepEqual(o.sleeps, [TIMING_FLOOR_MS], JSON.stringify(headers))
+    }
   })
 })

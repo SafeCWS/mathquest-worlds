@@ -40,6 +40,9 @@ export interface RequestCodeDeps {
   sendMail?: (to: string, code: string, ttlMinutes: number) => Promise<unknown>
 }
 
+/** Thrown to skip straight to the public answer; never logged. */
+class SilentReject extends Error {}
+
 const realSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 /**
@@ -85,6 +88,37 @@ export async function readCappedBody(req: Request, cap = MAX_BODY_BYTES): Promis
   return new TextDecoder().decode(buf)
 }
 
+/**
+ * Browser-request checks (security review SHOULD-5, 2026-10-22). A cross-site
+ * page cannot send `content-type: application/json` without a CORS preflight
+ * (which this route never answers), so requiring it blocks form-based
+ * cross-site posts; Sec-Fetch-Site and Origin close the rest. Host-only
+ * comparison: TLS ends at the proxy, so the scheme seen here can differ.
+ * A rejected request is NOT told so — the caller answers the public body
+ * after the same floor and sends nothing.
+ */
+export function isAcceptableOrigin(req: Request): boolean {
+  const type = (req.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
+  if (type !== 'application/json') return false
+  if ((req.headers.get('sec-fetch-site') ?? '').toLowerCase() === 'cross-site') return false
+  const origin = req.headers.get('origin')
+  if (origin === null) return true // non-browser or same-origin navigation without Origin
+  let originHost: string
+  try {
+    originHost = new URL(origin).host.toLowerCase()
+  } catch {
+    return false // includes the literal "null" origin
+  }
+  const ownHost = (
+    req.headers.get('x-forwarded-host')?.split(',')[0] ??
+    req.headers.get('host') ??
+    new URL(req.url).host
+  )
+    .trim()
+    .toLowerCase()
+  return originHost === ownHost
+}
+
 async function readEmail(req: Request): Promise<unknown> {
   const raw = await readCappedBody(req)
   if (raw === null) return ''
@@ -103,6 +137,7 @@ export async function handleRequestCode(req: Request, deps: RequestCodeDeps = {}
   const sleep = deps.sleep ?? realSleep
 
   try {
+    if (!isAcceptableOrigin(req)) throw new SilentReject()
     const email = await readEmail(req)
     const store = deps.store ?? getOtpStore()
     const allowlist = parseAllowlist(
@@ -119,9 +154,10 @@ export async function handleRequestCode(req: Request, deps: RequestCodeDeps = {}
         .then(() => send(to, result.code, CODE_TTL_MS / 60_000))
         .catch(() => console.error('[otp-request] mail task failed'))
     }
-  } catch {
-    // Any unexpected failure still answers with the same body and timing.
-    console.error('[otp-request] unexpected error; answered with the public body')
+  } catch (e) {
+    // A rejected origin and any unexpected failure answer with the same body
+    // and timing; only the unexpected case is worth a log line.
+    if (!(e instanceof SilentReject)) console.error('[otp-request] unexpected error; answered with the public body')
   }
 
   const remaining = TIMING_FLOOR_MS - (now() - start)
