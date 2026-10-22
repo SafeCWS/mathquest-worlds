@@ -473,7 +473,7 @@
     "nudgeOopsFind": "Start at the top. Work out each step yourself.",
     "stepOopsFind": "Do the math on each step and compare it with the dragon’s.",
     "nudgeOopsFix": "Work out {left} yourself.",
-    "stepOopsFix": "Fix the dragon’s step: {left} = ?",
+    "stepOopsFix": "Fix the dragon’s step: {left}",
     "demoFlip": "Will the answer change? I think it stays the same. Tap Same.",
     "demoOops": "I check each step from the top. This one is right!",
     "demoOopsLook": "I check each step from the top. Let's look closely at each step…",
