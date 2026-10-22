@@ -97,6 +97,7 @@ function GemFlight({ from }: { from: React.RefObject<HTMLElement | null> }) {
         <motion.span
           key={i}
           aria-hidden="true"
+          data-testid="gem-flight"
           className="fixed z-[45] text-4xl pointer-events-none"
           style={{ left: 0, top: 0 }}
           initial={{ x: path.x0 - 18 + (i - 1) * 40, y: path.y0, opacity: 1, scale: 1 }}
@@ -112,6 +113,8 @@ function GemFlight({ from }: { from: React.RefObject<HTMLElement | null> }) {
 
 export function StoryMissions(props: ModeProps) {
   const { problem, onSolved, onWrong, onStep, setHint, setSpeech, demo, onDemoDone, narrate, onNext } = props
+  // Captured at mount: credit lands mid-attempt (onAward), which must not hide THIS attempt's gems.
+  const [replay] = useState(() => !!props.replay)
   const t = useTranslations('bigMult')
   const later = useLater()
   const story = useMemo(() => storyFor(problem), [problem])
@@ -335,7 +338,7 @@ export function StoryMissions(props: ModeProps) {
             <ReadAlongText text={answerSentence} word={word} />
           </motion.p>
         )}
-        {phase === 'finale' && <GemFlight from={sentenceRef} />}
+        {phase === 'finale' && !replay && <GemFlight from={sentenceRef} />}
       </div>
 
       <div className="action-dock flex flex-col items-center gap-2 md:gap-3 md:w-[300px]">

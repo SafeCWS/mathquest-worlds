@@ -274,7 +274,7 @@ export function FlipSplit({ problem, onAward, onSolved, onWrong, onStep, setHint
               {flipped ? (
                 <motion.div key="wide" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>{wide}</motion.div>
               ) : (
-                <motion.div key="tall" initial={{ opacity: 1 }} animate={{ opacity: phase === 'flipping' ? 0 : 1 }} transition={{ duration: 0.4 }} data-testid="flip-rect">{before}</motion.div>
+                <motion.div key="tall" initial={{ opacity: 1 }} animate={{ opacity: phase === 'flipping' ? 0 : 1 }} transition={{ duration: 0.4 }} data-testid="flip-rect" data-keep-clear="1">{before}</motion.div>
               )}
             </AnimatePresence>
           ) : flipped ? (
@@ -282,6 +282,7 @@ export function FlipSplit({ problem, onAward, onSolved, onWrong, onStep, setHint
           ) : (
             <motion.div
               data-testid="flip-rect"
+              data-keep-clear="1"
               data-flipping={phase === 'flipping' ? '1' : '0'}
               animate={{ rotate: phase === 'flipping' ? -90 : 0 }}
               transition={{ duration: 1.6, ease: 'easeInOut' }}

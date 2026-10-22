@@ -66,4 +66,10 @@ export interface ModeProps {
    * shell skips the per-problem celebration and the mode's button calls this for the next problem.
    */
   onNext?: () => void
+  /**
+   * This problem was already credited before this attempt began ("Show me again" after the
+   * finale). Read it once at mount: the replay keeps its celebration but shows no gems flying
+   * into the hoard, because the count does not change (CHECK round 2, L2).
+   */
+  replay?: boolean
 }

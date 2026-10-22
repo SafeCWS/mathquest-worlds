@@ -19,12 +19,20 @@ import { FlipSplit } from './FlipSplit'
 import { GEMS_PER_PROBLEM, useHoardStore } from './logic'
 import { ReadAlongText, useReadAlong } from './ReadAlong'
 import { StoryMissions } from './StoryMissions'
+import { useLater } from './useLater'
+import { leastCovered, placeBubble, type PlaceInput } from './hintPlacement'
 import { isVoiceOn, setVoiceOn, speakFor } from './speech'
 import { markWalkthroughSeen, resetWalkthrough, walkthroughSeen } from './Demo'
 import { PV_TEXT } from './pv'
 import { BIG_MODES, isBigMode, type BigMode, type HintLadder, type MascotEvent, type ModeProps } from './types'
 
 const BOUNCY: [number, number, number, number] = [0.34, 1.56, 0.64, 1]
+// Hint bubble placement (see placeHint): 12 px of air around targets, the visible band between the
+// fixed top buttons and the phone answer sheet — same edges ensureActiveVisible frames to.
+const HINT_CLEAR = 12
+const HINT_CEIL = 92
+const HINT_FLOOR_GAP = 10
+const HINT_PULSE = 1.15 // largest glow pulse on a step cell (ColumnSteps carry bubble)
 
 // Review/test deep link (?level=3&mode=column&a=78&b=8) — development only, never in production.
 const DEEP_LINK_ENABLED = process.env.NODE_ENV !== 'production'
@@ -143,6 +151,9 @@ function Celebration({ text, sub, cta, onNext, extra }: { text: string; sub: str
   const bits = ['✨', '⭐', '🌟', '💫', '🎉', '✨', '⭐', '🌟']
   // Modal focus trap (hackerAI #17) — same hand-rolled Tab cycle as components/ui/SlideOver.tsx.
   const dialog = useRef<HTMLDivElement>(null)
+  // L1: while it fades out after Next, the full-screen overlay must not swallow the first tap on
+  // the new problem (same trick as LiveTaps).
+  const present = useIsPresent()
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Tab' || !dialog.current) return
@@ -163,7 +174,13 @@ function Celebration({ text, sub, cta, onNext, extra }: { text: string; sub: str
     return () => document.removeEventListener('keydown', onKey)
   }, [])
   return (
-    <motion.div className="fixed inset-0 z-40 flex items-center justify-center bg-black/25 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+    <motion.div
+      className={`fixed inset-0 z-40 flex items-center justify-center bg-black/25 p-4 ${present ? '' : 'pointer-events-none'}`}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      data-testid="celebration-overlay"
+    >
       <motion.div
         className="relative game-card max-w-md w-full text-center"
         initial={{ scale: 0.3, rotate: -6 }}
@@ -303,11 +320,14 @@ export function BigMultiplication() {
   const say = useCallback((text: string, mood: 'happy' | 'think' | 'party' = 'happy') => {
     setMascot((m) => ({ text, mood, key: m.key + 1 }))
   }, [])
+  // Every delayed thing the shell starts (re-frame scrolls, the level-up / streak chimes) goes
+  // through `later`, so Back / a new game / Next clears it: no stray chime after leaving.
+  const later = useLater()
   // Phone: re-frame the active cells once a layout change (hint, mascot line) has settled (M1).
   const reframe = useCallback(() => {
-    window.setTimeout(ensureActiveVisible, 450)
-    window.setTimeout(ensureActiveVisible, 1000)
-  }, [])
+    later(ensureActiveVisible, 450)
+    later(ensureActiveVisible, 1000)
+  }, [later])
 
   useEffect(() => {
     const onResize = () => ensureActiveVisible()
@@ -318,15 +338,14 @@ export function BigMultiplication() {
   // eslint-disable-next-line react-hooks/preserve-manual-memoization -- React Compiler is not enabled in this app; this useCallback IS the memoization (mode effects list it as a dependency).
   const setHint = useCallback((l: HintLadder) => {
     // New step: re-frame the work on phone once the step's entry animations have settled.
-    window.setTimeout(ensureActiveVisible, 450)
-    window.setTimeout(ensureActiveVisible, 1000)
+    reframe()
     // New step: close the ladder, forget the step's misses.
     setLadder(l)
     setTier(0)
     setMisconception(null)
     setHighlight(null)
     missesOnStep.current = 0
-  }, [])
+  }, [reframe])
   const setSpeech = useCallback((txt: string) => setSpeechText(txt), [])
 
   useEffect(() => () => cancelSpeech(), [])
@@ -349,6 +368,7 @@ export function BigMultiplication() {
 
   const startGame = (m: BigMode) => {
     if (!isUnlocked(level)) return
+    later.clear()
     setCelebrate(null) // never carry a celebration (or its answer) into a new game — hackerAI #1
     setDemo(false) // the effect below turns it back on only if this mode's walkthrough is unseen
     setTier(0)
@@ -365,6 +385,7 @@ export function BigMultiplication() {
   // A walkthrough left mid-way is NOT marked seen (hackerAI #12): it runs again next time.
   const leaveGame = () => {
     cancelSpeech()
+    later.clear() // a queued level-up / streak chime or re-frame scroll never outlives the game
     setCelebrate(null)
     setDemo(false)
     setTier(0)
@@ -423,6 +444,8 @@ export function BigMultiplication() {
     addGems(GEMS_PER_PROBLEM) // the hoard only ever grows
     let unlocked: BigLevel | null = null
     if (n >= PROBLEMS_PER_GAME) {
+      // `wasLocked` reads this render's store snapshot (before the write); `nowOpen` must read
+      // getState() because recordGameComplete() just changed the store and this closure is stale.
       const wasLocked = level < 3 && !isUnlocked((level + 1) as BigLevel)
       recordGameComplete(level)
       const nowOpen = level < 3 && useBigMultStore.getState().isUnlocked((level + 1) as BigLevel)
@@ -440,21 +463,25 @@ export function BigMultiplication() {
     say(t('mascotSolved'), 'party')
     if (a.gameDone) {
       // levelUp() is the long one — never in the same tick as correct().
-      if (a.unlocked) window.setTimeout(() => sfx.levelUp(), 0)
+      if (a.unlocked) later(() => sfx.levelUp(), 0)
       else sfx.correct()
       setCelebrate({ serial, gameDone: true, unlocked: a.unlocked })
     } else {
       sfx.correct()
       stepStreak.current += 1
-      if (stepStreak.current >= 2) window.setTimeout(() => sfx.streak(stepStreak.current), 350)
+      if (stepStreak.current >= 2) {
+        const n = stepStreak.current
+        later(() => sfx.streak(n), 350)
+      }
       // Story Missions shows its own finale ("126 gems in all!" + Next story).
       if (mode !== 'story') setCelebrate({ serial, gameDone: false, unlocked: null })
     }
-  }, [onAward, serial, say, t, mode])
+  }, [onAward, serial, say, t, mode, later])
 
   const next = () => {
     if (nextFor.current === serial) return
     nextFor.current = serial
+    later.clear() // the celebration's chime belongs to the problem being left
     const wasDone = celebrate?.gameDone
     setCelebrate(null)
     if (wasDone) {
@@ -523,20 +550,25 @@ export function BigMultiplication() {
 
   const hintText = !ladder || tier === 0 ? '' : tier === 1 ? ladder.nudge : tier === 2 ? misconception ?? ladder.step : ladder.worked
 
-  // Hint placement (hackerAI #8 / html-validator M2): the bubble never sits on what the child has
-  // to tap or look at. It starts at the top of the play area and slides down past every enabled
-  // button, "Show me again", and every glowing step cell ([data-active], up to 200 px tall — the
-  // whole-picture wrappers are bigger and are not targets). On phone the fixed answer sheet is a
-  // floor: if no clear spot fits above it, the spot covering the least wins. The bubble itself lets
-  // taps through (pointer-events only on ✕ and Read it).
+  // Hint placement (hackerAI #8 / html-validator M1+M2, CHECK round 2): the bubble never sits on
+  // what the child has to tap or look at — enabled buttons, "Show me again", every glowing step
+  // cell ([data-active], up to 200 px tall) and the picture the step is about ([data-keep-clear]),
+  // with 12 px of air. It must also sit fully on screen, below the fixed top buttons and (phone)
+  // above the answer sheet, with the step's targets still in view. Search order (hintPlacement.ts):
+  //   1. full bubble at the current scroll — below the targets first, else ABOVE them over the
+  //      title / dragon rows;  2. compact bubble (Read it shrinks to a 🔊 icon), same;
+  //   3. compact bubble with the smallest scroll that makes room;  4. the spot covering least.
+  // The bubble itself lets taps through (pointer-events only on ✕ and Read it).
   const playArea = useRef<HTMLDivElement>(null)
   const bubble = useRef<HTMLDivElement>(null)
   const [hintTop, setHintTop] = useState(0)
-  const [compact] = useState(false)
+  const [compact, setCompact] = useState(false)
+  const placedFor = useRef('')
   const placeHint = useCallback(() => {
     const box = playArea.current
     const bub = bubble.current
     if (!box || !bub) return
+    const sy = window.scrollY
     const c = box.getBoundingClientRect()
     const r = bub.getBoundingClientRect()
     const w = bub.offsetWidth
@@ -546,34 +578,84 @@ export function BigMultiplication() {
     const right = cx + w / 2
     const dock = box.querySelector<HTMLElement>('.action-dock')
     const dockFixed = !!dock && getComputedStyle(dock).position === 'fixed'
-    const floor = dockFixed && dock ? dock.getBoundingClientRect().top - c.top : Infinity
-    const GAP = 8
-    const avoid = Array.from(
-      box.querySelectorAll<HTMLElement>('[data-testid=demo-again], [data-testid=demo-banner], [data-testid=mode-area] button:not([disabled]), [data-testid=mode-area] [data-active="1"]'),
-    )
-      .filter((e) => !(dockFixed && dock?.contains(e)))
-      .map((e) => e.getBoundingClientRect())
-      .filter((b) => b.width > 0 && b.height > 0 && b.height <= 200 && b.right > left && b.left < right)
-      .map((b) => ({ top: b.top - c.top, bottom: b.bottom - c.top }))
-    const covered = (y: number) =>
-      avoid.reduce((sum, b) => sum + Math.max(0, Math.min(y + h + GAP, b.bottom + GAP) - Math.max(y, b.top)), 0)
-    const candidates = [0, ...avoid.map((b) => b.bottom + GAP)].sort((x, y) => x - y)
-    const fits = candidates.filter((v) => v + h <= floor)
-    const y =
-      fits.find((v) => covered(v) === 0) ??
-      (fits.length ? fits.reduce((best, v) => (covered(v) < covered(best) ? v : best), fits[0]) : 0)
-    setHintTop((cur) => (Math.abs(cur - y) < 1 ? cur : y))
-  }, [])
+    const topRow = Array.from(document.querySelectorAll<HTMLElement>('[data-testid=back-btn], [data-testid=hint-btn]'))
+      .map((e) => e.getBoundingClientRect().bottom)
+    const ceil = Math.max(HINT_CEIL, ...topRow.map((b) => b + 8))
+    const floor = (dockFixed && dock ? dock.getBoundingClientRect().top : window.innerHeight) - HINT_FLOOR_GAP
+    const page = (b: DOMRect) => ({ top: b.top + sy, bottom: b.bottom + sy })
+    const shown = (e: HTMLElement) => !(dockFixed && dock?.contains(e))
+    // Glowing cells pulse (scale up to 1.15): place against the pulse's largest extent, not the
+    // frame we happened to measure. Centre ± half the untransformed height × HINT_PULSE.
+    const rectOf = (e: HTMLElement): DOMRect => {
+      const b = e.getBoundingClientRect()
+      if (b.height > 200 || !e.offsetHeight) return b
+      const half = Math.max(b.height / 2, (e.offsetHeight / 2) * HINT_PULSE)
+      const mid = (b.top + b.bottom) / 2
+      return new DOMRect(b.left, mid - half, b.width, half * 2)
+    }
+    const targetEls = Array.from(box.querySelectorAll<HTMLElement>('[data-testid=mode-area] [data-active="1"], [data-testid=mode-area] [data-keep-clear="1"]'))
+      .filter(shown)
+      .map((e) => ({ keep: e.dataset.keepClear === '1', b: rectOf(e) }))
+      .filter(({ keep, b }) => b.width > 0 && b.height > 0 && (keep || b.height <= 200))
+    const avoid = [
+      ...Array.from(box.querySelectorAll<HTMLElement>('[data-testid=demo-again], [data-testid=demo-banner], [data-testid=mode-area] button:not([disabled])'))
+        .filter(shown)
+        .map(rectOf)
+        .filter((b) => b.width > 0 && b.height > 0 && b.height <= 200 * HINT_PULSE),
+      ...targetEls.map((t) => t.b),
+    ]
+      .filter((b) => b.right > left && b.left < right)
+      .map((b) => ({ top: b.top + sy - HINT_CLEAR, bottom: b.bottom + sy + HINT_CLEAR }))
+    const targets = targetEls.length
+      ? targetEls.map((t) => page(t.b)).reduce((u, b) => ({ top: Math.min(u.top, b.top), bottom: Math.max(u.bottom, b.bottom) }))
+      : null
+    const main = box.closest('main')
+    const input: PlaceInput = {
+      h,
+      playTop: c.top + sy,
+      scrollY: sy,
+      contentBottom: (main ?? box).getBoundingClientRect().bottom + sy,
+      viewportH: window.innerHeight,
+      ceil,
+      floor,
+      avoid,
+      targets,
+      allowScroll: compact,
+    }
+    const spot = placeBubble({ ...input, allowScroll: false }) ?? (compact ? placeBubble(input) : null)
+    if (!spot && !compact) {
+      setCompact(true) // re-measured at the new height by the layout effect below
+      return
+    }
+    const y = spot ? spot.y : leastCovered(input)
+    const top = y - (c.top + sy)
+    setHintTop((cur) => (Math.abs(cur - top) < 1 ? cur : top))
+    if (spot && Math.abs(spot.scroll - sy) >= 1) {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      window.scrollTo({ top: spot.scroll, behavior: reduce ? 'auto' : 'smooth' })
+    }
+  }, [compact])
   useLayoutEffect(() => {
     if (tier === 0 || !hintText) return
+    // A new hint (tier or text) starts from the full bubble again.
+    const key = `${tier}-${hintText}`
+    if (placedFor.current !== key) {
+      placedFor.current = key
+      if (compact) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- layout measurement: the bubble must be re-measured at full size before paint.
+        setCompact(false)
+        return
+      }
+    }
     placeHint()
-    const ids = [window.setTimeout(placeHint, 450), window.setTimeout(placeHint, 1000)] // after step animations
+    // Effect-owned (cleared whenever the hint changes or closes, incl. Back): after step animations.
+    const ids = [window.setTimeout(placeHint, 450), window.setTimeout(placeHint, 1000)]
     window.addEventListener('resize', placeHint)
     return () => {
       ids.forEach((id) => window.clearTimeout(id))
       window.removeEventListener('resize', placeHint)
     }
-  }, [tier, hintText, placeHint])
+  }, [tier, hintText, compact, placeHint])
   // A tap anywhere outside the bubble (and the Hint / voice buttons) closes it; the tap still
   // reaches what it was aimed at.
   useEffect(() => {
@@ -912,6 +994,7 @@ export function BigMultiplication() {
             narrate={narrate}
             onAward={onAward}
             onNext={next}
+            replay={awardedSerial === serial}
           />
         </div>
         </div>

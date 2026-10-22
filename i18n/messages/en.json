@@ -349,7 +349,6 @@
     "modeColumn": "Step-by-Step",
     "modeColumnDesc": "One step at a time",
     "hint": "Hint",
-    "readAloud": "Read aloud",
     "yourAnswer": "Your answer:",
     "tapToSplit": "Tap {n} to break it apart",
     "splitQ": "{a} × {b} = ?",
