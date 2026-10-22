@@ -203,7 +203,7 @@ export function ColumnSteps({ problem, onSolved, onWrong, onStep, setHint, setSp
             <motion.div key="add" className="flex flex-col items-center gap-2" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               {(phase === 'carryTap' || phase === 'tensAdd') && (
                 <p className="text-[22px] font-bold rounded-full px-4 py-1 bg-white border-4" style={{ borderColor: PV.carry, color: 'var(--space-primary)' }} data-testid="carry-note">
-                  {t('carryEcho', { product: s.onesProduct, carry: s.carry, write: s.onesWrite })}
+                  {t('carryEcho', { product: s.onesProduct, carry: s.carry, write: s.onesWrite, tensValue: s.carry * 10 })}
                 </p>
               )}
               {(phase === 'carryTap' || phase === 'tensAdd') && (

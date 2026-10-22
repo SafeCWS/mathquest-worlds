@@ -1,8 +1,10 @@
 import type { BigProblem } from '@/lib/math/twoDigitProblems'
 import type { StepHighlight } from '@/lib/math/stepScripts'
 
-export type BigMode = 'blocks' | 'split' | 'column' | 'guess'
-export const BIG_MODES: readonly BigMode[] = ['blocks', 'split', 'column', 'guess'] as const
+// v2 (2026-10-22): Block Builder + Quick Guess removed; Story Missions + Flip & Split added,
+// Dragon Oops shown as an optional extra the operator can drop at G1.5.
+export type BigMode = 'split' | 'column' | 'story' | 'flip' | 'oops'
+export const BIG_MODES: readonly BigMode[] = ['split', 'column', 'story', 'flip', 'oops'] as const
 
 export function isBigMode(v: string | null | undefined): v is BigMode {
   return !!v && (BIG_MODES as readonly string[]).includes(v)
@@ -20,9 +22,9 @@ export interface HintLadder {
   highlight?: StepHighlight
 }
 
-export type MascotEvent = 'step' | 'trade'
+export type MascotEvent = 'step' | 'trade' | 'oops'
 
-/** Contract between the game shell and each of the 4 modes. */
+/** Contract between the game shell and each mode. */
 export interface ModeProps {
   problem: BigProblem
   /** Final answer correct — shell plays correct()+streak and shows the celebration. */
@@ -31,8 +33,9 @@ export interface ModeProps {
    * Any wrong answer — shell shakes, plays wrong(), auto-opens the hint ladder at tier 2.
    * Pass `finalAnswer` when the child answered the WHOLE problem, so the shell can try
    * misconceptionHint(a, b, finalAnswer, locale) first. Never touches progress.
+   * `hint` = a mode-specific misconception hint (Flip & Split, Dragon Oops) shown at tier 2.
    */
-  onWrong: (finalAnswer?: number) => void
+  onWrong: (finalAnswer?: number, hint?: string) => void
   /** A step done inside the problem — stepComplete() + mascot. */
   onStep: (event?: MascotEvent) => void
   /** Hint ladder for the current step. Call on every step change. */
@@ -49,4 +52,9 @@ export interface ModeProps {
   onDemoDone: () => void
   /** Read text aloud in the current locale (shell → speakFor). */
   narrate: (text: string) => void
+  /**
+   * Story Missions only: the mode shows its own finale ("126 gems in all!" + Next story), so the
+   * shell skips the per-problem celebration and the mode's button calls this for the next problem.
+   */
+  onNext?: () => void
 }

@@ -12,11 +12,14 @@ import { daysPlayedStreak, markPlayedToday } from '@/lib/stores/daysPlayed'
 import { cancelSpeech } from '@/lib/sounds/speechUtils'
 import { BIG_LEVELS, drawProblem, emptyDeck, levelOf, nextProblem, type BigLevel, type BigProblem, type DeckState, type Difficulty } from '@/lib/math/twoDigitProblems'
 import { GAMES_TO_UNLOCK, PROBLEMS_PER_GAME, useBigMultStore } from '@/lib/stores/bigMultStore'
-import { BlockBuilder } from './BlockBuilder'
 import { BreakApart } from './BreakApart'
 import { ColumnSteps } from './ColumnSteps'
-import { QuickGuess } from './QuickGuess'
-import { speakFor } from './speech'
+import { DragonOops } from './DragonOops'
+import { FlipSplit } from './FlipSplit'
+import { GEMS_PER_PROBLEM, useHoardStore } from './logic'
+import { ReadAlongText, useReadAlong } from './ReadAlong'
+import { StoryMissions } from './StoryMissions'
+import { isVoiceOn, setVoiceOn, speakFor } from './speech'
 import { markWalkthroughSeen, resetWalkthrough, walkthroughSeen } from './Demo'
 import { PV_TEXT } from './pv'
 import { BIG_MODES, isBigMode, type BigMode, type HintLadder, type MascotEvent, type ModeProps } from './types'
@@ -37,17 +40,43 @@ const LEVEL_STYLE: Record<BigLevel, string> = {
   2: 'from-sky-600 to-blue-700 border-sky-200',
   3: 'from-purple-600 to-fuchsia-700 border-purple-200',
 }
-const MODE_META: Record<BigMode, { emoji: string; style: string; title: string; desc: string }> = {
-  blocks: { emoji: '🧱', style: 'from-orange-600 to-orange-700 border-orange-200', title: 'modeBlocks', desc: 'modeBlocksDesc' },
+// v2: the two favorites first, then the two new games, then the optional extra.
+const MODE_META: Record<BigMode, { emoji: string; style: string; title: string; desc: string; extra?: boolean }> = {
   split: { emoji: '✂️', style: 'from-pink-600 to-pink-700 border-pink-200', title: 'modeSplit', desc: 'modeSplitDesc' },
   column: { emoji: '🪜', style: 'from-teal-600 to-cyan-700 border-teal-200', title: 'modeColumn', desc: 'modeColumnDesc' },
-  guess: { emoji: '🎯', style: 'from-indigo-500 to-violet-700 border-indigo-200', title: 'modeGuess', desc: 'modeGuessDesc' },
+  story: { emoji: '📖', style: 'from-orange-600 to-orange-700 border-orange-200', title: 'modeStory', desc: 'modeStoryDesc' },
+  flip: { emoji: '🔄', style: 'from-indigo-500 to-violet-700 border-indigo-200', title: 'modeFlip', desc: 'modeFlipDesc' },
+  oops: { emoji: '🐉', style: 'from-emerald-600 to-teal-700 border-emerald-200', title: 'modeOops', desc: 'modeOopsDesc', extra: true },
 }
 const MODE_COMPONENT: Record<BigMode, (p: ModeProps) => React.ReactElement> = {
-  blocks: BlockBuilder,
   split: BreakApart,
   column: ColumnSteps,
-  guess: QuickGuess,
+  story: StoryMissions,
+  flip: FlipSplit,
+  oops: DragonOops,
+}
+// Story Missions and Flip & Split show the problem inside the game (the story / the rectangle):
+// the header must not give "42 × 3" away before the child has built it.
+const HIDE_PROBLEM: readonly BigMode[] = ['story', 'flip']
+
+/** 💎 N — the dragon's hoard. Gems are earned for finishing a problem, never lost. */
+function HoardChip({ gems, label, big }: { gems: number; label: string; big?: boolean }) {
+  return (
+    <motion.span
+      key={gems}
+      className={`inline-flex items-center gap-1 bg-white/90 rounded-full shadow font-bold ${big ? 'text-xl px-4 py-1' : 'text-base px-3 py-0.5'}`}
+      style={{ color: 'var(--space-primary)' }}
+      initial={{ scale: 1.25 }}
+      animate={{ scale: 1 }}
+      transition={{ ease: BOUNCY, duration: 0.5 }}
+      aria-label={label}
+      data-testid="hoard-chip"
+      data-gems={gems}
+    >
+      <span aria-hidden="true">💎</span>
+      <span data-testid="hoard-count">{gems}</span>
+    </motion.span>
+  )
 }
 
 /** Fixed, always-visible back button — same spot in portrait and landscape. */
@@ -169,6 +198,9 @@ export function BigMultiplication() {
   const locale = useLocale()
   const params = useSearchParams()
   const { _hasHydrated, gamesDone, recordGameComplete, isUnlocked } = useBigMultStore()
+  const gems = useHoardStore((s) => s.gems)
+  const addGems = useHoardStore((s) => s.add)
+  const hoardHydrated = useHoardStore((s) => s._hasHydrated)
   const mounted = useMounted()
 
   // Development-only deep link for review/screenshots/e2e: ?level=3&mode=column&a=78&b=8
@@ -213,6 +245,9 @@ export function BigMultiplication() {
   const stepStreak = useRef(0)
   // Read once on the client; nothing renders `days` before the mounted gate below.
   const [days, setDays] = useState(() => (typeof window === 'undefined' ? 0 : daysPlayedStreak()))
+  // Voice on/off (localStorage mq-big-voice). Read on the client only; nothing renders it
+  // before the mounted gate below, so there is no SSR mismatch.
+  const [voiceOn, setVoiceState] = useState(() => (typeof window === 'undefined' ? true : isVoiceOn()))
   // First-time walkthrough per mode (localStorage `mq-big-walkthrough-<mode>`).
   const [demo, setDemo] = useState(false)
   const demoRef = useRef(false)
@@ -274,7 +309,7 @@ export function BigMultiplication() {
 
   const onWrong = useCallback(
     // eslint-disable-next-line react-hooks/preserve-manual-memoization -- React Compiler is not enabled in this app; this useCallback IS the memoization (modes call it from effects).
-    (finalAnswer?: number) => {
+    (finalAnswer?: number, modeHint?: string) => {
       sfx.wrong()
       stepStreak.current = 0
       if (shakeScope.current) void animateShake(shakeScope.current, { x: [0, -12, 12, -8, 8, 0] }, { duration: 0.45 })
@@ -282,8 +317,9 @@ export function BigMultiplication() {
       missesOnStep.current += 1
       if (missesOnStep.current >= 2) struggled.current = true // next problem: easier, same level
       // Known error pattern first (lib/math/stepScripts), else the current step's tier-2 hint.
-      const mh = problem && finalAnswer !== undefined ? misconceptionHint(problem.a, problem.b, finalAnswer, locale) : null
-      setMisconception(mh ? mh.text : null)
+      // A mode's own misconception hint (Flip & Split, Dragon Oops, Story Missions) wins.
+      const mh = modeHint ? null : problem && finalAnswer !== undefined ? misconceptionHint(problem.a, problem.b, finalAnswer, locale) : null
+      setMisconception(modeHint ?? (mh ? mh.text : null))
       setHighlight(mh ? mh.highlight : null)
       setTier((cur) => (cur >= 2 ? cur : 2)) // progress is never touched
       say(t('mascotWrong'), 'think')
@@ -300,7 +336,7 @@ export function BigMultiplication() {
         sfx.streak(stepStreak.current)
         say(t('mascotStreak', { n: stepStreak.current }), 'party')
       } else {
-        say(event === 'trade' ? t('mascotTrade') : t('mascotStep'), 'happy')
+        say(event === 'trade' ? t('mascotTrade') : event === 'oops' ? t('mascotOops') : t('mascotStep'), 'happy')
       }
     },
     [say, t],
@@ -312,6 +348,7 @@ export function BigMultiplication() {
     firstTryRun.current = problemHadMiss.current ? 0 : firstTryRun.current + 1
     const n = solvedInGame + 1
     setSolvedInGame(n)
+    addGems(GEMS_PER_PROBLEM) // the hoard only ever grows
     say(t('mascotSolved'), 'party')
     if (n >= PROBLEMS_PER_GAME) {
       const wasLocked = level < 3 && !isUnlocked((level + 1) as BigLevel)
@@ -326,9 +363,10 @@ export function BigMultiplication() {
       sfx.correct()
       stepStreak.current += 1
       if (stepStreak.current >= 2) window.setTimeout(() => sfx.streak(stepStreak.current), 350)
-      setCelebrate({ gameDone: false, unlocked: null })
+      // Story Missions shows its own finale ("126 gems in all!" + Next story).
+      if (mode !== 'story') setCelebrate({ gameDone: false, unlocked: null })
     }
-  }, [solvedInGame, level, isUnlocked, recordGameComplete, say, t])
+  }, [solvedInGame, level, isUnlocked, recordGameComplete, say, t, addGems, mode])
 
   const next = () => {
     const wasDone = celebrate?.gameDone
@@ -358,6 +396,7 @@ export function BigMultiplication() {
     say(t('yourTurn'), 'party')
   }, [mode, say, t])
   const narrate = useCallback((text: string) => speakFor(locale, text), [locale])
+  const hintReader = useReadAlong(narrate)
   const showAgain = () => {
     if (!mode) return
     resetWalkthrough(mode)
@@ -379,13 +418,20 @@ export function BigMultiplication() {
 
   const hintText = !ladder || tier === 0 ? '' : tier === 1 ? ladder.nudge : tier === 2 ? misconception ?? ladder.step : ladder.worked
   const readAloud = () => {
-    // Speak the open hint when there is one, otherwise the current prompt.
-    speakFor(locale, hintText || speech)
+    // Speak the open hint when there is one (word highlight follows), otherwise the current prompt.
+    if (hintText) hintReader.read(hintText)
+    else speakFor(locale, speech)
+  }
+  const toggleVoice = () => {
+    const next = !voiceOn
+    setVoiceOn(next) // muting cancels a sentence in progress
+    setVoiceState(next)
+    if (next) speakFor(locale, hintText || speech) // turning on reads the current step once
   }
 
   // L155 / SP-29: never paint locks or progress before the persisted store has hydrated —
   // a returning kid with Level 2 open must not see it flash locked.
-  if (!mounted || !_hasHydrated) {
+  if (!mounted || !_hasHydrated || !hoardHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-green-300 via-teal-300 to-cyan-400" data-testid="big-loading">
         <motion.div
@@ -415,6 +461,9 @@ export function BigMultiplication() {
           >
             <span className="prompt-pill text-4xl md:text-5xl font-bold px-6 py-2">🏗️ {t('title')}</span>
           </motion.h1>
+          <p className="text-center -mt-3 mb-4">
+            <HoardChip gems={gems} label={t('hoardLabel', { n: gems })} big />
+          </p>
           {days > 0 && (
             <p className="text-center -mt-3 mb-5" data-testid="days-streak">
               <span className="inline-block bg-white/85 text-emerald-700 font-bold text-lg rounded-full px-4 py-1 shadow">{t('daysStreak', { n: days })}</span>
@@ -468,7 +517,7 @@ export function BigMultiplication() {
           </div>
 
           <h2 className="mb-3"><span className="prompt-pill text-2xl font-bold">{t('pickMode')}</span></h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4" data-testid="mode-grid">
             {BIG_MODES.map((m, i) => {
               const meta = MODE_META[m]
               return (
@@ -480,14 +529,20 @@ export function BigMultiplication() {
                     startGame(m)
                   }}
                   data-testid={`mode-${m}`}
-                  className={`min-h-[140px] rounded-3xl p-4 bg-gradient-to-br ${meta.style} border-4 shadow-xl
-                              flex flex-col items-center justify-center gap-1 text-center`}
+                  className={`relative min-h-[140px] rounded-3xl p-4 bg-gradient-to-br ${meta.style} ${meta.extra ? 'border-dashed' : ''} border-4 shadow-xl
+                              flex flex-col items-center justify-center gap-1 text-center overflow-hidden`}
                   initial={{ opacity: 0, scale: 0.3, y: 30 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   transition={{ delay: 0.25 + i * 0.07, ease: BOUNCY, duration: 0.5 }}
                   whileHover={{ scale: 1.05, y: -4 }}
                   whileTap={{ scale: 0.9 }}
                 >
+                  {meta.extra && (
+                    <span className="absolute top-2 -right-8 rotate-45 w-[120px] text-center bg-yellow-300 text-gray-900 text-sm font-bold py-0.5 shadow" data-testid="new-ribbon">
+                      {t('newRibbon')}
+                    </span>
+                  )}
+                  {meta.extra && <span className="absolute top-2 left-3 text-xs font-bold uppercase tracking-wide text-white/90 bg-black/20 rounded-full px-2">{t('extraLabel')}</span>}
                   <span className="text-5xl" aria-hidden="true">{meta.emoji}</span>
                   <span className="text-2xl font-bold text-white drop-shadow">{t(meta.title)}</span>
                   <span className="text-white/90 font-semibold">{t(meta.desc)}</span>
@@ -509,12 +564,14 @@ export function BigMultiplication() {
       <div className="fixed z-50 right-3 flex gap-2" style={{ top: 'calc(var(--safe-area-inset-top) + 12px)' }}>
         <KidButton
           variant="soft"
-          aria-label={t('readAloud')}
-          onClick={readAloud}
+          aria-label={voiceOn ? t('voiceOn') : t('voiceOff')}
+          aria-pressed={!voiceOn}
+          onClick={toggleVoice}
           className="min-w-[60px] text-2xl rounded-full"
-          data-testid="read-aloud"
+          data-testid="voice-toggle"
+          data-voice={voiceOn ? 'on' : 'off'}
         >
-          🔊
+          <span aria-hidden="true">{voiceOn ? '🔊' : '🔇'}</span>
         </KidButton>
         <KidButton
           aria-label={t('hint')}
@@ -532,10 +589,14 @@ export function BigMultiplication() {
       <main className="max-w-6xl mx-auto px-3 sm:px-4 pt-[80px] pb-6 has-dock">
         {/* Compact header (QA M5/M6): one line of context, then problem + companion side by side. */}
         <div className="flex flex-col items-center gap-2 mb-2">
-          <p className="prompt-pill text-base font-bold">
-            {meta.emoji} {t(meta.title)} · {t(`level${level}`)} · {t('problemOf', { n: solvedInGame + 1, total: PROBLEMS_PER_GAME })}
+          <p className="flex flex-wrap items-center justify-center gap-2">
+            <span className="prompt-pill text-base font-bold">
+              {meta.emoji} {t(meta.title)} · {t(`level${level}`)} · {t('problemOf', { n: solvedInGame + 1, total: PROBLEMS_PER_GAME })}
+            </span>
+            <HoardChip gems={gems} label={t('hoardLabel', { n: gems })} />
           </p>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+            {!HIDE_PROBLEM.includes(mode) && (
             <motion.p
               key={problemKey}
               className="bg-white/95 rounded-3xl px-5 py-1 shadow-lg text-5xl md:text-6xl font-bold"
@@ -550,6 +611,7 @@ export function BigMultiplication() {
               {' × '}
               {problem.b}
             </motion.p>
+            )}
             {/* Companion — reacts to the PROCESS (a trade, a step, asking for a hint), never to speed. */}
             <div className="flex items-center gap-2 min-h-[52px]" aria-live="polite" data-testid="mascot">
               <motion.span
@@ -600,10 +662,23 @@ export function BigMultiplication() {
               data-testid="hint-bubble"
             >
               <span className="block text-sm font-bold text-amber-800 mb-1">{t('hintTier', { n: tier })}</span>
-              💡 {hintText}
+              💡 <ReadAlongText text={hintText} word={hintReader.word} />
+              {voiceOn && (
+                <button
+                  type="button"
+                  onClick={readAloud}
+                  className="mt-1 mx-auto flex items-center gap-1 min-h-[48px] px-3 rounded-full text-base font-bold text-amber-900 underline underline-offset-4 hover:bg-amber-100"
+                  data-testid="hint-read-it"
+                >
+                  <span aria-hidden="true">🔊</span> {t('readIt')}
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setTier(0)}
+                onClick={() => {
+                  hintReader.stop()
+                  setTier(0)
+                }}
                 aria-label={t('hintClose')}
                 className="absolute top-1 right-1 w-[48px] h-[48px] rounded-full text-2xl text-amber-900 hover:bg-amber-100"
                 data-testid="hint-close"
@@ -642,6 +717,7 @@ export function BigMultiplication() {
             demo={demo}
             onDemoDone={endDemo}
             narrate={narrate}
+            onNext={next}
           />
         </div>
         </div>
