@@ -532,6 +532,7 @@ export function BigMultiplication() {
   const playArea = useRef<HTMLDivElement>(null)
   const bubble = useRef<HTMLDivElement>(null)
   const [hintTop, setHintTop] = useState(0)
+  const [compact] = useState(false)
   const placeHint = useCallback(() => {
     const box = playArea.current
     const bub = bubble.current
@@ -679,7 +680,7 @@ export function BigMultiplication() {
                       <span className="text-white text-sm font-bold">{t('gamesDone', { done: Math.min(gamesDone[l], GAMES_TO_UNLOCK) })}</span>
                     </span>
                   ) : (
-                    <span className="text-sm font-bold mt-auto bg-white/90 text-gray-800 rounded-full px-2 py-0.5 self-start">{t('locked', { n: l - 1 })}</span>
+                    <span className="text-sm font-bold mt-auto bg-white/90 text-gray-800 rounded-full px-2 py-0.5 self-start [text-wrap:balance]">{t('locked', { n: l - 1 })}</span>
                   )}
                 </motion.button>
               )
@@ -826,10 +827,12 @@ export function BigMultiplication() {
             <motion.div
               key={`${tier}-${hintText}`}
               ref={bubble}
-              className="absolute z-30 left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 w-[min(36rem,calc(100%-0.5rem))] md:w-[calc(100%-324px)] bg-amber-50 border-4 border-amber-300 text-amber-900
-                         rounded-3xl pl-5 pr-16 py-3 text-lg md:text-xl font-bold text-center shadow-xl pointer-events-none"
+              className={`absolute z-30 left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 w-[min(36rem,calc(100%-0.5rem))] md:w-[calc(100%-324px)] bg-amber-50 border-4 border-amber-300 text-amber-900
+                         rounded-3xl pl-5 pr-16 font-bold text-center shadow-xl pointer-events-none
+                         ${compact ? 'py-2 text-base md:text-lg leading-snug' : 'py-3 text-lg md:text-xl'}`}
               style={{ top: hintTop }}
               data-tier={tier}
+              data-compact={compact ? '1' : '0'}
               initial={{ scale: 0.6, opacity: 0, y: -10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.8, opacity: 0 }}
@@ -837,9 +840,22 @@ export function BigMultiplication() {
               data-testid="hint-bubble"
             >
               <LiveTaps>
-              <span className="block text-sm font-bold text-amber-800 mb-1">{t('hintTier', { n: tier })}</span>
+              <span className={`block text-sm font-bold text-amber-800 ${compact ? 'leading-tight' : 'mb-1'}`}>{t('hintTier', { n: tier })}</span>
               💡 <ReadAlongText text={hintText} word={hintReader.word} />
-              {voiceOn && (
+              {/* Compact (tight phone layouts): Read it shrinks to a 56 px 🔊 at the end of the text
+                  instead of its own row; the negative margin keeps it from growing the line. */}
+              {voiceOn && compact && (
+                <button
+                  type="button"
+                  onClick={readAloud}
+                  aria-label={t('readIt')}
+                  className="pointer-events-auto inline-flex align-middle items-center justify-center w-[56px] h-[56px] -my-4 ml-1 rounded-full text-2xl hover:bg-amber-100"
+                  data-testid="hint-read-it"
+                >
+                  <span aria-hidden="true">🔊</span>
+                </button>
+              )}
+              {voiceOn && !compact && (
                 <button
                   type="button"
                   onClick={readAloud}

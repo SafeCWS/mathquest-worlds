@@ -342,7 +342,7 @@
     "level2Desc": "Carry a ten (27 × 3)",
     "level3": "Level 3",
     "level3Desc": "Big numbers (78 × 8)",
-    "locked": "Finish 3 games on Level {n} to open",
+    "locked": "Finish 3 games on Level {n} to\u00a0open",
     "gamesDone": "{done} of 3 games",
     "modeSplit": "Break It Apart",
     "modeSplitDesc": "Split the big number",
