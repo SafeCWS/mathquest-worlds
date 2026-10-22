@@ -1,84 +1,41 @@
-import NextAuth from 'next-auth'
+import NextAuth, { CredentialsSignin } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
+import { authConfig } from '@/lib/auth/config'
+import { authorizeOtp } from '@/lib/auth/authorize'
+import type { SignInErrorCode } from '@/lib/auth/signInErrors'
 
-// Edge-safe constant-time string equality (Edge runtime has no node:crypto
-// and no Web Crypto timingSafeEqual). Classic XOR-accumulator idiom.
-function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  let result = 0
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i)
+// Email one-time-code sign-in. Flow:
+//   1. POST /api/otp/request {email}  → mails a 6-digit code (allowlist =
+//      SIMPLE_AUTH_USERS emails; malformed env ⇒ empty set ⇒ nobody).
+//   2. signIn('credentials', {email, code, redirect:false}) → authorize below.
+// There is no secret-phrase login and no legacy single-user env fallback, and
+// NO standalone verify route (one would let a caller burn or consume a code
+// without signing in).
+//
+// Node runtime only: this module imports otpStore (node:crypto). middleware.ts
+// must keep building its own NextAuth(authConfig) and never import '@/auth'.
+
+/** Thrown on a failed code; the login page reads `result.code`. */
+class OtpSignInError extends CredentialsSignin {
+  constructor(code: SignInErrorCode) {
+    super()
+    this.code = code
   }
-  return result === 0
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
         email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' },
+        code: { label: 'Code', type: 'text' },
       },
-      async authorize(credentials) {
-        if (!credentials) return null
-        const email = String(credentials.email ?? '')
-          .toLowerCase()
-          .trim()
-        const password = String(credentials.password ?? '')
-        if (!email || !password) return null
-
-        // Multi-user mode (preferred): SIMPLE_AUTH_USERS is a JSON array
-        // of {email, password} objects. Each user gets its own credential.
-        // Adding/removing users = update env var + redeploy.
-        const usersJson = process.env.SIMPLE_AUTH_USERS ?? ''
-        if (usersJson.trim()) {
-          let users: Array<{ email?: unknown; password?: unknown }> = []
-          try {
-            const parsed: unknown = JSON.parse(usersJson)
-            if (Array.isArray(parsed)) users = parsed
-          } catch {
-            // Malformed JSON — fall through to legacy single-user fallback
-            // rather than locking everyone out. This is intentional: a
-            // typo in the env var should not be a global lockout event.
-            users = []
-          }
-          if (users.length > 0) {
-            for (const u of users) {
-              const uEmail = String(u?.email ?? '')
-                .toLowerCase()
-                .trim()
-              const uPassword = String(u?.password ?? '')
-              if (!uEmail || !uPassword) continue
-              if (email !== uEmail) continue
-              if (!constantTimeEqual(password, uPassword)) continue
-              return { id: email, email }
-            }
-            // Matched the multi-user code path but no user matched — reject.
-            return null
-          }
-        }
-
-        // Backward-compat: legacy single-user mode. Used during the
-        // brief window where new code is deployed but SIMPLE_AUTH_USERS
-        // is not yet set, so the existing user does not get locked out.
-        const expectedEmail = (process.env.SIMPLE_AUTH_EMAIL ?? '')
-          .toLowerCase()
-          .trim()
-        const expectedPassword = process.env.SIMPLE_AUTH_PASSWORD ?? ''
-        if (!expectedEmail || !expectedPassword) return null
-        if (email !== expectedEmail) return null
-        if (!constantTimeEqual(password, expectedPassword)) return null
-        return { id: email, email }
+      async authorize(credentials, request) {
+        const outcome = authorizeOtp(credentials, request)
+        if (outcome.ok) return outcome.user
+        throw new OtpSignInError(outcome.code)
       },
     }),
   ],
-  callbacks: {
-    authorized: ({ auth }) => !!auth,
-    async session({ session, token }) {
-      if (token.email) session.user.email = token.email
-      return session
-    },
-  },
-  session: { strategy: 'jwt', maxAge: 30 * 24 * 60 * 60 },
-  pages: { signIn: '/login' },
 })

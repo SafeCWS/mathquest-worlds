@@ -45,13 +45,13 @@ test.describe('smoke — basic routing + render health', () => {
     // translation key and it doesn't change on every UX iteration.
     await expect(page.getByRole('heading', { name: 'MathQuest Worlds' })).toBeVisible()
 
-    // Email + password fields. We use type-based selectors instead of label
-    // text because labels go through next-intl and could legitimately change.
+    // Step 1 of the email-code sign-in (2026-10-22): an email field and no
+    // password field. Type-based selectors, because labels go through next-intl.
     await expect(page.locator('input[type="email"]')).toBeVisible()
-    await expect(page.locator('input[type="password"]')).toBeVisible()
+    await expect(page.locator('input[type="password"]')).toHaveCount(0)
 
-    // The submit button. Same reasoning — semantic role over copy.
-    await expect(page.getByRole('button', { name: /sign in|signing in/i })).toBeVisible()
+    // The send-code button. Semantic role over styling.
+    await expect(page.getByRole('button', { name: /send my code|sending/i })).toBeVisible()
 
     // No console errors during initial render. We allow next-intl's
     // dev-mode "missing message" warnings (they're warnings, not errors)

@@ -1,10 +1,10 @@
 'use client'
 
 import { motion, useReducedMotion, type HTMLMotionProps } from 'motion/react'
-import { useCallback, useEffect, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { sounds } from '@/lib/sounds/webAudioSounds'
 
-// KidButton — the Phase 1.1 button primitive Tina will press a thousand times.
+// KidButton — the Phase 1.1 button primitive the player will press a thousand times.
 //
 // Design constraints (from purrfect-gliding-barto.md):
 //   - Squish-bounce on press (whileTap scale 0.88, spring-back).
@@ -61,6 +61,14 @@ export function KidButton({
     }
   }, [ariaLabel])
 
+  // The ACTION fires on click (a real tap — finger down AND up on the button),
+  // so starting a scroll or a stray palm touch no longer counts. Only the audio/haptic warm-up
+  // stays on pointerdown, which iOS needs to unlock Web Audio on the first gesture.
+  const handlePointerDown = useCallback(() => {
+    if (disabled) return
+    sounds.resume()
+  }, [disabled])
+
   const handlePress = useCallback(() => {
     if (disabled) return
 
@@ -81,29 +89,8 @@ export function KidButton({
     onClick()
   }, [disabled, sound, haptic, sparkleEnabled, reduceMotion, onClick])
 
-  // Keyboard parity for `onPointerDown`. PointerEvents do NOT fire on keyboard
-  // activation — Tab+Enter and Tab+Space would otherwise be silently broken.
-  //
-  // Double-fire analysis:
-  //   - Touch/mouse:  keydown does NOT fire from pointer input → only onPointerDown fires.
-  //   - Enter key:    onKeyDown fires; native button also synthesizes a `click` event,
-  //                   but we attach no `onClick` handler, so handlePress runs exactly once.
-  //   - Space key:    onKeyDown fires; we call preventDefault() to suppress page-scroll
-  //                   and the native click-on-keyup. handlePress runs exactly once.
-  //   - Auto-repeat:  holding a key fires keydown repeatedly; `event.repeat` short-circuits
-  //                   so haptic/audio/sparkle don't machine-gun.
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLButtonElement>) => {
-      if (event.key !== 'Enter' && event.key !== ' ') return
-      if (event.repeat) return
-      // Space scrolls the page by default on a focused button; suppress it.
-      // Also suppresses the native click-on-keyup so we stay single-fire even
-      // if a future onClick is added.
-      if (event.key === ' ') event.preventDefault()
-      handlePress()
-    },
-    [handlePress]
-  )
+  // Keyboard: native <button> click covers Enter and Space now that the action is on onClick,
+  // so the old onKeyDown parity shim (needed only for onPointerDown) is gone.
 
   // Primary variant intentionally omits a border-color class — consumers supply
   // their own (e.g. `border-yellow-300`, `border-green-300`) via className so a
@@ -114,7 +101,7 @@ export function KidButton({
   // `border-4` here preserves the thick frame; the color is the consumer's call.
   const variantClass =
     variant === 'primary'
-      ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-lg border-4'
+      ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-[var(--space-primary)] shadow-lg border-4'
       : variant === 'soft'
         ? 'bg-white/90 text-gray-700 shadow-md border-2 border-white/50'
         : 'bg-transparent text-gray-700'
@@ -131,8 +118,8 @@ export function KidButton({
       aria-label={ariaLabel}
       aria-disabled={disabled}
       disabled={disabled}
-      onPointerDown={handlePress}
-      onKeyDown={handleKeyDown}
+      onPointerDown={handlePointerDown}
+      onClick={handlePress}
       whileHover={reduceMotion || disabled ? undefined : { scale: 1.05, y: -2 }}
       whileTap={reduceMotion || disabled ? undefined : { scale: 0.88 }}
       transition={{ type: 'spring', stiffness: 400, damping: 17 }}

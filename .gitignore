@@ -41,10 +41,6 @@ yarn-error.log*
 # vercel
 .vercel
 
-# deployment metadata
-deployment-info.txt
-railway-deploy.log
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts

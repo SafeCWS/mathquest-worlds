@@ -3,9 +3,5 @@ node_modules
 .git
 .gitignore
 *.md
-railway.json
-railway-deploy.log
-nixpacks.toml
-deployment-info.txt
 .env*
 .claude

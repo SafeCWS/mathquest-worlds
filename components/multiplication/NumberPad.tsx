@@ -8,22 +8,26 @@ interface NumberPadProps {
   onSubmit: (value: number) => void
   maxValue?: number
   label?: string
+  /** Accessible names for the glyph-only keys + the display. */
+  deleteLabel?: string
+  checkLabel?: string
+  displayLabel?: string
 }
 
-const DIGIT_COLORS = [
-  'from-gray-400 to-gray-500',      // 0
-  'from-red-400 to-red-500',        // 1
-  'from-orange-400 to-orange-500',  // 2
-  'from-yellow-400 to-yellow-500',  // 3
-  'from-green-400 to-green-500',    // 4
-  'from-teal-400 to-teal-500',     // 5
-  'from-blue-400 to-blue-500',     // 6
-  'from-indigo-400 to-indigo-500', // 7
-  'from-purple-400 to-purple-500', // 8
-  'from-pink-400 to-pink-500',     // 9
-]
+// Calm pad (2026-10-22) — ONE colour family (white keys, dark navy digits,
+// soft shadow), digits ≥ 32px, ✓ teal-green when enabled, ⌫ grey. No red/rainbow on child screens.
+const KEY_BASE =
+  'np-key w-[64px] h-[64px] rounded-2xl bg-white border-2 border-slate-200 shadow-[0_3px_0_rgb(203_213_225),0_6px_14px_rgb(15_23_42/0.10)] flex items-center justify-center font-bold'
+const KEY_DIGIT = `${KEY_BASE} text-[34px] text-[var(--space-primary)]`
 
-export default function NumberPad({ onSubmit, maxValue = 100, label = 'Your answer:' }: NumberPadProps) {
+export default function NumberPad({
+  onSubmit,
+  maxValue = 100,
+  label = 'Your answer:',
+  deleteLabel = 'Erase',
+  checkLabel = 'Check my answer',
+  displayLabel = 'Your answer so far',
+}: NumberPadProps) {
   const [display, setDisplay] = useState('')
 
   const handleDigit = useCallback((digit: number) => {
@@ -49,28 +53,29 @@ export default function NumberPad({ onSubmit, maxValue = 100, label = 'Your answ
   }, [display, onSubmit])
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="np-root flex flex-col items-center gap-3">
       {/* Label */}
-      <p className="text-lg font-semibold text-gray-600">{label}</p>
+      <p className="np-label text-lg font-semibold text-gray-600">{label}</p>
 
       {/* Display field */}
       <motion.div
-        className="w-full max-w-[220px] h-16 bg-white rounded-2xl border-4 border-indigo-300
+        className="np-display w-full max-w-[220px] h-16 bg-white rounded-2xl border-4 border-indigo-300
                    flex items-center justify-center text-4xl font-bold text-indigo-700
                    shadow-inner"
         animate={display ? { borderColor: '#818cf8' } : { borderColor: '#a5b4fc' }}
+        role="status"
+        aria-live="polite"
+        aria-label={`${displayLabel}: ${display || '—'}`}
       >
         {display || <span className="text-gray-300 text-2xl">...</span>}
       </motion.div>
 
       {/* Keypad grid: 1-9 in 3x3, then backspace-0-submit */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="np-keys grid grid-cols-3 gap-2">
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(digit => (
           <motion.button
             key={digit}
-            className={`w-[60px] h-[60px] rounded-2xl bg-gradient-to-b ${DIGIT_COLORS[digit]}
-                       text-white text-2xl font-bold shadow-lg border-2 border-white/30
-                       flex items-center justify-center`}
+            className={KEY_DIGIT}
             whileTap={{ scale: 0.9 }}
             whileHover={{ scale: 1.05 }}
             onClick={() => handleDigit(digit)}
@@ -81,20 +86,17 @@ export default function NumberPad({ onSubmit, maxValue = 100, label = 'Your answ
 
         {/* Bottom row: backspace, 0, submit */}
         <motion.button
-          className="w-[60px] h-[60px] rounded-2xl bg-gradient-to-b from-gray-300 to-gray-400
-                     text-gray-700 text-2xl font-bold shadow-lg border-2 border-white/30
-                     flex items-center justify-center"
+          className="np-key w-[64px] h-[64px] rounded-2xl bg-slate-200 border-2 border-slate-300 text-slate-700 text-[30px] font-bold shadow-[0_3px_0_rgb(148_163_184)] flex items-center justify-center"
           whileTap={{ scale: 0.9 }}
           whileHover={{ scale: 1.05 }}
           onClick={handleBackspace}
+          aria-label={deleteLabel}
         >
-          <span className="text-xl">&#9003;</span>
+          <span>&#9003;</span>
         </motion.button>
 
         <motion.button
-          className={`w-[60px] h-[60px] rounded-2xl bg-gradient-to-b ${DIGIT_COLORS[0]}
-                     text-white text-2xl font-bold shadow-lg border-2 border-white/30
-                     flex items-center justify-center`}
+          className={KEY_DIGIT}
           whileTap={{ scale: 0.9 }}
           whileHover={{ scale: 1.05 }}
           onClick={() => handleDigit(0)}
@@ -103,17 +105,17 @@ export default function NumberPad({ onSubmit, maxValue = 100, label = 'Your answ
         </motion.button>
 
         <motion.button
-          className={`w-[60px] h-[60px] rounded-2xl bg-gradient-to-b
-                     ${display ? 'from-emerald-400 to-emerald-600' : 'from-gray-200 to-gray-300'}
-                     text-white text-2xl font-bold shadow-lg border-2 border-white/30
-                     flex items-center justify-center
-                     ${!display ? 'opacity-50 cursor-not-allowed' : ''}`}
+          className={`np-key w-[64px] h-[64px] rounded-2xl text-[32px] font-bold flex items-center justify-center border-2
+                     ${display
+                       ? 'bg-gradient-to-b from-teal-600 to-emerald-700 border-teal-500 text-white shadow-[0_3px_0_rgb(4_120_87)]'
+                       : 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'}`}
           whileTap={display ? { scale: 0.9 } : {}}
           whileHover={display ? { scale: 1.05 } : {}}
           onClick={handleSubmit}
           disabled={!display}
+          aria-label={checkLabel}
         >
-          <span className="text-xl">&#10003;</span>
+          <span>&#10003;</span>
         </motion.button>
       </div>
     </div>

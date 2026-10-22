@@ -1,25 +1,32 @@
-export { auth as middleware } from '@/auth'
+import NextAuth from 'next-auth'
+import { authConfig } from '@/lib/auth/config'
 
-// Protect everything EXCEPT:
-//   - Next.js internals (_next/static, _next/image, favicon)
-//   - Auth routes (api/auth/*)
-//   - Health check (api/health)
-//   - The /login page itself
-//   - Static asset file extensions (EXPLICITLY ENUMERATED)
+// Edge middleware builds its OWN NextAuth from the provider-less, Edge-safe
+// config. It must NEVER import '@/auth': that module pulls in the OTP store
+// (node:crypto), which the Edge runtime cannot load. Only the JWT cookie is
+// decoded here; codes are verified in auth.ts on the Node runtime.
+// (Default export: Next's static analysis does not recognise a destructured
+// `export const { auth: middleware }` as the middleware function.)
+const { auth } = NextAuth(authConfig)
+export default auth
+
+// Protect everything EXCEPT these exact static roots and public routes:
+//   - Next.js build assets:  /_next/static/*, /_next/image
+//   - PWA install (L156):    /manifest.webmanifest, /icons/*, /favicon.ico
+//   - /robots.txt
+//   - /api/health (exact), /api/auth/*, /api/otp/*
+//   - /login (exact or /login/...)
 //
-// The previous matcher used `.*\..*` to skip any path containing a dot.
-// That was too permissive — if we ever add something like
-// `app/admin.panel/page.tsx`, auth would silently break. Enumerating
-// the exact asset extensions here is fail-closed: a new route with a
-// dot in its name will keep auth protection.
-//
-// `webmanifest` is in the allowlist because PWA install on iOS/Android
-// requires the browser to fetch /manifest.webmanifest BEFORE the user
-// is logged in (the "Add to Home Screen" prompt fires on the public
-// /login page). Without this, anonymous users get a screenshot icon
-// + Safari chrome instead of the proper standalone PWA install.
+// Security review HIGH (2026-10-22): the previous rule skipped ANY path
+// ending in an asset extension (`.*\.(?:json|js|txt|…)$`). Dynamic routes
+// match that too — `/worlds/ocean.json` and `/multiplication/7.js` rendered
+// 200 logged out. Public files are now listed by ROOT, never by extension,
+// so a new route is protected by default (fail-closed). If you add a
+// public/ folder that must load logged out, add its root here AND to the
+// wiring test (lib/auth/__tests__/wiring.test.ts).
+// Protected segments also check the session server-side (requireSession).
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api/auth|api/health|login|.*\\.(?:svg|png|jpg|jpeg|gif|ico|woff|woff2|ttf|eot|css|js|mjs|map|mp3|wav|ogg|mp4|webm|webp|avif|pdf|txt|json|xml|webmanifest)$).*)',
+    '/((?!_next/static/|_next/image$|favicon\\.ico$|icons/|manifest\\.webmanifest$|robots\\.txt$|api/health$|api/auth/|api/otp/|login(?:/|$)).*)',
   ],
 }
