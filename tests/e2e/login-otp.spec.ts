@@ -121,6 +121,26 @@ test.describe('/login — email code sign-in', () => {
     expect(new URLSearchParams(posted[0]).get('code')).toBe('135791')
   })
 
+  for (const evil of ['//evil.com', '/\\evil.com', 'https://evil.com', 'ORIGIN//evil.com', 'javascript:alert(1)']) {
+    test(`callbackUrl ${evil} never leaves our origin after sign-in`, async ({ page, baseURL }) => {
+      const origin = new URL(baseURL!).origin
+      const cb = evil.replace('ORIGIN', origin)
+      await stubAuth(page, ['ok'])
+      let offSite = ''
+      page.on('request', (r) => { if (r.isNavigationRequest() && new URL(r.url()).origin !== origin) offSite = r.url() })
+      await page.goto(`/login?callbackUrl=${encodeURIComponent(cb)}`)
+      await page.locator('input[type=email]').fill(EMAIL)
+      await page.getByRole('button', { name: 'Send my code' }).click()
+      await expect(page.locator('[data-step=code]')).toBeVisible()
+      const leaving = page.waitForRequest((r) => r.isNavigationRequest() && !r.url().includes('callbackUrl='))
+      await typeCode(page, '424242')
+      await leaving
+      await page.waitForLoadState('domcontentloaded')
+      expect(new URL(page.url()).origin).toBe(origin)
+      expect(offSite).toBe('')
+    })
+  }
+
   test('an unknown failure (no result.code) shows the connection message, not the code message', async ({ page }) => {
     await stubAuth(page, [])
     await page.route('**/api/auth/callback/credentials**', (route) => route.fulfill({ status: 500, body: 'x' }))

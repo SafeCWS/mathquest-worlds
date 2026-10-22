@@ -6,6 +6,7 @@ import { signIn } from 'next-auth/react'
 import { motion, useReducedMotion } from 'motion/react'
 import { useTranslations } from 'next-intl'
 import { KidButton } from '@/components/ui/KidButton'
+import { safeCallbackUrl } from '@/lib/navigation/safeCallbackUrl'
 
 // Email one-time-code sign-in (approved G1.5 prototype, 2026-10-22). English only — the
 // route layout wraps this page in <EnglishOnly>, so there is no EN/ES toggle here.
@@ -18,18 +19,6 @@ const DIGITS = 6
 
 type Step = 'email' | 'code'
 type Notice = { tone: 'info' | 'warn'; text: string } | null
-
-/** Only same-origin relative paths are followed after sign-in (no open redirect). */
-function safeCallbackUrl(raw: string | null): string {
-  if (!raw) return '/'
-  try {
-    const url = new URL(raw, window.location.origin)
-    if (url.origin !== window.location.origin) return '/'
-    return `${url.pathname}${url.search}${url.hash}` || '/'
-  } catch {
-    return '/'
-  }
-}
 
 async function requestOtp(email: string): Promise<{ resendAfterSec: number } | null> {
   try {
@@ -102,7 +91,8 @@ function LoginCard() {
       if (result && !result.error) {
         setDone(true)
         setNotice({ tone: 'info', text: t('signedIn') })
-        const target = safeCallbackUrl(searchParams.get('callbackUrl'))
+        // Absolute same-origin URL or '/' — never off-site (lib/navigation/safeCallbackUrl).
+        const target = safeCallbackUrl(searchParams.get('callbackUrl'), window.location.origin)
         // Same 900 ms beat as the approved prototype, so the confirmation is readable.
         window.setTimeout(() => {
           window.location.href = target
