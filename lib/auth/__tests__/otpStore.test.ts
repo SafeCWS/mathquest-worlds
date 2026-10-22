@@ -184,16 +184,15 @@ describe('requestCode + verifyCode', () => {
     assert.equal(store.requestCode('grownup@example.com', ALLOW).status, 'sent')
   })
 
-  it('non-allowlisted email: not-allowed, stores nothing, counts nothing', () => {
-    for (let i = 0; i < 10; i++) {
-      assert.deepEqual(store.requestCode('stranger@example.com', ALLOW), { status: 'not-allowed' })
-    }
-    assert.deepEqual(store.size(), { challenges: 0, sendLogs: 0 })
+  it('non-allowlisted email: a decoy, never a real code (see hardening.test.ts)', () => {
+    assert.equal(store.requestCode('stranger@example.com', ALLOW).status, 'decoy')
+    assert.deepEqual(store.size(), { challenges: 1, sendLogs: 1 })
     assert.deepEqual(store.verifyCode('stranger@example.com', '123456'), {
       ok: false,
-      reason: 'none',
+      reason: 'wrong',
+      triesLeft: 4,
     })
-    // the random source was never consumed
+    // the random code source was never consumed
     assert.equal(nextCodes.length, 7)
   })
 
@@ -286,7 +285,7 @@ describe('sweepExpired (L99)', () => {
     store.sweepExpired()
     assert.deepEqual(store.size(), { challenges: 0, sendLogs: 1 })
     clock += 1
-    assert.equal(store.sweepExpired(), 1)
+    assert.equal(store.sweepExpired(), 2) // the send log + the client-IP request window
     assert.deepEqual(store.size(), { challenges: 0, sendLogs: 0 })
   })
 

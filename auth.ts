@@ -1,8 +1,8 @@
 import NextAuth, { CredentialsSignin } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import { authConfig } from '@/lib/auth/config'
-import { getOtpStore } from '@/lib/auth/otpStore'
-import { signInErrorCode, type SignInErrorCode } from '@/lib/auth/signInErrors'
+import { authorizeOtp } from '@/lib/auth/authorize'
+import type { SignInErrorCode } from '@/lib/auth/signInErrors'
 
 // Email one-time-code sign-in. Flow:
 //   1. POST /api/otp/request {email}  → mails a 6-digit code (allowlist =
@@ -31,10 +31,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: 'Email', type: 'email' },
         code: { label: 'Code', type: 'text' },
       },
-      async authorize(credentials) {
-        const result = getOtpStore().verifyCode(credentials?.email, credentials?.code)
-        if (result.ok) return { id: result.email, email: result.email }
-        throw new OtpSignInError(signInErrorCode(result))
+      async authorize(credentials, request) {
+        const outcome = authorizeOtp(credentials, request)
+        if (outcome.ok) return outcome.user
+        throw new OtpSignInError(outcome.code)
       },
     }),
   ],

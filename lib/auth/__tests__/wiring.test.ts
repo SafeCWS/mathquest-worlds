@@ -78,7 +78,9 @@ describe('removed paths stay removed', () => {
     const src = read('auth.ts')
     assert.doesNotMatch(src, /SIMPLE_AUTH_EMAIL|SIMPLE_AUTH_PASSWORD/)
     assert.doesNotMatch(src, /password\s*:|type:\s*['"]password['"]|credentials\??\.password/i)
-    assert.match(src, /verifyCode\(/)
+    // the request is forwarded so the per-IP verify limit sees the client
+    assert.match(src, /async authorize\(credentials, request\)/)
+    assert.match(src, /authorizeOtp\(credentials, request\)/)
   })
   it('there is no standalone verify route and no devCode anywhere server-side', () => {
     assert.equal(existsSync(join(ROOT, 'app/api/otp/verify')), false)

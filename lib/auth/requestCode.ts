@@ -12,7 +12,7 @@
  *   - Mail failures are logged server-side by the mailer with a masked
  *     address and never the code.
  */
-import { CODE_TTL_MS, getOtpStore, parseAllowlist, type OtpStore } from './otpStore'
+import { clientIpFrom, CODE_TTL_MS, getOtpStore, parseAllowlist, type OtpStore } from './otpStore'
 import { sendOtpMail } from './mailer'
 
 export const PUBLIC_MESSAGE = 'If that email is on the family list, a code is on its way.'
@@ -42,10 +42,53 @@ export interface RequestCodeDeps {
 
 const realSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
-async function readEmail(req: Request): Promise<unknown> {
+/**
+ * Read at most MAX_BODY_BYTES (security review 2026-10-22, finding 3):
+ *   1. a declared Content-Length over the cap is refused before any read;
+ *   2. otherwise the body is read as a stream and the read is cancelled as
+ *      soon as the running total passes the cap — a missing or lying
+ *      Content-Length cannot make us buffer more than the cap.
+ * Returns null when the body is over the cap or unreadable.
+ */
+export async function readCappedBody(req: Request, cap = MAX_BODY_BYTES): Promise<string | null> {
+  const declared = req.headers.get('content-length')
+  if (declared !== null) {
+    const n = Number(declared)
+    if (!Number.isFinite(n) || n < 0 || n > cap) return null
+  }
+  if (!req.body) return ''
+  const reader = req.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
   try {
-    const raw = await req.text()
-    if (raw.length > MAX_BODY_BYTES) return ''
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      total += value.byteLength
+      if (total > cap) {
+        await reader.cancel().catch(() => {})
+        return null
+      }
+      chunks.push(value)
+    }
+  } catch {
+    return null
+  } finally {
+    reader.releaseLock()
+  }
+  const buf = new Uint8Array(total)
+  let off = 0
+  for (const c of chunks) {
+    buf.set(c, off)
+    off += c.byteLength
+  }
+  return new TextDecoder().decode(buf)
+}
+
+async function readEmail(req: Request): Promise<unknown> {
+  const raw = await readCappedBody(req)
+  if (raw === null) return ''
+  try {
     const body: unknown = JSON.parse(raw)
     if (body && typeof body === 'object') return (body as { email?: unknown }).email
   } catch {
@@ -65,7 +108,7 @@ export async function handleRequestCode(req: Request, deps: RequestCodeDeps = {}
     const allowlist = parseAllowlist(
       'allowlistJson' in deps ? deps.allowlistJson : process.env.SIMPLE_AUTH_USERS,
     )
-    const result = store.requestCode(email, allowlist)
+    const result = store.requestCode(email, allowlist, clientIpFrom(req.headers))
 
     if (result.status === 'sent') {
       const to = String(email).toLowerCase().trim()
