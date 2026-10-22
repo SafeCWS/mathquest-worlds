@@ -63,20 +63,27 @@ export const IP_VERIFY_WINDOW_MS = 10 * 60 * 1000
 export const MAX_IP_ENTRIES = 5000
 
 /**
- * Per allowlisted email: this many WRONG GUESSES against live codes in
- * a rolling 24 h lock that email's sign-in for LOCKOUT_MS, and the family
- * member gets ONE notice email. Keyed by allowlisted emails only; never evicted.
+ * Escalating per-email lock (operator decision 2026-10-22). Per allowlisted
+ * email, only WRONG GUESSES against live codes count. Every
+ * MAX_DAILY_FAILURES of them within a rolling DAILY_FAILURE_WINDOW_MS
+ * triggers the next step of LOCK_LADDER_MS: 1st lock 1 h, 2nd 4 h, 3rd and
+ * later 24 h. The count resets at each lock. The ladder returns to step 1
+ * after LADDER_RESET_MS with no lock in force or triggered, measured from the
+ * last lock's END (so a 24 h lock is never followed by a cheap 1 h one). The
+ * family gets ONE notice per lock. All maps keyed by allowlisted emails only;
+ * never evicted.
  */
 export const MAX_DAILY_FAILURES = 30
 export const DAILY_FAILURE_WINDOW_MS = 24 * 60 * 60 * 1000
-export const LOCKOUT_MS = 24 * 60 * 60 * 1000
+export const LOCK_LADDER_MS: readonly number[] = [1, 4, 24].map((h) => h * 60 * 60 * 1000)
+export const LADDER_RESET_MS = 24 * 60 * 60 * 1000
 
 export type RequestResult =
   | { status: 'sent'; code: string; expiresAt: number }
   | { status: 'not-allowed' }
   | { status: 'cooldown'; retryInSec: number }
   | { status: 'rate-limited'; retryInSec: number }
-  /** Allowlisted email under a 24 h failure lock: no code is minted. */
+  /** Allowlisted email under a failure lock (1 h / 4 h / 24 h ladder): no code is minted. */
   | { status: 'locked'; until: number }
 
 /** Internal only — the sign-in surface collapses every failure to 'invalid'. */
@@ -98,7 +105,7 @@ export interface OtpStoreOptions {
   /** HMAC key. Defaults to 32 random bytes per process. */
   hashKey?: Buffer
   /**
-   * Called ONCE when an email enters a 24 h failure lock. Must not throw or
+   * Called ONCE each time an email enters a failure lock. Must not throw or
    * block (getOtpStore fires the notice mail detached).
    */
   onLock?: (email: string, until: number) => void
@@ -203,15 +210,15 @@ function pushCapped(map: Map<string, number[]>, key: string, hits: number[], t: 
  * is over the verify limit its attempts are refused WITHOUT touching the
  * email's 5 tries.
  *
- * RESIDUAL RISK (current policy; the operator may change it, e.g. to an
- * escalating lock): a SINGLE attacker who knows a family email can lock NEW
- * sign-ins for that email for 24 hours, and can renew the lock every day.
- * It takes 30 wrong guesses against live codes, so at least 6 requested
- * codes; the 5-sends/hour cap and the per-IP limits stretch that over more
- * than an hour, but one IP is enough. Existing sessions are unaffected (the
- * lock only blocks new sign-ins), the family gets ONE notice email per lock,
- * and no data is exposed. Shorter effects: burning the current code, or
- * using up the email's 5 sends for the hour.
+ * RESIDUAL RISK (accepted, escalating lock per operator 2026-10-22): a
+ * SINGLE attacker who knows a family email can lock NEW sign-ins for that
+ * email and keep renewing the lock — 1 h the first time, 4 h the second,
+ * then 24 h each time while the attack continues. Each lock takes 30 wrong
+ * guesses against live codes (>= 6 requested codes, which the 5-sends/hour
+ * cap and the per-IP limits stretch over more than an hour), but one IP is
+ * enough. Existing sessions are unaffected (only new sign-ins are blocked),
+ * the family gets ONE notice email per lock, and no data is exposed. Shorter
+ * effects: burning the current code, or using up the email's 5 sends/hour.
  */
 export class OtpStore {
   /** Keyed ONLY by allowlisted emails. */
@@ -222,6 +229,8 @@ export class OtpStore {
   private readonly dailyFailures = new Map<string, number[]>()
   /** Keyed ONLY by allowlisted emails: lock end, epoch ms. */
   private readonly lockouts = new Map<string, number>()
+  /** Keyed ONLY by allowlisted emails: ladder step of the last lock and when it ends. */
+  private readonly ladder = new Map<string, { step: number; lastLockEnd: number }>()
   private readonly ipRequests = new Map<string, number[]>()
   private readonly ipFailures = new Map<string, number[]>()
   private readonly now: () => number
@@ -253,8 +262,12 @@ export class OtpStore {
     hits.push(t)
     this.dailyFailures.set(email, hits)
     if (hits.length >= MAX_DAILY_FAILURES && !this.isLocked(email, t)) {
-      const until = t + LOCKOUT_MS
+      const prev = this.ladder.get(email)
+      const step = prev && t - prev.lastLockEnd < LADDER_RESET_MS ? prev.step + 1 : 0
+      const until = t + LOCK_LADDER_MS[Math.min(step, LOCK_LADDER_MS.length - 1)]
       this.lockouts.set(email, until)
+      this.ladder.set(email, { step, lastLockEnd: until })
+      this.dailyFailures.delete(email) // the next step needs a fresh 30
       this.challenges.delete(email) // the pending code dies with the lock
       try {
         this.onLock?.(email, until)
@@ -332,7 +345,7 @@ export class OtpStore {
     // Over-limit IP: refused before the challenge is touched, so the email's
     // tries are untouched.
     if (clientIp && failures.length >= IP_MAX_FAILED_VERIFIES) return { ok: false, reason: 'burned' }
-    // 24 h failure lock: refused, not counted again (one notice per lock).
+    // Failure lock: refused, not counted again (one notice per lock).
     if (email && this.isLocked(email, t)) return fail({ ok: false, reason: 'locked' })
 
     if (!challenge) return fail({ ok: false, reason: 'none' })
@@ -382,6 +395,12 @@ export class OtpStore {
         removed++
       }
     }
+    for (const [email, l] of this.ladder) {
+      if (t - l.lastLockEnd >= LADDER_RESET_MS) {
+        this.ladder.delete(email)
+        removed++
+      }
+    }
     prune(this.ipRequests, SEND_WINDOW_MS)
     prune(this.ipFailures, IP_VERIFY_WINDOW_MS)
     return removed
@@ -397,6 +416,7 @@ export class OtpStore {
       ...this.sendLog.keys(),
       ...this.dailyFailures.keys(),
       ...this.lockouts.keys(),
+      ...this.ladder.keys(),
     ]) {
       if (!allowlist.has(key)) throw new Error('otpStore invariant: an entry is not on the allowlist')
     }
@@ -419,8 +439,8 @@ export class OtpStore {
   }
 
   /** Test/diagnostic helper — per-email failure windows and active locks. */
-  lockSize(): { dailyFailures: number; lockouts: number } {
-    return { dailyFailures: this.dailyFailures.size, lockouts: this.lockouts.size }
+  lockSize(): { dailyFailures: number; lockouts: number; ladder: number } {
+    return { dailyFailures: this.dailyFailures.size, lockouts: this.lockouts.size, ladder: this.ladder.size }
   }
 
   /** Test/diagnostic helper — tracked client IPs per pool. */

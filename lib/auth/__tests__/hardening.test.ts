@@ -27,7 +27,8 @@ import {
   IP_VERIFY_WINDOW_MS,
   MAX_DAILY_FAILURES,
   DAILY_FAILURE_WINDOW_MS,
-  LOCKOUT_MS,
+  LOCK_LADDER_MS,
+  LADDER_RESET_MS,
   type RequestResult,
 } from '../otpStore'
 import { authorizeOtp } from '../authorize'
@@ -272,7 +273,7 @@ describe('resolveClientIp (behind Render’s Cloudflare zone)', () => {
   })
 })
 
-describe('24-hour per-email failure lock (review SHOULD-4)', () => {
+describe('per-email failure lock (review SHOULD-4; escalating per operator)', () => {
   const locks: Array<{ email: string; until: number }> = []
   let lockStore: OtpStore
   beforeEach(() => {
@@ -297,11 +298,11 @@ describe('24-hour per-email failure lock (review SHOULD-4)', () => {
     }
   }
 
-  it(`${MAX_DAILY_FAILURES} failures in 24 h lock the email; the right code then fails; ONE notice`, () => {
+  it(`${MAX_DAILY_FAILURES} failures in 24 h lock the email (first lock: 1 h); the right code then fails; ONE notice`, () => {
     fail(MAX_DAILY_FAILURES)
     assert.equal(locks.length, 1)
     assert.equal(locks[0].email, PARENT)
-    assert.equal(locks[0].until, clock + LOCKOUT_MS)
+    assert.equal(locks[0].until, clock + LOCK_LADDER_MS[0])
     const r = lockStore.requestCode(PARENT, ALLOW, '198.51.100.1')
     assert.equal(r.status, 'locked') // no code minted while locked
     assert.equal(lockStore.verifyCode(PARENT, '000000', '198.51.100.2').ok, false)
@@ -325,9 +326,9 @@ describe('24-hour per-email failure lock (review SHOULD-4)', () => {
     assert.equal(locks.length, 0)
   })
 
-  it('the lock lifts after 24 h and sign-in works again', () => {
+  it('the first lock lifts after 1 h and sign-in works again', () => {
     fail(MAX_DAILY_FAILURES)
-    clock += LOCKOUT_MS
+    clock += LOCK_LADDER_MS[0]
     const r = lockStore.requestCode(PARENT, ALLOW, '198.51.100.1') as { code: string }
     assert.equal(lockStore.verifyCode(PARENT, r.code, '198.51.100.1').ok, true)
   })
@@ -347,10 +348,10 @@ describe('24-hour per-email failure lock (review SHOULD-4)', () => {
   it('unlisted emails never enter the failure / lock maps', () => {
     for (let i = 0; i < 200; i++) lockStore.verifyCode(STRANGER, '000000', `10.0.${i}.1`)
     lockStore.assertBoundedBy(ALLOW)
-    assert.deepEqual(lockStore.lockSize(), { dailyFailures: 0, lockouts: 0 })
+    assert.deepEqual(lockStore.lockSize(), { dailyFailures: 0, lockouts: 0, ladder: 0 })
     fail(MAX_DAILY_FAILURES)
     lockStore.assertBoundedBy(ALLOW)
-    assert.deepEqual(lockStore.lockSize(), { dailyFailures: 1, lockouts: 1 })
+    assert.deepEqual(lockStore.lockSize(), { dailyFailures: 0, lockouts: 1, ladder: 1 }) // count resets at each lock
   })
 
   it('IP-refused attempts do not count toward the email lock', () => {
@@ -363,9 +364,9 @@ describe('24-hour per-email failure lock (review SHOULD-4)', () => {
 
   it('the sweep clears expired locks and stale failure windows', () => {
     fail(MAX_DAILY_FAILURES)
-    clock += LOCKOUT_MS + DAILY_FAILURE_WINDOW_MS
+    clock += LOCK_LADDER_MS[0] + LADDER_RESET_MS
     lockStore.sweepExpired()
-    assert.deepEqual(lockStore.lockSize(), { dailyFailures: 0, lockouts: 0 })
+    assert.deepEqual(lockStore.lockSize(), { dailyFailures: 0, lockouts: 0, ladder: 0 })
   })
 })
 
@@ -403,5 +404,93 @@ describe('lock cannot be amplified past real guesses (review: lockout amplificat
     assert.equal(notices, 1)
     assert.ok(clock - start > SEND_WINDOW_MS, 'reaching the lock took more than an hour')
     assert.equal(st.requestCode(PARENT, ALLOW, IP_A).status, 'locked')
+  })
+})
+
+describe('escalating lock ladder: 1 h, 4 h, then 24 h (operator decision)', () => {
+  const H = 60 * 60 * 1000
+  let locks: Array<{ at: number; until: number }> = []
+  let st: OtpStore
+  let ipSeq = 0
+  beforeEach(() => {
+    locks = []
+    ipSeq = 0
+    st = new OtpStore({ now: () => clock, onLock: (_e, until) => locks.push({ at: clock, until }) })
+  })
+  /** 30 live wrong guesses: 6 codes, one every 12 min + 1 ms (cooldown + 5 sends/hour). */
+  const thirty = () => {
+    for (let round = 0; round < 6; round++) {
+      clock += SEND_WINDOW_MS / 5 + 1
+      assert.equal(st.requestCode(PARENT, ALLOW, `192.0.2.${(ipSeq++ % 250) + 1}`).status, 'sent')
+      for (let i = 0; i < 5; i++) st.verifyCode(PARENT, '000000', `10.${ipSeq % 250}.${round}.${i}`)
+    }
+  }
+  const locked = () => st.requestCode(PARENT, ALLOW, `198.51.100.${(ipSeq++ % 250) + 1}`).status === 'locked'
+
+  it('first lock lasts exactly 1 h', () => {
+    thirty()
+    assert.equal(locks.length, 1)
+    const { at, until } = locks[0]
+    assert.equal(until - at, H)
+    clock = until - 1
+    assert.equal(locked(), true)
+    clock = until
+    assert.equal(locked(), false)
+  })
+
+  it('second lock within 24 h lasts 4 h, third 24 h, fourth 24 h; one notice each, until = lock end', () => {
+    for (let n = 0; n < 4; n++) {
+      thirty()
+      assert.equal(locks.length, n + 1, `lock #${n + 1}`)
+      clock = locks[n].until // wait the lock out, then the attacker resumes
+    }
+    assert.deepEqual(
+      locks.map((l) => l.until - l.at),
+      [H, 4 * H, 24 * H, 24 * H],
+    )
+  })
+
+  it('the ladder resets after a quiet 24 h (measured from the last lock end)', () => {
+    thirty()
+    clock = locks[0].until
+    thirty()
+    assert.equal(locks[1].until - locks[1].at, 4 * H)
+    clock = locks[1].until + LADDER_RESET_MS // 24 h with no lock in force or triggered
+    thirty()
+    assert.equal(locks[2].until - locks[2].at, H) // back to step 1
+  })
+
+  it('a lock just under 24 h after the last one ended still escalates', () => {
+    thirty()
+    clock = locks[0].until + LADDER_RESET_MS - 2 * H // thirty() then spends ~72 min
+    thirty()
+    assert.equal(locks[1].until - locks[1].at, 4 * H)
+  })
+
+  it('a mistyping user (≤ 29 live failures a day, then the right code) is never locked', () => {
+    for (let day = 0; day < 5; day++) {
+      let failures = 0
+      for (let round = 0; round < 10 && failures < MAX_DAILY_FAILURES - 1; round++) {
+        clock += SEND_WINDOW_MS / 5 + 1
+        const r = st.requestCode(PARENT, ALLOW, '192.0.2.200') as { status: string; code?: string }
+        assert.equal(r.status, 'sent', `day ${day} round ${round}`)
+        const wrong = Math.min(4, MAX_DAILY_FAILURES - 1 - failures)
+        for (let i = 0; i < wrong; i++, failures++) st.verifyCode(PARENT, '000000', '192.0.2.200')
+        assert.equal(st.verifyCode(PARENT, r.code, '192.0.2.200').ok, true)
+      }
+      assert.equal(failures, MAX_DAILY_FAILURES - 1)
+      clock += DAILY_FAILURE_WINDOW_MS
+    }
+    assert.equal(locks.length, 0)
+  })
+
+  it('ladder state is keyed by allowlisted emails only and swept after the reset window', () => {
+    for (let i = 0; i < 300; i++) st.verifyCode(STRANGER, '000000', `10.200.${i & 255}.1`)
+    thirty()
+    st.assertBoundedBy(ALLOW)
+    assert.equal(st.lockSize().ladder, 1)
+    clock = locks[0].until + LADDER_RESET_MS
+    st.sweepExpired()
+    assert.equal(st.lockSize().ladder, 0)
   })
 })
