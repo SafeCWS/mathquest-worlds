@@ -95,8 +95,7 @@ describe('handleRequestCode', () => {
     assert.equal(await bodyOf(await handleRequestCode(req('{"email":"parent@example.com"}'), h.deps)), EXPECTED)
     await new Promise((r) => setImmediate(r))
     assert.equal(h.mails.length, 0)
-    // only a decoy exists: the code that would have been minted does not open it
-    assert.equal(h.store.verifyCode('parent@example.com', '123456').ok, false)
+    assert.deepEqual(h.store.size(), { challenges: 0, sendLogs: 0 })
   })
 
   it('unset SIMPLE_AUTH_USERS ⇒ nobody gets a code', async () => {

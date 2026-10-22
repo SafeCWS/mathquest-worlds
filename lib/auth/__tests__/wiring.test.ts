@@ -14,19 +14,19 @@ import { signInErrorCode, SIGN_IN_ERROR_CODES } from '../signInErrors'
 const ROOT = join(__dirname, '..', '..', '..')
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8')
 
-describe('signInErrorCode', () => {
-  it('maps tries-left to wrong_N and passes burned/expired/none through', () => {
-    assert.equal(signInErrorCode({ ok: false, reason: 'wrong', triesLeft: 4 }), 'wrong_4')
-    assert.equal(signInErrorCode({ ok: false, reason: 'wrong', triesLeft: 3 }), 'wrong_3')
-    assert.equal(signInErrorCode({ ok: false, reason: 'wrong', triesLeft: 2 }), 'wrong_2')
-    assert.equal(signInErrorCode({ ok: false, reason: 'wrong', triesLeft: 1 }), 'wrong_1')
-    assert.equal(signInErrorCode({ ok: false, reason: 'burned', triesLeft: 0 }), 'burned')
-    assert.equal(signInErrorCode({ ok: false, reason: 'burned' }), 'burned')
-    assert.equal(signInErrorCode({ ok: false, reason: 'expired' }), 'expired')
-    assert.equal(signInErrorCode({ ok: false, reason: 'none' }), 'none')
-  })
-  it('the contract list is exactly the seven agreed codes', () => {
-    assert.deepEqual([...SIGN_IN_ERROR_CODES], ['wrong_4', 'wrong_3', 'wrong_2', 'wrong_1', 'burned', 'expired', 'none'])
+describe('sign-in failure contract (operator decision: one generic message)', () => {
+  it('the only failure code is "invalid", for every internal reason', () => {
+    assert.deepEqual([...SIGN_IN_ERROR_CODES], ['invalid'])
+    for (const r of [
+      { ok: false, reason: 'wrong', triesLeft: 4 },
+      { ok: false, reason: 'wrong', triesLeft: 1 },
+      { ok: false, reason: 'burned', triesLeft: 0 },
+      { ok: false, reason: 'burned' },
+      { ok: false, reason: 'expired' },
+      { ok: false, reason: 'none' },
+    ] as const) {
+      assert.equal(signInErrorCode(r), 'invalid')
+    }
   })
 })
 

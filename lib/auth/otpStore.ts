@@ -1,12 +1,11 @@
 /**
  * otpStore — email one-time-code challenges for MathQuest Worlds sign-in.
  *
- * Ported unchanged in behaviour from the approved G1.5 prototype
- * (mathquest-worlds-big-mult-otp, lib/otp/otpStore.ts), plus the L99 expiry
- * sweep and the NODE_ENV=test code hook. Pure TypeScript with node:crypto
- * only — no Next, no NextAuth, no mailer — so it is unit-tested with
- * node:test. NEVER import this from middleware.ts or anything the Edge
- * middleware loads (node:crypto is not available there).
+ * Ported from the approved G1.5 prototype (mathquest-worlds-big-mult-otp,
+ * lib/otp/otpStore.ts), then hardened through three security-review rounds
+ * (2026-10-22). Pure TypeScript with node:crypto / node:net only — no Next,
+ * no NextAuth, no mailer — so it is unit-tested with node:test. NEVER import
+ * this from middleware.ts or anything the Edge middleware loads.
  *
  * Rules:
  *   - 6-digit code, crypto.randomInt(0, 1_000_000), zero-padded.
@@ -18,7 +17,20 @@
  *   - 60 s resend cooldown; max 5 sends per rolling hour per email.
  *   - A new request replaces any prior code (and resets its tries).
  *   - Email normalised lowercase + trim everywhere.
- *   - Constant-time compare (crypto.timingSafeEqual on two 32-byte digests).
+ *   - Constant-time compare (crypto.timingSafeEqual on two 32-byte digests),
+ *     and exactly one HMAC on EVERY verify path, including "no challenge".
+ *
+ * Anti-enumeration (operator decision 2026-10-22): the sign-in surface exposes
+ * ONE failure ('invalid', see signInErrors.ts) — no tries-left, no reason —
+ * so a caller cannot tell a listed from an unlisted email. The reasons below
+ * are internal only.
+ *
+ * Memory: challenges and send logs are keyed ONLY by allowlisted emails (an
+ * unlisted email stores nothing), so both maps are bounded by the allowlist
+ * size and real entries are NEVER evicted — no flood can drop a real code or
+ * reset a real email's send cap. Only the per-IP rate-limit maps are capped
+ * (oldest evicted): under a flood of >MAX_IP_ENTRIES distinct IPs that
+ * weakens rate limiting, never touches a code.
  *
  * Storage is an in-process Map. That is safe ONLY because the service runs a
  * single instance (numInstances: 1). A restart just means "ask for a new code".
@@ -40,31 +52,21 @@ export const MAX_SENDS_PER_HOUR = 5
 export const SEND_WINDOW_MS = 60 * 60 * 1000
 const MAX_EMAIL_LENGTH = 254
 
-/** Hard cap on challenges; at the cap the OLDEST entry is evicted, listed or not. */
-export const MAX_CHALLENGE_ENTRIES = 500
-/**
- * Cap on per-email send logs (same blind LRU). 10x the challenge cap on
- * purpose: the send log carries the per-email 5-sends/hour cap, and evicting
- * it early is what would let a flood reset a real email's send budget.
- * Entries are a few timestamps each, so 5000 stays well under 1 MB.
- */
-export const MAX_SEND_LOG_ENTRIES = 5000
 /** Per client IP: code requests per rolling hour, across all emails. */
 export const IP_MAX_REQUESTS_PER_HOUR = 10
 /** Per client IP: failed verifies per rolling window, across all emails. */
 export const IP_MAX_FAILED_VERIFIES = 10
 export const IP_VERIFY_WINDOW_MS = 10 * 60 * 1000
-/** Cap on tracked client IPs per pool (oldest evicted). */
+/** Cap on tracked client IPs per rate-limit pool (oldest evicted; codes unaffected). */
 export const MAX_IP_ENTRIES = 5000
 
 export type RequestResult =
   | { status: 'sent'; code: string; expiresAt: number }
-  /** Unlisted but well-formed email: a decoy was stored, nothing is sent. */
-  | { status: 'decoy'; expiresAt: number }
   | { status: 'not-allowed' }
   | { status: 'cooldown'; retryInSec: number }
   | { status: 'rate-limited'; retryInSec: number }
 
+/** Internal only — the sign-in surface collapses every failure to 'invalid'. */
 export type VerifyResult =
   | { ok: true; email: string }
   | { ok: false; reason: 'expired' | 'wrong' | 'burned' | 'none'; triesLeft?: number }
@@ -73,13 +75,6 @@ interface Challenge {
   codeHash: Buffer
   expiresAt: number
   tries: number
-  /** Decoy for an unlisted email: random hash, can never match. */
-  decoy: boolean
-}
-
-interface SendLog {
-  sends: number[]
-  decoy: boolean
 }
 
 export interface OtpStoreOptions {
@@ -99,58 +94,75 @@ function wellFormedEmail(email: string): boolean {
   return !!email && email.length <= MAX_EMAIL_LENGTH && email.includes('@')
 }
 
-export type IpSource = 'true-client-ip' | 'cf-connecting-ip' | 'x-forwarded-for-rightmost' | 'none'
+export type IpSource = 'x-forwarded-for-rightmost' | `header:${string}` | 'none'
+
+function validIp(v: string | null | undefined): string | null {
+  const t = (v ?? '').trim()
+  return t.length <= 45 && isIP(t) !== 0 ? t : null
+}
+
+function rightmost(v: string | null | undefined): string | null {
+  const hops = (v ?? '').split(',')
+  return validIp(hops[hops.length - 1])
+}
 
 /**
  * THE one place that decides which header identifies the client for the
- * per-IP limits (security review 2026-10-22). Trusted sources only, in order:
- *   1. true-client-ip     — set by Cloudflare (Enterprise / Managed Transform)
- *   2. cf-connecting-ip   — set by Cloudflare on every proxied request
- *   3. RIGHT-MOST x-forwarded-for hop — the one appended by Render's proxy.
- *      The left-most hop is whatever the client sent, so it is never used.
- * Each candidate must pass node:net isIP; an invalid one falls through.
- * No usable IP ⇒ { ip: null }: the per-IP limits are SKIPPED for that request
- * (never a shared 'unknown' bucket an attacker could fill); the per-email
- * 5-try / 5-send / cooldown rules still apply.
+ * per-IP limits.
  *
- * !! MUST BE CONFIRMED ON RENDER AFTER DEPLOY (G4): read the one-time
- * `[otp] ip_source=…` log line to see which header is actually populated. If
- * the service is not behind Cloudflare, a client could send its own
- * true-client-ip / cf-connecting-ip; in that case drop sources 1–2 here.
+ * Default: the RIGHT-MOST x-forwarded-for hop only — the one Render's proxy
+ * appends. Left-most hops, true-client-ip and cf-connecting-ip are
+ * client-settable unless a trusted edge overwrites them, so the default never
+ * reads them.
+ *
+ * `trustedHeader` (env TRUSTED_IP_HEADER, e.g. `cf-connecting-ip`) switches
+ * the source at deploy time — set it ONLY after G4 shows that header is
+ * populated by infrastructure in front of Render. A malformed value is
+ * ignored (default source). Comma lists in the chosen header use the
+ * right-most entry.
+ *
+ * No usable IP ⇒ { ip: null }: the per-IP limits are SKIPPED for that request
+ * (never a shared bucket); the per-email rules still apply.
+ *
+ * !! CONFIRM ON RENDER AFTER DEPLOY (G4): read the one-time
+ * `[otp] ip_source=… headers_present=…` log line.
  */
-export function resolveClientIp(headers: Headers | undefined | null): { ip: string | null; source: IpSource } {
-  const valid = (v: string | null | undefined) => {
-    const t = (v ?? '').trim()
-    return t.length <= 45 && isIP(t) !== 0 ? t : null
+export function resolveClientIp(
+  headers: Headers | undefined | null,
+  trustedHeader?: string,
+): { ip: string | null; source: IpSource } {
+  const name = (trustedHeader ?? '').trim().toLowerCase()
+  if (name && /^[a-z0-9-]{1,64}$/.test(name) && name !== 'x-forwarded-for') {
+    const ip = rightmost(headers?.get(name))
+    return ip ? { ip, source: `header:${name}` } : { ip: null, source: 'none' }
   }
-  const tci = valid(headers?.get('true-client-ip'))
-  if (tci) return { ip: tci, source: 'true-client-ip' }
-  const cf = valid(headers?.get('cf-connecting-ip'))
-  if (cf) return { ip: cf, source: 'cf-connecting-ip' }
-  const hops = (headers?.get('x-forwarded-for') ?? '').split(',')
-  const last = valid(hops[hops.length - 1])
-  if (last) return { ip: last, source: 'x-forwarded-for-rightmost' }
-  return { ip: null, source: 'none' }
+  const ip = rightmost(headers?.get('x-forwarded-for'))
+  return ip ? { ip, source: 'x-forwarded-for-rightmost' } : { ip: null, source: 'none' }
 }
 
 const IP_SOURCE_LOGGED = Symbol.for('mathquest.otpIpSourceLogged')
+const OBSERVED_HEADERS = ['true-client-ip', 'cf-connecting-ip', 'x-forwarded-for'] as const
 
-/** resolveClientIp + a one-time log of the SOURCE (never the IP value). */
+/**
+ * resolveClientIp with TRUSTED_IP_HEADER from the env, plus a one-time log of
+ * the source and of which candidate headers are PRESENT — names only, never
+ * values — so G4 can decide whether to set TRUSTED_IP_HEADER.
+ */
 export function clientIpFrom(headers: Headers | undefined | null): string | null {
-  const { ip, source } = resolveClientIp(headers)
+  const { ip, source } = resolveClientIp(headers, process.env.TRUSTED_IP_HEADER)
   const g = globalThis as typeof globalThis & { [IP_SOURCE_LOGGED]?: boolean }
   if (!g[IP_SOURCE_LOGGED]) {
     g[IP_SOURCE_LOGGED] = true
-    console.info(`[otp] ip_source=${source}`)
+    const present = OBSERVED_HEADERS.filter((h) => headers?.has(h)).join(',') || '(none)'
+    console.info(`[otp] ip_source=${source} headers_present=${present}`)
   }
   return ip
 }
 
 /**
- * Parse SIMPLE_AUTH_USERS (same shape the real auth.ts reads:
- * `[{"email": "...", "password": "..."}]`). Password is ignored — only the
- * email list matters for OTP. Malformed JSON, a non-array, or junk entries
- * yield an empty / partial set; this never throws.
+ * Parse SIMPLE_AUTH_USERS (`[{"email": "...", "password": "..."}]`). Password
+ * is ignored — only the email list matters for OTP. Malformed JSON, a
+ * non-array, or junk entries yield an empty / partial set; this never throws.
  */
 export function parseAllowlist(json: string | undefined | null): Set<string> {
   const out = new Set<string>()
@@ -170,7 +182,7 @@ export function parseAllowlist(json: string | undefined | null): Set<string> {
   return out
 }
 
-/** Rolling-window timestamps per key, pruned on read, insertion-order capped. */
+/** Rolling-window timestamps per key, pruned on read. */
 function recentIn(map: Map<string, number[]>, key: string, t: number, windowMs: number): number[] {
   const hits = (map.get(key) ?? []).filter((s) => t - s < windowMs)
   if (hits.length) map.set(key, hits)
@@ -178,8 +190,9 @@ function recentIn(map: Map<string, number[]>, key: string, t: number, windowMs: 
   return hits
 }
 
+/** Append a hit; IP maps only — oldest key evicted past the cap. */
 function pushCapped(map: Map<string, number[]>, key: string, hits: number[], t: number, cap: number): void {
-  map.delete(key) // re-insert at the end: Map order = least recently touched first
+  map.delete(key)
   map.set(key, [...hits, t])
   while (map.size > cap) {
     const oldest = map.keys().next().value
@@ -189,67 +202,41 @@ function pushCapped(map: Map<string, number[]>, key: string, hits: number[], t: 
 }
 
 /**
- * ANTI-ENUMERATION (security review 2026-10-22, finding 1): a well-formed
- * email that is NOT on the family list gets a DECOY challenge with the same
- * shape — random hash that can never match, same expiry, same tries counter,
- * same cooldown / hourly accounting — and no mail. verifyCode then walks the
- * identical path, so wrong_N / burned / expired / none and the request
- * cooldown / cap answer the same for listed and unlisted addresses.
- * Memory: at most MAX_CHALLENGE_ENTRIES challenges (and MAX_SEND_LOG_ENTRIES
- * send logs), evicted by a single blind LRU — oldest first, listed or not,
- * so eviction reveals nothing. RESIDUAL (accepted, same class as below): a
- * distributed flood of >500 fresh requests can evict a real pending code;
- * the family member then gets "none" and simply asks for a new code.
- *
- * LOCKOUT DoS (finding 2): per trusted client IP (resolveClientIp), ≤ 10 code requests per hour across
- * all emails and ≤ 10 failed verifies per 10 minutes. Once an IP is over the
- * verify limit its attempts are refused WITHOUT touching the email's 5
- * tries, and answer "burned" so it cannot probe. RESIDUAL RISK (accepted for
- * this family app): a distributed attacker who knows a family email can, from
- * ≥ 5 IPs, still burn the current code, and from enough IPs exhaust that
- * email's 5 sends/hour — locking that email out for ≤ 1 hour. No data is
- * exposed; the family waits or uses another listed address.
+ * LOCKOUT DoS: per trusted client IP (resolveClientIp), ≤ 10 code requests per
+ * hour across all emails and ≤ 10 failed verifies per 10 minutes. Once an IP
+ * is over the verify limit its attempts are refused WITHOUT touching the
+ * email's 5 tries. RESIDUAL RISK (accepted for this family app): a
+ * distributed attacker who knows a family email can, from ≥ 5 IPs, burn the
+ * current code, and from enough IPs exhaust that email's 5 sends/hour —
+ * locking that email out for ≤ 1 hour. No data is exposed.
  */
 export class OtpStore {
+  /** Keyed ONLY by allowlisted emails. */
   private readonly challenges = new Map<string, Challenge>()
-  private readonly sendLog = new Map<string, SendLog>()
+  /** Keyed ONLY by allowlisted emails. */
+  private readonly sendLog = new Map<string, number[]>()
   private readonly ipRequests = new Map<string, number[]>()
   private readonly ipFailures = new Map<string, number[]>()
   private readonly now: () => number
   private readonly randomCode: () => number
   private readonly hashKey: Buffer
+  /** Compared against when there is no challenge, so every path does the same work. */
+  private readonly dummyHash: Buffer
 
   constructor(opts: OtpStoreOptions = {}) {
     this.now = opts.now ?? Date.now
     this.randomCode = opts.randomCode ?? (() => randomInt(0, 1_000_000))
     this.hashKey = opts.hashKey ?? randomBytes(32)
+    this.dummyHash = randomBytes(32)
   }
 
-  private hash(email: string, code: string): Buffer {
+  protected hash(email: string, code: string): Buffer {
     return createHmac('sha256', this.hashKey).update(`${email}\n${code}`).digest()
   }
 
   /** Sends within the rolling hour, pruned in place. */
   private recentSends(email: string, t: number): number[] {
-    const log = this.sendLog.get(email)
-    const sends = (log?.sends ?? []).filter((s) => t - s < SEND_WINDOW_MS)
-    if (log && sends.length) log.sends = sends
-    else this.sendLog.delete(email)
-    return sends
-  }
-
-  /**
-   * Blind LRU: evict the OLDEST entries (Map insertion order = creation
-   * order, since every write deletes then re-inserts) until there is room.
-   * Deliberately ignores decoy vs real, so eviction cannot reveal which
-   * emails are listed.
-   */
-  private static evictOldest<V>(map: Map<string, V>, cap: number): void {
-    while (map.size >= cap) {
-      const oldest = map.keys().next().value
-      if (oldest === undefined) break
-      map.delete(oldest)
-    }
+    return recentIn(this.sendLog, email, t, SEND_WINDOW_MS)
   }
 
   /** `clientIp` null ⇒ no trusted client IP: per-IP limits skipped, per-email rules apply. */
@@ -264,10 +251,10 @@ export class OtpStore {
     }
 
     const email = normalizeEmail(rawEmail)
-    if (!wellFormedEmail(email)) return { status: 'not-allowed' } // stores nothing
-    const decoy = !allowlist.has(email)
-    const sends = this.recentSends(email, t)
+    // Unlisted or malformed: store NOTHING (no challenge, no send log).
+    if (!wellFormedEmail(email) || !allowlist.has(email)) return { status: 'not-allowed' }
 
+    const sends = this.recentSends(email, t)
     if (sends.length >= MAX_SENDS_PER_HOUR) {
       const oldest = sends[0]
       return { status: 'rate-limited', retryInSec: Math.ceil((oldest + SEND_WINDOW_MS - t) / 1000) }
@@ -277,76 +264,59 @@ export class OtpStore {
       return { status: 'cooldown', retryInSec: Math.ceil((last + RESEND_COOLDOWN_MS - t) / 1000) }
     }
 
-    const expiresAt = t + CODE_TTL_MS
-    let code = ''
-    let codeHash: Buffer
-    if (decoy) {
-      codeHash = randomBytes(32) // an HMAC output that no input can be expected to produce
-    } else {
-      const n = this.randomCode()
-      if (!Number.isInteger(n) || n < 0 || n >= 1_000_000) {
-        throw new RangeError('randomCode must return an integer in [0, 1_000_000)')
-      }
-      code = String(n).padStart(6, '0')
-      codeHash = this.hash(email, code)
+    const n = this.randomCode()
+    if (!Number.isInteger(n) || n < 0 || n >= 1_000_000) {
+      throw new RangeError('randomCode must return an integer in [0, 1_000_000)')
     }
+    const code = String(n).padStart(6, '0')
+    const expiresAt = t + CODE_TTL_MS
     // Replaces any prior code for this email: old digits stop working, tries reset.
-    this.challenges.delete(email)
-    OtpStore.evictOldest(this.challenges, MAX_CHALLENGE_ENTRIES)
-    this.challenges.set(email, { codeHash, expiresAt, tries: 0, decoy })
-    this.sendLog.delete(email)
-    OtpStore.evictOldest(this.sendLog, MAX_SEND_LOG_ENTRIES)
-    this.sendLog.set(email, { sends: [...sends, t], decoy })
-    return decoy ? { status: 'decoy', expiresAt } : { status: 'sent', code, expiresAt }
+    this.challenges.set(email, { codeHash: this.hash(email, code), expiresAt, tries: 0 })
+    this.sendLog.set(email, [...sends, t])
+    return { status: 'sent', code, expiresAt }
   }
 
   /** `clientIp` null ⇒ no trusted client IP: per-IP limit skipped, per-email 5 tries apply. */
   verifyCode(rawEmail: unknown, rawCode: unknown, clientIp: string | null = null): VerifyResult {
     const t = this.now()
-    const failures = clientIp ? recentIn(this.ipFailures, clientIp, t, IP_VERIFY_WINDOW_MS) : []
-    // Over-limit IP: refused before the challenge is even looked at, so the
-    // email's tries are untouched. Same outward code as a real burn.
-    if (clientIp && failures.length >= IP_MAX_FAILED_VERIFIES) return { ok: false, reason: 'burned' }
-
-    const result = this.check(normalizeEmail(rawEmail), rawCode, t)
-    if (clientIp && !result.ok) pushCapped(this.ipFailures, clientIp, failures, t, MAX_IP_ENTRIES)
-    return result
-  }
-
-  private check(email: string, rawCode: unknown, t: number): VerifyResult {
-    const challenge = email ? this.challenges.get(email) : undefined
-    if (!challenge) return { ok: false, reason: 'none' }
-
-    if (challenge.tries >= MAX_WRONG_TRIES) return { ok: false, reason: 'burned' }
-    if (t >= challenge.expiresAt) {
-      this.challenges.delete(email)
-      return { ok: false, reason: 'expired' }
-    }
-
+    const email = normalizeEmail(rawEmail)
     // Tolerate "123 456" / "123-456" pasted from mail; anything else that is
     // not exactly 6 digits is still hashed and compared, so it counts as a try.
-    // Decoys take this same path (hash + compare + tries).
     const code = String(rawCode ?? '').replace(/[\s-]/g, '')
+    // Constant work: exactly one HMAC + one constant-time compare on EVERY
+    // path (over-limit IP, no challenge, burned, expired, wrong, right).
     const candidate = this.hash(email, code)
-    const match =
-      timingSafeEqual(candidate, challenge.codeHash) && /^\d{6}$/.test(code) && !challenge.decoy
+    const challenge = email ? this.challenges.get(email) : undefined
+    const equal = timingSafeEqual(candidate, challenge?.codeHash ?? this.dummyHash)
 
-    if (match) {
+    const failures = clientIp ? recentIn(this.ipFailures, clientIp, t, IP_VERIFY_WINDOW_MS) : []
+    const fail = (r: VerifyResult): VerifyResult => {
+      if (clientIp) pushCapped(this.ipFailures, clientIp, failures, t, MAX_IP_ENTRIES)
+      return r
+    }
+    // Over-limit IP: refused before the challenge is touched, so the email's
+    // tries are untouched.
+    if (clientIp && failures.length >= IP_MAX_FAILED_VERIFIES) return { ok: false, reason: 'burned' }
+
+    if (!challenge) return fail({ ok: false, reason: 'none' })
+    if (challenge.tries >= MAX_WRONG_TRIES) return fail({ ok: false, reason: 'burned' })
+    if (t >= challenge.expiresAt) {
+      this.challenges.delete(email)
+      return fail({ ok: false, reason: 'expired' })
+    }
+    if (equal && /^\d{6}$/.test(code)) {
       this.challenges.delete(email) // single use
       return { ok: true, email }
     }
     challenge.tries += 1
     const triesLeft = MAX_WRONG_TRIES - challenge.tries
-    return triesLeft <= 0
-      ? { ok: false, reason: 'burned', triesLeft: 0 }
-      : { ok: false, reason: 'wrong', triesLeft }
+    return fail(triesLeft <= 0 ? { ok: false, reason: 'burned', triesLeft: 0 } : { ok: false, reason: 'wrong', triesLeft })
   }
 
   /**
-   * L99: drop expired challenges (decoys and burned ones included — burned
-   * ones stay until expiry so they keep answering "burned", not "none"), send
-   * logs whose every send is older than the rolling hour, and stale IP
-   * windows. Returns how many map entries were removed.
+   * L99: drop expired challenges (burned ones stay until expiry), send logs
+   * whose every send is older than the rolling hour, and stale IP windows.
+   * Returns how many map entries were removed.
    */
   sweepExpired(): number {
     const t = this.now()
@@ -357,16 +327,23 @@ export class OtpStore {
         removed++
       }
     }
-    for (const email of [...this.sendLog.keys()]) {
-      if (this.recentSends(email, t).length === 0) removed++
+    const prune = (map: Map<string, number[]>, windowMs: number) => {
+      for (const key of [...map.keys()]) if (recentIn(map, key, t, windowMs).length === 0) removed++
     }
-    for (const ip of [...this.ipRequests.keys()]) {
-      if (recentIn(this.ipRequests, ip, t, SEND_WINDOW_MS).length === 0) removed++
-    }
-    for (const ip of [...this.ipFailures.keys()]) {
-      if (recentIn(this.ipFailures, ip, t, IP_VERIFY_WINDOW_MS).length === 0) removed++
-    }
+    prune(this.sendLog, SEND_WINDOW_MS)
+    prune(this.ipRequests, SEND_WINDOW_MS)
+    prune(this.ipFailures, IP_VERIFY_WINDOW_MS)
     return removed
+  }
+
+  /**
+   * Invariant check (tests / diagnostics): every key in the code and
+   * send-log maps is on the allowlist. Throws otherwise.
+   */
+  assertBoundedBy(allowlist: ReadonlySet<string>): void {
+    for (const key of [...this.challenges.keys(), ...this.sendLog.keys()]) {
+      if (!allowlist.has(key)) throw new Error('otpStore invariant: an entry is not on the allowlist')
+    }
   }
 
   /** Test/diagnostic helper — never exposed over HTTP. */

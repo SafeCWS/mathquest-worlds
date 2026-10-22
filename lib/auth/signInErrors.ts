@@ -1,43 +1,21 @@
 /**
- * Maps an otpStore VerifyResult to the `code` the login page reads from
- * `signIn('credentials', { redirect: false })` → `result.code`.
+ * The ONE code the login page reads from
+ * `signIn('credentials', { redirect: false })` → `result.code` on failure.
  *
- * Contract (fixed with the login page):
- *   wrong_4 | wrong_3 | wrong_2 | wrong_1   — wrong digits, N tries left
- *   burned                                  — 5 wrong tries; ask for a new code
- *   expired                                 — older than 10 minutes
- *   none                                    — no code pending for that email
+ * Operator decision 2026-10-22: a wrong code shows one generic message — no
+ * "N tries left", no burned/expired distinction — so the sign-in surface
+ * cannot reveal whether an email is on the family list. Wrong, burned,
+ * expired, no code pending and IP-over-limit all map to 'invalid'. The
+ * 5-try burn, expiry and single use still apply internally (otpStore).
  *
  * Pure (no next-auth import) so it is unit-testable and Edge-neutral.
  */
 import type { VerifyResult } from './otpStore'
 
-export const SIGN_IN_ERROR_CODES = [
-  'wrong_4',
-  'wrong_3',
-  'wrong_2',
-  'wrong_1',
-  'burned',
-  'expired',
-  'none',
-] as const
+export const SIGN_IN_ERROR_CODES = ['invalid'] as const
 export type SignInErrorCode = (typeof SIGN_IN_ERROR_CODES)[number]
 
 export function signInErrorCode(result: Exclude<VerifyResult, { ok: true }>): SignInErrorCode {
-  switch (result.reason) {
-    case 'burned':
-      return 'burned'
-    case 'expired':
-      return 'expired'
-    case 'none':
-      return 'none'
-    case 'wrong': {
-      const left = result.triesLeft ?? 0
-      if (left >= 4) return 'wrong_4'
-      if (left === 3) return 'wrong_3'
-      if (left === 2) return 'wrong_2'
-      if (left === 1) return 'wrong_1'
-      return 'burned'
-    }
-  }
+  void result // deliberately ignored: the reason must never reach the client
+  return 'invalid'
 }
