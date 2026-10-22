@@ -187,9 +187,11 @@ export function StoryMissions(props: ModeProps) {
   const demoTarget = useRef<HTMLDivElement>(null)
   useDemoStep(demo, goSlots, story.speak, (txt) => read(story.text, txt), onDemoDone)
 
+  // Both slots full → the 500 ms move to "pick" is running; a ref, so two taps in one task
+  // (before React re-renders) are caught too (code-reviewer #3).
+  const slotsFull = useRef(false)
   const tapChip = (n: number) => {
-    // slotEach set = both slots full; the 500 ms move to "pick" is running (code-reviewer #3).
-    if (phase !== 'slots' || slotEach !== null) return
+    if (phase !== 'slots' || slotEach !== null || slotsFull.current) return
     if (slotGroups === null) {
       const r = checkSlot(story, 'groups', n)
       if (r !== 'ok') return onWrong(undefined, slotHint(story, 'groups', r) ?? undefined)
@@ -200,6 +202,7 @@ export function StoryMissions(props: ModeProps) {
     const r = checkSlot(story, 'each', n)
     if (r !== 'ok') return onWrong(undefined, slotHint(story, 'each', r) ?? undefined)
     sfx.blockPop()
+    slotsFull.current = true
     setSlotEach(n)
     onStep('step')
     later(() => setPhase('pick'), 500)
