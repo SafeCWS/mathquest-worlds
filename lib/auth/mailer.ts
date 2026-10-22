@@ -138,9 +138,20 @@ function validTimeZone(zone: string): boolean {
   }
 }
 
+function noticeZone(zone: string | undefined): { tz: string; label: string } {
+  const wanted = (zone ?? '').trim()
+  const tz = wanted && validTimeZone(wanted) ? wanted : DEFAULT_NOTICE_TIMEZONE
+  return { tz, label: tz === DEFAULT_NOTICE_TIMEZONE ? DEFAULT_NOTICE_LABEL : tz }
+}
+
+/** ICU may put U+202F / U+00A0 before "PM"; mail clients render plain spaces best. */
+function plainSpaces(s: string): string {
+  return s.replace(/[  ]/g, ' ')
+}
+
 /**
- * The unlock time shown in the lock notice, e.g.
- * "Friday, October 23, 3:15 PM Colombia time".
+ * The lock end shown in the notice body, e.g.
+ * "Friday, Oct 23, 3:15 PM Colombia time".
  *
  * Zone: env OTP_NOTICE_TIMEZONE (an IANA name, validated with Intl), default
  * America/Bogota — the operator is in Colombia (UTC-5 all year, no DST).
@@ -148,32 +159,45 @@ function validTimeZone(zone: string): boolean {
  * IANA name. An invalid value falls back to the default and never throws.
  */
 export function formatNoticeTime(epochMs: number, zone: string | undefined = process.env.OTP_NOTICE_TIMEZONE): string {
-  const wanted = (zone ?? '').trim()
-  const tz = wanted && validTimeZone(wanted) ? wanted : DEFAULT_NOTICE_TIMEZONE
-  const label = tz === DEFAULT_NOTICE_TIMEZONE ? DEFAULT_NOTICE_LABEL : tz
+  const { tz, label } = noticeZone(zone)
   const s = new Intl.DateTimeFormat('en-US', {
     timeZone: tz,
     weekday: 'long',
-    month: 'long',
+    month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(epochMs))
-  return `${s.replace(' at ', ', ')} ${label}`
+  return `${plainSpaces(s).replace(' at ', ', ')} ${label}`
+}
+
+/** The short lock end for the subject line, e.g. "Fri 3:15 PM" (same zone, no label). */
+export function noticeSubjectTime(epochMs: number, zone: string | undefined = process.env.OTP_NOTICE_TIMEZONE): string {
+  const { tz } = noticeZone(zone)
+  const s = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    weekday: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(epochMs))
+  return plainSpaces(s)
 }
 
 /**
- * The ONE notice sent when an email enters the 24 h failure lock. English
- * only, no code. Copy per security review SHOULD-4 (2026-10-22).
+ * The ONE notice sent when an email enters a sign-in lock. English only,
+ * no code, `until` = the lock end. Wording chosen by the operator 2026-10-22.
  */
 export function buildLockNoticeMail(until: number): OtpMail {
   const when = formatNoticeTime(until)
-  const subject = 'MathQuest sign-in is paused for your email'
-  const line = `Someone tried to sign in to MathQuest with your email. If it was you, wait until ${when}.`
-  const text = `${line}\n`
+  const subject = `MathQuest sign-in paused until ${noticeSubjectTime(until)}`
+  const safe =
+    'Your account is safe. Nobody can sign in without a code sent to this inbox. ' +
+    "If this wasn't you, you don't need to do anything."
+  const text = `There were too many wrong codes for your email today, so sign-in is paused until ${when}. ${safe}\n`
   const html = `<!doctype html>
 <html><body style="margin:0;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;background:#ffffff">
-<p style="font-size:16px;margin:0">Someone tried to sign in to MathQuest with your email. If it was you, wait until <strong>${when}</strong>.</p>
+<p style="font-size:16px;margin:0 0 12px">There were too many wrong codes for your email today, so sign-in is paused until <strong>${when}</strong>.</p>
+<p style="font-size:14px;margin:0">${safe.replace(/'/g, '&#39;')}</p>
 </body></html>`
   return { subject, text, html }
 }

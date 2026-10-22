@@ -4,7 +4,7 @@
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildLockNoticeMail, buildOtpMail, formatNoticeTime, sendLockNotice, sendOtpMail, SMTP_USER } from '../mailer'
+import { buildLockNoticeMail, buildOtpMail, formatNoticeTime, noticeSubjectTime, sendLockNotice, sendOtpMail, SMTP_USER } from '../mailer'
 
 const TO = 'parent@example.com'
 const FAKE_PASS = 'synthetic-test-pass'
@@ -108,27 +108,29 @@ describe('sendOtpMail', () => {
   })
 })
 
-describe('lock notice mail (24 h failure lock)', () => {
-  const UNTIL = Date.UTC(2026, 9, 23, 20, 15) // 3:15 PM in Bogotá (UTC-5)
+describe('lock notice mail', () => {
+  const UNTIL = Date.UTC(2026, 9, 23, 20, 15) // Friday 3:15 PM in Bogotá (UTC-5)
   const AFTER_DST_END = Date.UTC(2026, 10, 10, 20, 15) // US Central is UTC-6 by then; Bogotá stays UTC-5
 
-  it('default: Colombia time (America/Bogota), English', () => {
-    assert.equal(formatNoticeTime(UNTIL, undefined), 'Friday, October 23, 3:15 PM Colombia time')
+  it('default: Colombia time (America/Bogota), English, short month', () => {
+    assert.equal(formatNoticeTime(UNTIL, undefined), 'Friday, Oct 23, 3:15 PM Colombia time')
+    assert.equal(noticeSubjectTime(UNTIL, undefined), 'Fri 3:15 PM')
   })
 
   it('after 2026-11-01 shows Bogotá UTC-5, not Central UTC-6', () => {
-    assert.equal(formatNoticeTime(AFTER_DST_END, undefined), 'Tuesday, November 10, 3:15 PM Colombia time')
+    assert.equal(formatNoticeTime(AFTER_DST_END, undefined), 'Tuesday, Nov 10, 3:15 PM Colombia time')
     assert.notEqual(formatNoticeTime(AFTER_DST_END, undefined), formatNoticeTime(AFTER_DST_END, 'America/Chicago'))
   })
 
   it('OTP_NOTICE_TIMEZONE picks another IANA zone, labelled by its name', () => {
-    assert.equal(formatNoticeTime(AFTER_DST_END, 'America/Chicago'), 'Tuesday, November 10, 2:15 PM America/Chicago')
-    assert.equal(formatNoticeTime(UNTIL, 'America/Bogota'), 'Friday, October 23, 3:15 PM Colombia time')
+    assert.equal(formatNoticeTime(AFTER_DST_END, 'America/Chicago'), 'Tuesday, Nov 10, 2:15 PM America/Chicago')
+    assert.equal(noticeSubjectTime(AFTER_DST_END, 'America/Chicago'), 'Tue 2:15 PM')
+    assert.equal(formatNoticeTime(UNTIL, 'America/Bogota'), 'Friday, Oct 23, 3:15 PM Colombia time')
   })
 
   it('an invalid zone falls back to Colombia time, never throws', () => {
     for (const bad of ['Mars/Base', 'not a zone', '', '   ']) {
-      assert.equal(formatNoticeTime(UNTIL, bad), 'Friday, October 23, 3:15 PM Colombia time', bad)
+      assert.equal(formatNoticeTime(UNTIL, bad), 'Friday, Oct 23, 3:15 PM Colombia time', bad)
     }
   })
 
@@ -145,14 +147,24 @@ describe('lock notice mail (24 h failure lock)', () => {
     }
   })
 
-  it('says what happened and when to try again; carries no code', () => {
+  it('plain spaces only (ICU may emit U+202F before PM)', () => {
+    for (const t of [formatNoticeTime(UNTIL, undefined), noticeSubjectTime(UNTIL, undefined)]) {
+      assert.doesNotMatch(t, /[  ]/)
+    }
+  })
+
+  it('operator-chosen wording: subject, text and HTML (time in bold); no code', () => {
     const m = buildLockNoticeMail(UNTIL)
-    assert.equal(m.subject, 'MathQuest sign-in is paused for your email')
-    assert.match(
+    assert.equal(m.subject, 'MathQuest sign-in paused until Fri 3:15 PM')
+    assert.equal(
       m.text,
-      /^Someone tried to sign in to MathQuest with your email\. If it was you, wait until Friday, October 23, 3:15 PM Colombia time\./,
+      'There were too many wrong codes for your email today, so sign-in is paused until Friday, Oct 23, 3:15 PM Colombia time. ' +
+        'Your account is safe. Nobody can sign in without a code sent to this inbox. ' +
+        "If this wasn't you, you don't need to do anything.\n",
     )
-    assert.match(m.html, /Someone tried to sign in to MathQuest with your email\./)
+    assert.match(m.html, /sign-in is paused until <strong>Friday, Oct 23, 3:15 PM Colombia time<\/strong>\./)
+    assert.match(m.html, /Your account is safe\. Nobody can sign in without a code sent to this inbox\./)
+    assert.match(m.html, /If this wasn(&#39;|')t you, you don(&#39;|')t need to do anything\./)
     for (const part of [m.subject, m.text, m.html]) assert.doesNotMatch(part, /\b\d{6}\b/)
   })
 
@@ -162,7 +174,7 @@ describe('lock notice mail (24 h failure lock)', () => {
       pass: FAKE_PASS,
       send: async ({ port, mail }) => {
         ports.push(port)
-        assert.equal(mail.subject, 'MathQuest sign-in is paused for your email')
+        assert.equal(mail.subject, 'MathQuest sign-in paused until Fri 3:15 PM')
         if (port === 465) throw Object.assign(new Error('x'), { code: 'ECONNRESET' })
       },
       log: recorder().log,
