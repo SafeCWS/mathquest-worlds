@@ -45,3 +45,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .github/
+
+# next dev writes this into the project root (Next 16.4); local only
+AGENTS.md
