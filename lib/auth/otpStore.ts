@@ -201,10 +201,17 @@ function pushCapped(map: Map<string, number[]>, key: string, hits: number[], t: 
  * LOCKOUT DoS: per trusted client IP (resolveClientIp — cf-connecting-ip), ≤ 10 code requests per
  * hour across all emails and ≤ 10 failed verifies per 10 minutes. Once an IP
  * is over the verify limit its attempts are refused WITHOUT touching the
- * email's 5 tries. RESIDUAL RISK (accepted for this family app): a
- * distributed attacker who knows a family email can, from ≥ 5 IPs, burn the
- * current code, and from enough IPs exhaust that email's 5 sends/hour —
- * locking that email out for ≤ 1 hour. No data is exposed.
+ * email's 5 tries.
+ *
+ * RESIDUAL RISK (current policy; the operator may change it, e.g. to an
+ * escalating lock): a SINGLE attacker who knows a family email can lock NEW
+ * sign-ins for that email for 24 hours, and can renew the lock every day.
+ * It takes 30 wrong guesses against live codes, so at least 6 requested
+ * codes; the 5-sends/hour cap and the per-IP limits stretch that over more
+ * than an hour, but one IP is enough. Existing sessions are unaffected (the
+ * lock only blocks new sign-ins), the family gets ONE notice email per lock,
+ * and no data is exposed. Shorter effects: burning the current code, or
+ * using up the email's 5 sends for the hour.
  */
 export class OtpStore {
   /** Keyed ONLY by allowlisted emails. */
