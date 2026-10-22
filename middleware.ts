@@ -1,8 +1,19 @@
-export { auth as middleware } from '@/auth'
+import NextAuth from 'next-auth'
+import { authConfig } from '@/lib/auth/config'
+
+// Edge middleware builds its OWN NextAuth from the provider-less, Edge-safe
+// config. It must NEVER import '@/auth': that module pulls in the OTP store
+// (node:crypto), which the Edge runtime cannot load. Only the JWT cookie is
+// decoded here; codes are verified in auth.ts on the Node runtime.
+// (Default export: Next's static analysis does not recognise a destructured
+// `export const { auth: middleware }` as the middleware function.)
+const { auth } = NextAuth(authConfig)
+export default auth
 
 // Protect everything EXCEPT:
 //   - Next.js internals (_next/static, _next/image, favicon)
 //   - Auth routes (api/auth/*)
+//   - OTP request route (api/otp/*) — called while logged out (L156)
 //   - Health check (api/health)
 //   - The /login page itself
 //   - Static asset file extensions (EXPLICITLY ENUMERATED)
@@ -20,6 +31,6 @@ export { auth as middleware } from '@/auth'
 // + Safari chrome instead of the proper standalone PWA install.
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api/auth|api/health|login|.*\\.(?:svg|png|jpg|jpeg|gif|ico|woff|woff2|ttf|eot|css|js|mjs|map|mp3|wav|ogg|mp4|webm|webp|avif|pdf|txt|json|xml|webmanifest)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/auth|api/otp/|api/health|login|.*\\.(?:svg|png|jpg|jpeg|gif|ico|woff|woff2|ttf|eot|css|js|mjs|map|mp3|wav|ogg|mp4|webm|webp|avif|pdf|txt|json|xml|webmanifest)$).*)',
   ],
 }
