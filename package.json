@@ -18,7 +18,7 @@
     "interactjs": "^1.10.27",
     "lottie-react": "^2.4.1",
     "motion": "^12.28.1",
-    "next": "16.1.4",
+    "next": "16.4.2",
     "next-auth": "5.0.0-beta.32",
     "next-intl": "^4.9.1",
     "nodemailer": "10.2.1",
@@ -35,7 +35,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.1.4",
+    "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5"
