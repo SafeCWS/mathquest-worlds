@@ -45,3 +45,6 @@ services:
       # Optional: TRUSTED_IP_HEADER = cf-connecting-ip (default when unset)
       # or x-forwarded-for-rightmost. Read the one-time `[otp] ip_source=`
       # log line before changing it. See lib/auth/otpStore.ts resolveClientIp.
+      # Optional: OTP_NOTICE_TIMEZONE = IANA zone for the unlock time in the
+      # 24 h lock notice email. Default America/Bogota ("Colombia time");
+      # an invalid name falls back to the default.

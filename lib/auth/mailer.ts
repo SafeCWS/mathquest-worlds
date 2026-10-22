@@ -125,20 +125,41 @@ export function sendOtpMail(to: string, code: string, ttlMinutes: number, deps: 
   return deliver(to, () => buildOtpMail(code, ttlMinutes), 'otp-mail', deps)
 }
 
+export const DEFAULT_NOTICE_TIMEZONE = 'America/Bogota'
+const DEFAULT_NOTICE_LABEL = 'Colombia time'
+
+/** True when `zone` is an IANA time zone this runtime's Intl knows. */
+function validTimeZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone })
+    return true
+  } catch {
+    return false
+  }
+}
+
 /**
- * "Friday, October 23, 3:15 PM Central Time". The family is in Texas, so the
- * unlock time is shown in US Central (DST-aware), never server UTC.
+ * The unlock time shown in the lock notice, e.g.
+ * "Friday, October 23, 3:15 PM Colombia time".
+ *
+ * Zone: env OTP_NOTICE_TIMEZONE (an IANA name, validated with Intl), default
+ * America/Bogota — the operator is in Colombia (UTC-5 all year, no DST).
+ * The default is labelled "Colombia time"; any other zone is labelled by its
+ * IANA name. An invalid value falls back to the default and never throws.
  */
-export function formatCentral(epochMs: number): string {
+export function formatNoticeTime(epochMs: number, zone: string | undefined = process.env.OTP_NOTICE_TIMEZONE): string {
+  const wanted = (zone ?? '').trim()
+  const tz = wanted && validTimeZone(wanted) ? wanted : DEFAULT_NOTICE_TIMEZONE
+  const label = tz === DEFAULT_NOTICE_TIMEZONE ? DEFAULT_NOTICE_LABEL : tz
   const s = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Chicago',
+    timeZone: tz,
     weekday: 'long',
     month: 'long',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(epochMs))
-  return `${s.replace(' at ', ', ')} Central Time`
+  return `${s.replace(' at ', ', ')} ${label}`
 }
 
 /**
@@ -146,7 +167,7 @@ export function formatCentral(epochMs: number): string {
  * only, no code. Copy per security review SHOULD-4 (2026-10-22).
  */
 export function buildLockNoticeMail(until: number): OtpMail {
-  const when = formatCentral(until)
+  const when = formatNoticeTime(until)
   const subject = 'MathQuest sign-in is paused for your email'
   const line = `Someone tried to sign in to MathQuest with your email. If it was you, wait until ${when}.`
   const text = `${line}\n`

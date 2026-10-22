@@ -4,7 +4,7 @@
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildLockNoticeMail, buildOtpMail, formatCentral, sendLockNotice, sendOtpMail, SMTP_USER } from '../mailer'
+import { buildLockNoticeMail, buildOtpMail, formatNoticeTime, sendLockNotice, sendOtpMail, SMTP_USER } from '../mailer'
 
 const TO = 'parent@example.com'
 const FAKE_PASS = 'synthetic-test-pass'
@@ -109,10 +109,40 @@ describe('sendOtpMail', () => {
 })
 
 describe('lock notice mail (24 h failure lock)', () => {
-  const UNTIL = Date.UTC(2026, 9, 23, 20, 15) // 3:15 PM Central (CDT)
+  const UNTIL = Date.UTC(2026, 9, 23, 20, 15) // 3:15 PM in Bogotá (UTC-5)
+  const AFTER_DST_END = Date.UTC(2026, 10, 10, 20, 15) // US Central is UTC-6 by then; Bogotá stays UTC-5
 
-  it('formats the unlock time in Central time, English', () => {
-    assert.equal(formatCentral(UNTIL), 'Friday, October 23, 3:15 PM Central Time')
+  it('default: Colombia time (America/Bogota), English', () => {
+    assert.equal(formatNoticeTime(UNTIL, undefined), 'Friday, October 23, 3:15 PM Colombia time')
+  })
+
+  it('after 2026-11-01 shows Bogotá UTC-5, not Central UTC-6', () => {
+    assert.equal(formatNoticeTime(AFTER_DST_END, undefined), 'Tuesday, November 10, 3:15 PM Colombia time')
+    assert.notEqual(formatNoticeTime(AFTER_DST_END, undefined), formatNoticeTime(AFTER_DST_END, 'America/Chicago'))
+  })
+
+  it('OTP_NOTICE_TIMEZONE picks another IANA zone, labelled by its name', () => {
+    assert.equal(formatNoticeTime(AFTER_DST_END, 'America/Chicago'), 'Tuesday, November 10, 2:15 PM America/Chicago')
+    assert.equal(formatNoticeTime(UNTIL, 'America/Bogota'), 'Friday, October 23, 3:15 PM Colombia time')
+  })
+
+  it('an invalid zone falls back to Colombia time, never throws', () => {
+    for (const bad of ['Mars/Base', 'not a zone', '', '   ']) {
+      assert.equal(formatNoticeTime(UNTIL, bad), 'Friday, October 23, 3:15 PM Colombia time', bad)
+    }
+  })
+
+  it('reads OTP_NOTICE_TIMEZONE from the env by default', () => {
+    const orig = process.env.OTP_NOTICE_TIMEZONE
+    try {
+      process.env.OTP_NOTICE_TIMEZONE = 'America/Chicago'
+      assert.match(formatNoticeTime(AFTER_DST_END), /2:15 PM America\/Chicago$/)
+      delete process.env.OTP_NOTICE_TIMEZONE
+      assert.match(formatNoticeTime(AFTER_DST_END), /3:15 PM Colombia time$/)
+    } finally {
+      if (orig === undefined) delete process.env.OTP_NOTICE_TIMEZONE
+      else process.env.OTP_NOTICE_TIMEZONE = orig
+    }
   })
 
   it('says what happened and when to try again; carries no code', () => {
@@ -120,7 +150,7 @@ describe('lock notice mail (24 h failure lock)', () => {
     assert.equal(m.subject, 'MathQuest sign-in is paused for your email')
     assert.match(
       m.text,
-      /^Someone tried to sign in to MathQuest with your email\. If it was you, wait until Friday, October 23, 3:15 PM Central Time\./,
+      /^Someone tried to sign in to MathQuest with your email\. If it was you, wait until Friday, October 23, 3:15 PM Colombia time\./,
     )
     assert.match(m.html, /Someone tried to sign in to MathQuest with your email\./)
     for (const part of [m.subject, m.text, m.html]) assert.doesNotMatch(part, /\b\d{6}\b/)
