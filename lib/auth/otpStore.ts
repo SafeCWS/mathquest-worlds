@@ -94,7 +94,7 @@ function wellFormedEmail(email: string): boolean {
   return !!email && email.length <= MAX_EMAIL_LENGTH && email.includes('@')
 }
 
-export type IpSource = 'x-forwarded-for-rightmost' | `header:${string}` | 'none'
+export type IpSource = 'cf-connecting-ip' | 'x-forwarded-for-rightmost' | 'none'
 
 function validIp(v: string | null | undefined): string | null {
   const t = (v ?? '').trim()
@@ -110,51 +110,60 @@ function rightmost(v: string | null | undefined): string | null {
  * THE one place that decides which header identifies the client for the
  * per-IP limits.
  *
- * Default: the RIGHT-MOST x-forwarded-for hop only — the one Render's proxy
- * appends. Left-most hops, true-client-ip and cf-connecting-ip are
- * client-settable unless a trusted edge overwrites them, so the default never
- * reads them.
- *
- * `trustedHeader` (env TRUSTED_IP_HEADER, e.g. `cf-connecting-ip`) switches
- * the source at deploy time — set it ONLY after G4 shows that header is
- * populated by infrastructure in front of Render. A malformed value is
- * ignored (default source). Comma lists in the chosen header use the
- * right-most entry.
+ * mathquest-worlds.onrender.com sits in Render's Cloudflare zone (security
+ * review 2026-10-22: CNAME …cdn.cloudflare.net, `server: cloudflare`,
+ * cf-ray). So:
+ *   - DEFAULT: `cf-connecting-ip` — Cloudflare overwrites it on every
+ *     request, so a client cannot choose it. Exactly one IP, no lists.
+ *   - The right-most X-Forwarded-For hop may be a SHARED Cloudflare edge IP
+ *     (unrelated clients would pool into one bucket); it is used only when
+ *     TRUSTED_IP_HEADER=x-forwarded-for-rightmost.
+ *   - `true-client-ip` is NEVER read (client-settable without Enterprise).
+ * TRUSTED_IP_HEADER accepts only `cf-connecting-ip` or
+ * `x-forwarded-for-rightmost`; any other value is ignored (default).
  *
  * No usable IP ⇒ { ip: null }: the per-IP limits are SKIPPED for that request
  * (never a shared bucket); the per-email rules still apply.
  *
  * !! CONFIRM ON RENDER AFTER DEPLOY (G4): read the one-time
- * `[otp] ip_source=… headers_present=…` log line.
+ * `[otp] ip_source=… headers_present=… xff_rightmost_equals_cf_connecting_ip=…`
+ * log line (names and a boolean only, never values).
  */
 export function resolveClientIp(
   headers: Headers | undefined | null,
   trustedHeader?: string,
 ): { ip: string | null; source: IpSource } {
-  const name = (trustedHeader ?? '').trim().toLowerCase()
-  if (name && /^[a-z0-9-]{1,64}$/.test(name) && name !== 'x-forwarded-for') {
-    const ip = rightmost(headers?.get(name))
-    return ip ? { ip, source: `header:${name}` } : { ip: null, source: 'none' }
+  const mode = (trustedHeader ?? '').trim().toLowerCase()
+  if (mode === 'x-forwarded-for-rightmost') {
+    const ip = rightmost(headers?.get('x-forwarded-for'))
+    return ip ? { ip, source: 'x-forwarded-for-rightmost' } : { ip: null, source: 'none' }
   }
-  const ip = rightmost(headers?.get('x-forwarded-for'))
-  return ip ? { ip, source: 'x-forwarded-for-rightmost' } : { ip: null, source: 'none' }
+  const ip = validIp(headers?.get('cf-connecting-ip'))
+  return ip ? { ip, source: 'cf-connecting-ip' } : { ip: null, source: 'none' }
 }
 
 const IP_SOURCE_LOGGED = Symbol.for('mathquest.otpIpSourceLogged')
 const OBSERVED_HEADERS = ['true-client-ip', 'cf-connecting-ip', 'x-forwarded-for'] as const
 
+/** Names of the candidate headers present + one boolean. Never a value. */
+export function describeIpHeaders(headers: Headers | undefined | null): string {
+  const present = OBSERVED_HEADERS.filter((h) => headers?.has(h)).join(',') || '(none)'
+  const cf = validIp(headers?.get('cf-connecting-ip'))
+  const xr = rightmost(headers?.get('x-forwarded-for'))
+  return `headers_present=${present} xff_rightmost_equals_cf_connecting_ip=${!!cf && cf === xr}`
+}
+
 /**
  * resolveClientIp with TRUSTED_IP_HEADER from the env, plus a one-time log of
- * the source and of which candidate headers are PRESENT — names only, never
- * values — so G4 can decide whether to set TRUSTED_IP_HEADER.
+ * the source, the candidate header NAMES present and whether the right-most
+ * XFF hop equals cf-connecting-ip — so G4 can confirm the choice.
  */
 export function clientIpFrom(headers: Headers | undefined | null): string | null {
   const { ip, source } = resolveClientIp(headers, process.env.TRUSTED_IP_HEADER)
   const g = globalThis as typeof globalThis & { [IP_SOURCE_LOGGED]?: boolean }
   if (!g[IP_SOURCE_LOGGED]) {
     g[IP_SOURCE_LOGGED] = true
-    const present = OBSERVED_HEADERS.filter((h) => headers?.has(h)).join(',') || '(none)'
-    console.info(`[otp] ip_source=${source} headers_present=${present}`)
+    console.info(`[otp] ip_source=${source} ${describeIpHeaders(headers)}`)
   }
   return ip
 }
@@ -202,7 +211,7 @@ function pushCapped(map: Map<string, number[]>, key: string, hits: number[], t: 
 }
 
 /**
- * LOCKOUT DoS: per trusted client IP (resolveClientIp), ≤ 10 code requests per
+ * LOCKOUT DoS: per trusted client IP (resolveClientIp — cf-connecting-ip), ≤ 10 code requests per
  * hour across all emails and ≤ 10 failed verifies per 10 minutes. Once an IP
  * is over the verify limit its attempts are refused WITHOUT touching the
  * email's 5 tries. RESIDUAL RISK (accepted for this family app): a

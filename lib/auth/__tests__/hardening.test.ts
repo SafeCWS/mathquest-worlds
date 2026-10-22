@@ -6,8 +6,8 @@
  *     allowlist and never evicted, so no flood can drop a real code or reset
  *     a real email's send cap
  *   - verify does constant HMAC work on every path
- *   - per-client-IP limits keyed by the Render-appended (right-most) XFF hop,
- *     switchable with TRUSTED_IP_HEADER
+ *   - per-client-IP limits keyed by cf-connecting-ip (service sits in
+ *     Render's Cloudflare zone), switchable with TRUSTED_IP_HEADER
  * Synthetic emails and documentation-range IPs only.
  */
 import { describe, it, beforeEach } from 'node:test'
@@ -17,6 +17,7 @@ import {
   parseAllowlist,
   resolveClientIp,
   clientIpFrom,
+  describeIpHeaders,
   CODE_TTL_MS,
   RESEND_COOLDOWN_MS,
   SEND_WINDOW_MS,
@@ -65,7 +66,8 @@ beforeEach(() => {
   store = makeStore(OtpStore)
 })
 
-const xff = (ip: string) => new Request('http://localhost/', { headers: { 'x-forwarded-for': `10.0.0.1, ${ip}` } })
+const xff = (ip: string) =>
+  new Request('http://localhost/', { headers: { 'cf-connecting-ip': ip, 'x-forwarded-for': `10.0.0.1, ${ip}` } })
 const signIn = (email: string, code: string, ip: string) => {
   const r = authorizeOtp({ email, code }, xff(ip), store)
   return r.ok ? 'OK' : r.code
@@ -198,60 +200,71 @@ describe('per-client-IP limits', () => {
   })
 })
 
-describe('resolveClientIp', () => {
+describe('resolveClientIp (behind Render’s Cloudflare zone)', () => {
   const h = (o: Record<string, string>) => new Headers(o)
-  it('default: the RIGHT-MOST x-forwarded-for hop only', () => {
-    assert.deepEqual(resolveClientIp(h({ 'x-forwarded-for': '203.0.113.9, 10.0.0.1, 198.51.100.7' })), {
-      ip: '198.51.100.7',
-      source: 'x-forwarded-for-rightmost',
+  it('default: cf-connecting-ip (Cloudflare overwrites it)', () => {
+    assert.deepEqual(resolveClientIp(h({ 'cf-connecting-ip': '2001:db8::2', 'x-forwarded-for': '1.1.1.1, 172.70.0.1' })), {
+      ip: '2001:db8::2',
+      source: 'cf-connecting-ip',
     })
   })
-  it('default ignores spoofed true-client-ip / cf-connecting-ip and left-most hops', () => {
-    const a = resolveClientIp(h({ 'true-client-ip': '1.1.1.1', 'cf-connecting-ip': '2.2.2.2', 'x-forwarded-for': '3.3.3.3, 198.51.100.7' }))
-    const b = resolveClientIp(h({ 'true-client-ip': '4.4.4.4', 'cf-connecting-ip': '5.5.5.5', 'x-forwarded-for': '6.6.6.6, 198.51.100.7' }))
-    assert.equal(a.ip, '198.51.100.7')
-    assert.equal(b.ip, a.ip)
-    assert.deepEqual(resolveClientIp(h({ 'true-client-ip': '1.1.1.1', 'cf-connecting-ip': '2.2.2.2' })), {
+  it('default never reads true-client-ip or x-forwarded-for (shared edge IP)', () => {
+    assert.deepEqual(resolveClientIp(h({ 'true-client-ip': '1.1.1.1', 'x-forwarded-for': '3.3.3.3, 172.70.0.1' })), {
       ip: null,
       source: 'none',
     })
+    const a = resolveClientIp(h({ 'true-client-ip': '4.4.4.4', 'cf-connecting-ip': '198.51.100.7' }))
+    const b = resolveClientIp(h({ 'true-client-ip': '5.5.5.5', 'cf-connecting-ip': '198.51.100.7' }))
+    assert.equal(a.ip, '198.51.100.7')
+    assert.equal(b.ip, a.ip)
   })
-  it('a rotating spoofed true-client-ip does not dodge the request limit', () => {
+  it('a rotating spoofed true-client-ip / x-forwarded-for does not dodge the request limit', () => {
     for (let i = 0; i < IP_MAX_REQUESTS_PER_HOUR; i++) {
-      const ip = resolveClientIp(h({ 'true-client-ip': `192.0.2.${i}`, 'x-forwarded-for': `10.0.0.${i}, ${IP_C}` })).ip
+      const ip = resolveClientIp(h({ 'true-client-ip': `192.0.2.${i}`, 'x-forwarded-for': `10.0.0.${i}`, 'cf-connecting-ip': IP_C })).ip
       store.requestCode(`kid${i}@example.com`, ALLOW, ip)
     }
-    const ip = resolveClientIp(h({ 'true-client-ip': '192.0.2.200', 'x-forwarded-for': `10.0.0.200, ${IP_C}` })).ip
+    const ip = resolveClientIp(h({ 'true-client-ip': '192.0.2.200', 'x-forwarded-for': '10.0.0.200', 'cf-connecting-ip': IP_C })).ip
     assert.equal(store.requestCode(PARENT, ALLOW, ip).status, 'rate-limited')
   })
-  it('TRUSTED_IP_HEADER switches the source', () => {
-    const hdr = h({ 'cf-connecting-ip': '2001:db8::2', 'x-forwarded-for': '198.51.100.7' })
-    assert.deepEqual(resolveClientIp(hdr, 'cf-connecting-ip'), { ip: '2001:db8::2', source: 'header:cf-connecting-ip' })
-    assert.deepEqual(resolveClientIp(hdr, 'CF-Connecting-IP'), { ip: '2001:db8::2', source: 'header:cf-connecting-ip' })
-    assert.deepEqual(resolveClientIp(h({ 'x-forwarded-for': '198.51.100.7' }), 'cf-connecting-ip'), { ip: null, source: 'none' })
-    assert.deepEqual(resolveClientIp(hdr, 'x-forwarded-for'), { ip: '198.51.100.7', source: 'x-forwarded-for-rightmost' })
-    // a malformed env value is ignored (default source), never a crash
-    assert.equal(resolveClientIp(hdr, 'bad header!').source, 'x-forwarded-for-rightmost')
+  it('TRUSTED_IP_HEADER accepts only cf-connecting-ip or x-forwarded-for-rightmost', () => {
+    const hdr = h({ 'cf-connecting-ip': '2001:db8::2', 'true-client-ip': '1.1.1.1', 'x-forwarded-for': '9.9.9.9, 198.51.100.7' })
+    assert.deepEqual(resolveClientIp(hdr, 'x-forwarded-for-rightmost'), { ip: '198.51.100.7', source: 'x-forwarded-for-rightmost' })
+    assert.deepEqual(resolveClientIp(hdr, 'CF-Connecting-IP'), { ip: '2001:db8::2', source: 'cf-connecting-ip' })
+    // anything else (incl. true-client-ip) is ignored → the cf-connecting-ip default
+    for (const bad of ['true-client-ip', 'x-forwarded-for', 'x-real-ip', 'bad header!', '']) {
+      assert.deepEqual(resolveClientIp(hdr, bad), { ip: '2001:db8::2', source: 'cf-connecting-ip' }, bad)
+    }
   })
   it('missing / garbage ⇒ no IP', () => {
-    const cases: Record<string, string>[] = [{}, { 'x-forwarded-for': '' }, { 'x-forwarded-for': '10.0.0.1, junk' }, { 'x-forwarded-for': 'x'.repeat(200) }]
+    const cases: Record<string, string>[] = [{}, { 'cf-connecting-ip': '' }, { 'cf-connecting-ip': 'junk' }, { 'cf-connecting-ip': '1.1.1.1, 2.2.2.2' }, { 'cf-connecting-ip': 'x'.repeat(200) }]
     for (const o of cases) assert.deepEqual(resolveClientIp(h(o)), { ip: null, source: 'none' }, JSON.stringify(o))
     assert.deepEqual(resolveClientIp(undefined), { ip: null, source: 'none' })
   })
-  it('clientIpFrom logs source + header NAMES present once per process, never values', () => {
+  it('clientIpFrom logs source + header names + the xff/cf equality boolean once, never values', () => {
     const lines: string[] = []
     const orig = console.info
     console.info = (m: string) => lines.push(String(m))
     try {
-      clientIpFrom(h({ 'cf-connecting-ip': '203.0.113.77', 'x-forwarded-for': '203.0.113.78' }))
-      clientIpFrom(h({ 'x-forwarded-for': '203.0.113.79' }))
+      clientIpFrom(h({ 'cf-connecting-ip': '203.0.113.77', 'x-forwarded-for': '203.0.113.77' }))
+      clientIpFrom(h({ 'cf-connecting-ip': '203.0.113.79' }))
     } finally {
       console.info = orig
     }
     assert.ok(lines.length <= 1, `logged ${lines.length} times`)
     for (const l of lines) {
-      assert.match(l, /ip_source=\S+ headers_present=/)
+      assert.match(l, /ip_source=\S+ headers_present=\S+ xff_rightmost_equals_cf_connecting_ip=(true|false)/)
       assert.doesNotMatch(l, /203\.0\.113/)
     }
+  })
+  it('describeIpHeaders reports names and the equality boolean only', () => {
+    assert.equal(
+      describeIpHeaders(h({ 'cf-connecting-ip': '203.0.113.5', 'x-forwarded-for': '10.0.0.1, 203.0.113.5' })),
+      'headers_present=cf-connecting-ip,x-forwarded-for xff_rightmost_equals_cf_connecting_ip=true',
+    )
+    assert.equal(
+      describeIpHeaders(h({ 'cf-connecting-ip': '203.0.113.5', 'x-forwarded-for': '172.70.0.1' })),
+      'headers_present=cf-connecting-ip,x-forwarded-for xff_rightmost_equals_cf_connecting_ip=false',
+    )
+    assert.equal(describeIpHeaders(h({})), 'headers_present=(none) xff_rightmost_equals_cf_connecting_ip=false')
   })
 })

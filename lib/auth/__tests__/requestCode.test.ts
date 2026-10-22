@@ -233,14 +233,14 @@ describe('body size (finding 3) and client IP', () => {
     assert.equal(h.mails.length, 1)
   })
 
-  it('the route passes the x-forwarded-for client into the per-IP request limit', async () => {
+  it('the route passes the cf-connecting-ip client into the per-IP request limit', async () => {
     const h = harness({ codes: Array.from({ length: 20 }, (_, i) => 100000 + i) })
     const allow = JSON.stringify(Array.from({ length: 12 }, (_, i) => ({ email: `kid${i}@example.com` })))
     const deps = { ...h.deps, allowlistJson: allow }
     const from = (email: string, ip: string) =>
       new Request('http://localhost/api/otp/request', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.0.0.1, ${ip}` },
+        headers: { 'content-type': 'application/json', 'cf-connecting-ip': ip, 'x-forwarded-for': '172.70.0.1' },
         body: JSON.stringify({ email }),
       })
     for (let i = 0; i < 11; i++) {
