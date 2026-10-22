@@ -61,7 +61,7 @@ export const IP_VERIFY_WINDOW_MS = 10 * 60 * 1000
 export const MAX_IP_ENTRIES = 5000
 
 /**
- * Per allowlisted email: this many failed verifies (against a real code) in
+ * Per allowlisted email: this many WRONG GUESSES against live codes in
  * a rolling 24 h lock that email's sign-in for LOCKOUT_MS, and the family
  * member gets ONE notice email. Keyed by allowlisted emails only; never evicted.
  */
@@ -358,19 +358,21 @@ export class OtpStore {
     if (email && this.isLocked(email, t)) return fail({ ok: false, reason: 'locked' })
 
     if (!challenge) return fail({ ok: false, reason: 'none' })
-    if (challenge.tries >= MAX_WRONG_TRIES) {
-      this.recordDailyFailure(email, t)
-      return fail({ ok: false, reason: 'burned' })
-    }
+    // Burned / expired: refused, NOT counted toward the 24 h lock — only a
+    // real guess against a live code counts (review: lockout amplification).
+    if (challenge.tries >= MAX_WRONG_TRIES) return fail({ ok: false, reason: 'burned' })
     if (t >= challenge.expiresAt) {
       this.challenges.delete(email)
-      this.recordDailyFailure(email, t)
       return fail({ ok: false, reason: 'expired' })
     }
     if (equal && /^\d{6}$/.test(code)) {
       this.challenges.delete(email) // single use
       return { ok: true, email }
     }
+    // The ONLY place a daily failure is counted: a wrong guess against a live,
+    // unexpired, not-yet-burned code — at most MAX_WRONG_TRIES per issued code,
+    // so MAX_DAILY_FAILURES needs >= 6 codes, which the 5-sends/hour cap
+    // stretches over more than an hour.
     challenge.tries += 1
     const triesLeft = MAX_WRONG_TRIES - challenge.tries
     this.recordDailyFailure(email, t)
@@ -430,6 +432,12 @@ export class OtpStore {
   /** Test/diagnostic helper — stored per-email entries (challenges + send logs). */
   size(): { challenges: number; sendLogs: number } {
     return { challenges: this.challenges.size, sendLogs: this.sendLog.size }
+  }
+
+  /** Test/diagnostic helper — failures counted toward the 24 h lock for one email. */
+  dailyFailureCount(rawEmail: unknown): number {
+    const email = normalizeEmail(rawEmail)
+    return recentIn(this.dailyFailures, email, this.now(), DAILY_FAILURE_WINDOW_MS).length
   }
 
   /** Test/diagnostic helper — per-email failure windows and active locks. */

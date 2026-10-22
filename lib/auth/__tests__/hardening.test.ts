@@ -368,3 +368,40 @@ describe('24-hour per-email failure lock (review SHOULD-4)', () => {
     assert.deepEqual(lockStore.lockSize(), { dailyFailures: 0, lockouts: 0 })
   })
 })
+
+describe('lock cannot be amplified past real guesses (review: lockout amplification)', () => {
+  let notices = 0
+  let st: OtpStore
+  beforeEach(() => {
+    notices = 0
+    st = new OtpStore({ now: () => clock, onLock: () => notices++ })
+  })
+
+  it('(a) burn a code, then 100 more guesses: daily count stays 5, not locked', () => {
+    st.requestCode(PARENT, ALLOW, IP_A)
+    for (let i = 0; i < 105; i++) st.verifyCode(PARENT, '000000', `10.7.${i}.1`) // distinct IPs: no IP limit
+    assert.equal(st.dailyFailureCount(PARENT), 5)
+    assert.equal(notices, 0)
+    assert.equal(st.requestCode(PARENT, ALLOW, IP_A).status === 'locked', false)
+  })
+
+  it('expired and no-challenge guesses never count', () => {
+    st.requestCode(PARENT, ALLOW, IP_A)
+    clock += CODE_TTL_MS
+    for (let i = 0; i < 50; i++) st.verifyCode(PARENT, '000000', `10.8.${i}.1`) // expired, then none
+    assert.equal(st.dailyFailureCount(PARENT), 0)
+  })
+
+  it('(b) 6 codes × 5 wrong guesses, within the send caps, lock the email', () => {
+    const start = clock
+    for (let round = 0; round < 6; round++) {
+      // cooldown 60 s + 5 sends/hour: one code every 12 min + 1 ms
+      clock = start + round * (SEND_WINDOW_MS / 5 + 1)
+      assert.equal(st.requestCode(PARENT, ALLOW, `192.0.2.${round + 1}`).status, 'sent', `round ${round}`)
+      for (let i = 0; i < 5; i++) st.verifyCode(PARENT, '000000', `10.9.${round}.${i}`)
+    }
+    assert.equal(notices, 1)
+    assert.ok(clock - start > SEND_WINDOW_MS, 'reaching the lock took more than an hour')
+    assert.equal(st.requestCode(PARENT, ALLOW, IP_A).status, 'locked')
+  })
+})
