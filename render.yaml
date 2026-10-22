@@ -38,8 +38,8 @@ services:
         sync: false
       # Gmail app password for the sign-in code mail, sent from the fleet
       # SMTP user (airecruiter@). Keychain (cws-sdk, gmail-app-password).
-      # Never logged. Unset => codes are not sent (warned in the logs, and
-      # /api/health shows otpMail.lastOk=false).
+      # Never logged. Unset => codes are not sent (a `result=skipped` log
+      # line per request, and /api/health shows mailConfigured=false).
       - key: GMAIL_APP_PASSWORD
         sync: false
       # Optional: TRUSTED_IP_HEADER = cf-connecting-ip (default when unset)

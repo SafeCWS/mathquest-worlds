@@ -9,24 +9,18 @@
  *   one-time-code autofill offers it from the notification.
  * - English only (operator ruling: new MathQuest features are English-only).
  * - Unset password ⇒ warn and skip; never throws for that case.
- * - Logs never contain the code or the full address (maskEmail).
+ * - Logs never contain the code or ANY form of the address (review MEDIUM:
+ *   even a masked address tells a log reader who is on the family list).
+ *   Proof-of-life is one line per send outcome:
+ *   `[otp-mail] result=sent|failed|skipped transport=465|587|none`.
  *
  * Node runtime only (nodemailer uses net/tls). Never import from middleware.
  */
 import nodemailer from 'nodemailer'
-import { getMailStats } from './mailStats'
 
 export const SMTP_USER = 'airecruiter@customworkforcesolutionsllc.com'
 export const SMTP_HOST = 'smtp.gmail.com'
 const FROM = `MathQuest Worlds <${SMTP_USER}>`
-
-/** "tina@example.com" → "t***@example.com". Never logs a full address. */
-export function maskEmail(raw: string): string {
-  const email = String(raw ?? '')
-  const at = email.lastIndexOf('@')
-  if (at < 1) return '***'
-  return `${email[0]}***${email.slice(at)}`
-}
 
 export interface OtpMail {
   subject: string
@@ -74,6 +68,7 @@ const smtpSend: SendFn = async ({ port, secure, to, mail, pass }) => {
 }
 
 export interface Logger {
+  info: (msg: string) => void
   warn: (msg: string) => void
   error: (msg: string) => void
 }
@@ -89,20 +84,14 @@ export interface SendDeps {
 /**
  * L92 delivery: 465 implicit TLS, then 587 STARTTLS. Resolves (never
  * rejects), so a fire-and-forget caller cannot produce an unhandled
- * rejection. Logs carry a masked address and an error class only.
+ * rejection. Exactly ONE log line per call, carrying the outcome, the
+ * transport and an error class — never an address, a code or a password.
  */
 async function deliver(to: string, build: () => OtpMail, kind: string, deps: SendDeps): Promise<SendOutcome> {
-  const outcome = await attempt(to, build, kind, deps)
-  getMailStats().record(outcome) // proof-of-life for /api/health (L104)
-  return outcome
-}
-
-async function attempt(to: string, build: () => OtpMail, kind: string, deps: SendDeps): Promise<SendOutcome> {
   const log = deps.log ?? console
   const pass = deps.pass ?? process.env.GMAIL_APP_PASSWORD
-  const masked = maskEmail(to)
   if (!pass) {
-    log.warn(`[${kind}] GMAIL_APP_PASSWORD unset; not sent to ${masked}`)
+    log.warn(`[${kind}] result=skipped transport=none reason=no_password`)
     return 'skipped-no-password'
   }
   const send = deps.send ?? smtpSend
@@ -110,20 +99,23 @@ async function attempt(to: string, build: () => OtpMail, kind: string, deps: Sen
   try {
     mail = build()
   } catch {
-    log.error(`[${kind}] refused to build mail for ${masked}`)
+    log.error(`[${kind}] result=failed transport=none reason=bad_mail`)
     return 'failed'
   }
+  let fallbackFrom = ''
   try {
     await send({ port: 465, secure: true, to, mail, pass })
+    log.info(`[${kind}] result=sent transport=465`)
     return 'sent-465'
   } catch (e) {
-    log.warn(`[${kind}] 465 failed for ${masked} (${errName(e)}); trying 587`)
+    fallbackFrom = errName(e)
   }
   try {
     await send({ port: 587, secure: false, to, mail, pass })
+    log.info(`[${kind}] result=sent transport=587 fallback_from_465=${fallbackFrom}`)
     return 'sent-587'
   } catch (e) {
-    log.error(`[${kind}] 587 failed for ${masked} (${errName(e)}); not delivered`)
+    log.error(`[${kind}] result=failed transport=587 err=${errName(e)}`)
     return 'failed'
   }
 }

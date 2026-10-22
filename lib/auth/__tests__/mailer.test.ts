@@ -4,23 +4,16 @@
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildLockNoticeMail, buildOtpMail, formatCentral, maskEmail, sendLockNotice, sendOtpMail, SMTP_USER } from '../mailer'
+import { buildLockNoticeMail, buildOtpMail, formatCentral, sendLockNotice, sendOtpMail, SMTP_USER } from '../mailer'
 
 const TO = 'parent@example.com'
 const FAKE_PASS = 'synthetic-test-pass'
 
 function recorder() {
   const lines: string[] = []
-  return { lines, log: { warn: (m: string) => lines.push(m), error: (m: string) => lines.push(m) } }
+  const push = (m: string) => lines.push(m)
+  return { lines, log: { info: push, warn: push, error: push } }
 }
-
-describe('maskEmail', () => {
-  it('keeps first letter + domain only', () => {
-    assert.equal(maskEmail('tina@example.com'), 't***@example.com')
-    assert.equal(maskEmail('noat'), '***')
-    assert.equal(maskEmail('@example.com'), '***')
-  })
-})
 
 describe('buildOtpMail', () => {
   it('subject starts with the code phrase for iOS autofill; English body', () => {
@@ -42,15 +35,17 @@ describe('sendOtpMail', () => {
 
   it('tries 465 (implicit TLS) first and stops on success', async () => {
     const calls: Array<{ port: number; secure: boolean }> = []
+    const r = recorder()
     const out = await sendOtpMail(TO, '123456', 10, {
       pass: FAKE_PASS,
       send: async ({ port, secure }) => {
         calls.push({ port, secure })
       },
-      log: recorder().log,
+      log: r.log,
     })
     assert.equal(out, 'sent-465')
     assert.deepEqual(calls, [{ port: 465, secure: true }])
+    assert.deepEqual(r.lines, ['[otp-mail] result=sent transport=465'])
   })
 
   it('falls back to 587 STARTTLS when 465 fails (L92)', async () => {
@@ -66,7 +61,7 @@ describe('sendOtpMail', () => {
     })
     assert.equal(out, 'sent-587')
     assert.deepEqual(calls, [465, 587])
-    assert.match(r.lines.join('\n'), /ETIMEDOUT/)
+    assert.deepEqual(r.lines, ['[otp-mail] result=sent transport=587 fallback_from_465=Error:ETIMEDOUT'])
   })
 
   it('both ports fail ⇒ "failed", resolves (never rejects)', async () => {
@@ -79,7 +74,7 @@ describe('sendOtpMail', () => {
       log: r.log,
     })
     assert.equal(out, 'failed')
-    assert.equal(r.lines.length, 2)
+    assert.deepEqual(r.lines, ['[otp-mail] result=failed transport=587 err=Error'])
   })
 
   it('logs never contain the code, the full address or the password', async () => {
@@ -93,9 +88,8 @@ describe('sendOtpMail', () => {
     })
     const all = r.lines.join('\n')
     assert.doesNotMatch(all, /123456/)
-    assert.doesNotMatch(all, /parent@example\.com/)
+    assert.doesNotMatch(all, /@/) // no address at all, not even masked
     assert.doesNotMatch(all, new RegExp(FAKE_PASS))
-    assert.match(all, /p\*\*\*@example\.com/)
   })
 
   it('no password ⇒ warns and skips, does not throw, does not call SMTP', async () => {
@@ -110,8 +104,7 @@ describe('sendOtpMail', () => {
     })
     assert.equal(out, 'skipped-no-password')
     assert.equal(called, false)
-    assert.equal(r.lines.length, 1)
-    assert.doesNotMatch(r.lines[0], /123456/)
+    assert.deepEqual(r.lines, ['[otp-mail] result=skipped transport=none reason=no_password'])
   })
 })
 
@@ -148,9 +141,27 @@ describe('lock notice mail (24 h failure lock)', () => {
     assert.deepEqual(ports, [465, 587])
   })
 
-  it('skips without a password, logging only the masked address', async () => {
+  it('skips without a password; logs carry no address', async () => {
     const r = recorder()
     assert.equal(await sendLockNotice(TO, UNTIL, { pass: '', log: r.log }), 'skipped-no-password')
-    assert.doesNotMatch(r.lines.join('\n'), /parent@example\.com/)
+    assert.deepEqual(r.lines, ['[otp-lock-mail] result=skipped transport=none reason=no_password'])
+  })
+})
+
+describe('no mail log line ever contains an address', () => {
+  it('across every outcome of both mails', async () => {
+    const r = recorder()
+    const fails = async () => {
+      throw Object.assign(new Error(`rcpt ${TO} rejected`), { code: 'EENVELOPE' })
+    }
+    await sendOtpMail(TO, '123456', 10, { pass: FAKE_PASS, send: async () => {}, log: r.log })
+    await sendOtpMail(TO, '123456', 10, { pass: FAKE_PASS, send: fails, log: r.log })
+    await sendOtpMail(TO, '123456', 10, { pass: '', log: r.log })
+    await sendLockNotice(TO, Date.now(), { pass: FAKE_PASS, send: fails, log: r.log })
+    assert.equal(r.lines.length, 4) // one line per send outcome
+    for (const l of r.lines) {
+      assert.doesNotMatch(l, /@/, l)
+      assert.match(l, /^\[otp-(lock-)?mail\] result=(sent|failed|skipped) transport=(465|587|none)/, l)
+    }
   })
 })
