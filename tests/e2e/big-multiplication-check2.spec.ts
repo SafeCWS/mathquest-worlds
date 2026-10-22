@@ -57,7 +57,7 @@ async function storyToAdd(page: Page) {
  * Everything the open bubble covers, as readable strings (empty = clear). `extra` names targets
  * that are bigger than a step cell but are what the child must look at (the Flip rectangle).
  */
-async function bubbleHits(page: Page, extra: string[] = []): Promise<string[]> {
+async function bubbleHits(page: Page, extra: string[] = [], clear = CLEAR): Promise<string[]> {
   return page.evaluate(
     ({ extra, CLEAR }) => {
       const bubEl = document.querySelector<HTMLElement>('[data-testid=hint-bubble]')
@@ -100,7 +100,7 @@ async function bubbleHits(page: Page, extra: string[] = []): Promise<string[]> {
       if (b.bottom > floor + 0.5) out.push(`below the floor by ${Math.round(b.bottom - floor)} px`)
       return out
     },
-    { extra, CLEAR },
+    { extra, CLEAR: clear },
   )
 }
 
@@ -233,6 +233,129 @@ for (const vp of [PHONE, IPAD]) {
     })
   })
 }
+
+// Round 5 (html-validator FAIL): a hint already OPEN when a wrong answer arrives. The auto tier-2
+// hint replaces it; it must be placed from scratch once the step's auto-scroll has settled.
+async function oopsToFix(page: Page) {
+  await page.goto('/multiplication/big?mode=oops&a=78&b=8')
+  await phase(page, 'find')
+  for (let i = 0; i < 6; i++) {
+    if ((await page.locator('[data-phase="fix"]').count()) > 0) break
+    await page.locator(`[data-testid=oops-row-${i}]`).click()
+    await page.waitForTimeout(300)
+  }
+  await phase(page, 'fix')
+}
+async function flipToTens(page: Page, a = 42, b = 3) {
+  await page.goto(`/multiplication/big?mode=flip&a=${a}&b=${b}`)
+  await phase(page, 'predict')
+  await page.locator('[data-testid=predict-same]').click()
+  await page.locator('[data-testid=flip-btn]').click()
+  await phase(page, 'side')
+  await page.locator('[data-testid=side-a]').click({ force: true })
+  await page.locator('[data-testid=way-right]').click()
+  await phase(page, 'tensPart')
+}
+/** 390 / 1180: hard assert. 320 × 568 (SE-size): REPORT ONLY — the band between the top buttons and
+ *  the 45vh answer sheet is ~211 px, and several steps' targets plus the smallest bubble need more,
+ *  so placement falls back to the spot covering least (measured round 5; see the commit message). */
+async function assertOrReport(page: Page, vp: { width: number }, label: string, hits: string[]) {
+  if (vp.width !== 320) {
+    expect(hits, label).toEqual([])
+    return
+  }
+  const line = `${label}: ${hits.length ? hits.join(', ') : 'clear'}`
+  test.info().annotations.push({ type: '320×568 report', description: line })
+  console.log(`REPORT-320 ${line}`)
+}
+const FLIP_LABELS = ['[data-testid=mode-area] span.flex.text-2xl.font-bold > span.text-center', '[data-testid=side-b]']
+for (const vp of [PHONE, IPAD, { width: 320, height: 568 }]) {
+  const at = `${vp.width}×${vp.height}`
+  test.describe(`hint open, then a wrong answer (${at})`, () => {
+    test.beforeEach(async ({ page }) => {
+      await page.setViewportSize(vp)
+      await seen(page)
+    })
+    for (const how of ['left open', 'closed by a tap outside'] as const) {
+      test(`Dragon Oops fix, hint 1 ${how} → wrong answer (${at})`, async ({ page }) => {
+        await oopsToFix(page)
+        await hintTo(page, 1)
+        if (how === 'closed by a tap outside') {
+          // The same event the close-on-outside-tap handler listens for, on a non-target.
+          await page.locator('main').dispatchEvent('pointerdown')
+          await expect(page.locator('[data-testid=hint-bubble]')).toHaveCount(0)
+        }
+        await pad(page, 1)
+        await expect(page.locator('[data-testid=hint-bubble][data-tier="2"]')).toBeVisible()
+        await page.waitForTimeout(1800) // past the 450 / 1000 ms re-frames and their smooth scroll
+        await assertOrReport(page, vp, `Oops fix, hint ${how}`, await bubbleHits(page))
+      })
+    }
+    test(`Step-by-Step 78 × 8 tens, hint 1 open → wrong answer (${at})`, async ({ page }) => {
+      await page.goto('/multiplication/big?mode=column&a=78&b=8')
+      await phase(page, 'ones')
+      await pad(page, 64)
+      await phase(page, 'tens')
+      await hintTo(page, 1)
+      await pad(page, 54)
+      await expect(page.locator('[data-testid=hint-bubble][data-tier="2"]')).toBeVisible()
+      await page.waitForTimeout(1800)
+      await assertOrReport(page, vp, 'Column tens', await bubbleHits(page))
+    })
+    test(`Flip & Split tens part, hint 1 open → wrong answer (${at})`, async ({ page }) => {
+      await flipToTens(page)
+      await hintTo(page, 1)
+      await pad(page, 12)
+      await expect(page.locator('[data-testid=hint-bubble][data-tier="2"]')).toBeVisible()
+      await page.waitForTimeout(1800)
+      await assertOrReport(page, vp, 'Flip tens', await bubbleHits(page, FLIP_LABELS))
+    })
+  })
+}
+
+test('hackerAI LOW: resize 390 → 820 with a hint open on Flip re-places it off the rectangle', async ({ page }) => {
+  await page.setViewportSize(PHONE)
+  await seen(page)
+  await page.goto('/multiplication/big?mode=flip&a=78&b=8')
+  await phase(page, 'predict')
+  await hintTo(page, 1)
+  await page.setViewportSize({ width: 820, height: 1180 })
+  await page.waitForTimeout(1400)
+  expect(await bubbleHits(page, ['[data-testid=flip-rect]'])).toEqual([])
+})
+
+test('phone landscape 667 × 375: Step-by-Step is playable — prompt, answer box and glowing cells reachable', async ({ page }) => {
+  await page.setViewportSize({ width: 667, height: 375 })
+  await seen(page)
+  await page.goto('/multiplication/big?mode=column&a=78&b=8')
+  await phase(page, 'ones')
+  await page.waitForTimeout(1200) // the step re-frame
+  const g = await page.evaluate(() => {
+    const dockEl = document.querySelector<HTMLElement>('[data-testid=mode-area] .action-dock')!
+    const dock = dockEl.getBoundingClientRect()
+    const fixed = getComputedStyle(dockEl).position === 'fixed'
+    const prompt = document.querySelector('[data-testid=column-prompt]')!.getBoundingClientRect()
+    const box = document.querySelector('[data-testid=answer-pad] .np-display, [data-testid=answer-pad] [aria-live], [data-testid=answer-pad] input')?.getBoundingClientRect() ?? null
+    const cells = [...document.querySelectorAll('[data-testid=mode-area] [data-active="1"]')].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0)
+    return { vh: innerHeight, dockTop: dock.top, dockH: dock.height, floor: fixed ? dock.top : innerHeight, prompt: [prompt.top, prompt.bottom], box: box ? [box.top, box.bottom] : null, cells: cells.map((r) => [r.top, r.bottom]) }
+  })
+  // The answer sheet fits on screen below the top buttons (was 486 px tall in a 375 px screen).
+  expect(g.dockTop, 'answer sheet below the top buttons').toBeGreaterThanOrEqual(72)
+  expect(g.dockTop + g.dockH, 'answer sheet fits on screen').toBeLessThanOrEqual(g.vh + 1)
+  expect(g.prompt[0], 'prompt on screen').toBeGreaterThanOrEqual(0)
+  expect(g.prompt[1], 'prompt on screen').toBeLessThanOrEqual(g.vh)
+  expect(g.box, 'answer box').not.toBeNull()
+  expect(g.box![0], 'answer box on screen').toBeGreaterThanOrEqual(0)
+  expect(g.box![1], 'answer box on screen').toBeLessThanOrEqual(g.vh)
+  expect(g.cells.length).toBeGreaterThan(0)
+  for (const [top, bottom] of g.cells) {
+    expect(top, 'glowing cell below the top buttons').toBeGreaterThanOrEqual(72)
+    expect(bottom, 'glowing cell above the answer sheet / screen bottom').toBeLessThanOrEqual(g.floor)
+  }
+  // …and the step can be answered by taps (keys reachable inside the sheet).
+  await pad(page, 64)
+  await phase(page, 'tens')
+})
 
 test.describe('Big Multiplication — CHECK round 2 regressions', () => {
   test('L1: the first tap on the new problem lands while the celebration is still fading out', async ({ page }) => {

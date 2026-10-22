@@ -219,18 +219,23 @@ function Celebration({ text, sub, cta, onNext, extra }: { text: string; sub: str
   )
 }
 
-// Phone (≤ 480 px): after every step change, scroll so the step's active cells ([data-active]:
-// the glowing digit, the carry bubble, the piece being solved) sit fully between the fixed top
-// controls and the bottom answer sheet. iPad never scrolls here (the pad is a side column).
-function ensureActiveVisible(): void {
-  if (typeof window === 'undefined' || window.innerWidth > 480) return
+// Phone (≤ 480 px wide, or a short landscape screen ≤ 500 px tall): after every step change, scroll
+// so the step's active cells ([data-active]: the glowing digit, the carry bubble, the piece being
+// solved) sit fully between the fixed top controls and the answer sheet (when it is a fixed bottom
+// sheet) or the screen bottom. iPad never scrolls here (the pad is a side column).
+// While a hint bubble is open its placement owns the scroll (it keeps the same cells in view), so
+// this stands aside — two smooth scrolls racing is what stranded a replacement hint (round 5).
+function ensureActiveVisible(force = false): void {
+  if (typeof window === 'undefined' || (window.innerWidth > 480 && window.innerHeight > 500)) return
+  if (!force && document.querySelector('[data-testid=hint-bubble]')) return
   const els = Array.from(document.querySelectorAll<HTMLElement>('[data-testid=mode-area] [data-active="1"]'))
   if (!els.length) return
   const rects = els.map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0)
   if (!rects.length) return
   const top = Math.min(...rects.map((r) => r.top))
   const bottom = Math.max(...rects.map((r) => r.bottom))
-  const dock = document.querySelector('.action-dock')?.getBoundingClientRect()
+  const dockEl = document.querySelector<HTMLElement>('[data-testid=mode-area] .action-dock')
+  const dock = dockEl && getComputedStyle(dockEl).position === 'fixed' ? dockEl.getBoundingClientRect() : null
   const floor = (dock && dock.height > 0 ? dock.top : window.innerHeight) - 10
   const ceiling = 92 // below the fixed Back / 🔊 / Hint buttons
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -564,7 +569,17 @@ export function BigMultiplication() {
   // stay on screen, so it cannot push the bubble off-screen or onto a target.
   // The bubble itself lets taps through (pointer-events only on ✕ and Read it).
   const playArea = useRef<HTMLDivElement>(null)
-  const bubble = useRef<HTMLDivElement>(null)
+  const bubble = useRef<HTMLDivElement | null>(null)
+  // The outgoing bubble (AnimatePresence exit) unmounts AFTER its replacement mounted: a plain shared
+  // ref was set to null then, so every later re-placement saw no bubble and gave up (round 5 root
+  // cause). This ref only clears itself if it still points at its own node.
+  const setBubble = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return
+    bubble.current = el
+    return () => {
+      if (bubble.current === el) bubble.current = null
+    }
+  }, [])
   const [hintTop, setHintTop] = useState(0)
   // Placement stage = softLevel × 2 + compact. softLevel 0 keeps "soft" + "soft-2" clear, 1 keeps
   // "soft" only, 2 keeps none. Even stages = full bubble, odd = compact.
@@ -654,6 +669,8 @@ export function BigMultiplication() {
         return
       }
     }
+    // Nothing fits anywhere: the least-covering spot, and the step's cells framed as usual.
+    if (!spot) ensureActiveVisible(true)
     const y = spot ? spot.y : leastCovered(input)
     const top = y - (c.top + sy)
     setHintTop((cur) => (Math.abs(cur - top) < 1 ? cur : top))
@@ -663,7 +680,10 @@ export function BigMultiplication() {
     }
   }, [stage, compact])
   useLayoutEffect(() => {
-    if (tier === 0 || !hintText) return
+    if (tier === 0 || !hintText) {
+      placedFor.current = '' // closed: the next hint (even the same one) starts from scratch
+      return
+    }
     // A new hint (tier or text) starts from the full bubble again.
     const key = `${tier}-${hintText}`
     if (placedFor.current !== key) {
@@ -677,12 +697,39 @@ export function BigMultiplication() {
     placeHint()
     // Effect-owned (cleared whenever the hint changes or closes, incl. Back): after step animations.
     const ids = [window.setTimeout(placeHint, 450), window.setTimeout(placeHint, 1000)]
-    window.addEventListener('resize', placeHint)
+    // Once a scroll (the step's re-frame, the child, our own) or a resize (incl. across the 767 px
+    // breakpoint, where the sheet stops being fixed) has SETTLED, place again from scratch: full
+    // bubble first, every soft level back on (round 5).
+    let settle = 0
+    const fresh = () => (stage !== 0 ? setStage(0) : placeHint())
+    const onScroll = () => {
+      window.clearTimeout(settle)
+      settle = window.setTimeout(fresh, 150)
+    }
+    const onResize = () => {
+      window.clearTimeout(settle)
+      settle = window.setTimeout(fresh, 250)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onResize)
     return () => {
       ids.forEach((id) => window.clearTimeout(id))
-      window.removeEventListener('resize', placeHint)
+      window.clearTimeout(settle)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onResize)
     }
   }, [tier, hintText, stage, placeHint])
+  // Escape closes the bubble, like ✕.
+  useEffect(() => {
+    if (tier === 0) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      hintReader.stop()
+      setTier(0)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [tier, hintReader])
   // A tap anywhere outside the bubble (and the Hint / voice buttons) closes it; the tap still
   // reaches what it was aimed at.
   useEffect(() => {
@@ -935,7 +982,7 @@ export function BigMultiplication() {
           {tier > 0 && hintText && (
             <motion.div
               key={`${tier}-${hintText}`}
-              ref={bubble}
+              ref={setBubble}
               className={`absolute z-30 left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 w-[min(36rem,calc(100%-0.5rem))] md:w-[calc(100%-324px)] bg-amber-50 border-4 border-amber-300 text-amber-900
                          rounded-3xl pl-5 pr-16 font-bold text-center shadow-xl pointer-events-none
                          ${compact ? 'py-2 text-base md:text-lg leading-snug' : 'py-3 text-lg md:text-xl'}`}
