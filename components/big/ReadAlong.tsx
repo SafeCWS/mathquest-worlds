@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { isVoiceOn } from './speech'
+import { isVoiceOn, VOICE_EVENT } from './speech'
 
 // Word highlight during read-aloud (plan: "word highlight during read-aloud on prompts").
 // lib/sounds/speechUtils.speak() is used unchanged and exposes no boundary events, so the
@@ -35,6 +35,14 @@ export function useReadAlong(narrate: (t: string) => void) {
     [narrate, stop],
   )
   useEffect(() => stop, [stop])
+  // Muting mid-sentence stops the highlight too (code-reviewer #6).
+  useEffect(() => {
+    const onVoice = (e: Event) => {
+      if ((e as CustomEvent<boolean>).detail === false) stop()
+    }
+    window.addEventListener(VOICE_EVENT, onVoice)
+    return () => window.removeEventListener(VOICE_EVENT, onVoice)
+  }, [stop])
   return { word, read, stop }
 }
 

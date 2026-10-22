@@ -34,9 +34,17 @@ export function setVoiceOn(on: boolean): void {
   } catch {
     /* storage blocked: the choice lasts for this page only */
   }
-  // Muting stops a sentence in progress at once.
+  // Muting stops a sentence in progress at once, and every read-along highlight with it.
   if (!on) cancelSpeech()
+  try {
+    window.dispatchEvent(new CustomEvent(VOICE_EVENT, { detail: on }))
+  } catch {
+    /* no window events (tests): nothing is listening */
+  }
 }
+
+/** Fired on window by setVoiceOn(); useReadAlong listens so a mute stops the word highlight. */
+export const VOICE_EVENT = 'mq-big-voice-change'
 
 export function speakFor(_locale: string, text: string): void {
   if (!isVoiceOn()) return

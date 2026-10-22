@@ -27,7 +27,16 @@ export type MascotEvent = 'step' | 'trade' | 'oops'
 /** Contract between the game shell and each mode. */
 export interface ModeProps {
   problem: BigProblem
-  /** Final answer correct — shell plays correct()+streak and shows the celebration. */
+  /**
+   * The final answer was ACCEPTED — call at once, before any finale animation. The shell records
+   * gems + game progress here, exactly once per problem, so a reload or Back during the animation
+   * never loses (or doubles) credit. Optional for the mode: onSolved() also awards if it was not.
+   */
+  onAward?: () => void
+  /**
+   * The mode's finale is over — shell plays correct()+streak and shows the celebration. Exactly
+   * once per problem; a call from a previous problem or after Back is ignored.
+   */
   onSolved: () => void
   /**
    * Any wrong answer — shell shakes, plays wrong(), auto-opens the hint ladder at tier 2.

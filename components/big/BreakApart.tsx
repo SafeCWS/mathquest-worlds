@@ -10,6 +10,7 @@ import { AnswerPad } from './AnswerPad'
 import { PV, pvBg, pvText } from './pv'
 import type { ModeProps } from './types'
 import { DEMO_GLOW, DemoFinger, useDemoStep } from './Demo'
+import { useLater } from './useLater'
 
 // Break It Apart — area model, BIGGEST PLACE FIRST (40 × 3 before 2 × 3; research note:
 // partial products read left to right, the column algorithm runs ones-first — each mode says so).
@@ -22,8 +23,9 @@ type Phase = 'split' | 'left' | 'right' | 'add' | 'merged'
 const rows = (b: number) =>
   `repeating-linear-gradient(180deg, transparent 0 calc(${100 / b}% - 2px), rgba(255,255,255,0.55) calc(${100 / b}% - 2px) ${100 / b}%)`
 
-export function BreakApart({ problem, onSolved, onWrong, onStep, setHint, setSpeech, highlight, demo, onDemoDone, narrate }: ModeProps) {
+export function BreakApart({ problem, onAward, onSolved, onWrong, onStep, setHint, setSpeech, highlight, demo, onDemoDone, narrate }: ModeProps) {
   const t = useTranslations('bigMult')
+  const later = useLater()
   const locale = useLocale()
   const { a, b } = problem
   const [tens, ones] = splitTensOnes(a)
@@ -75,7 +77,8 @@ export function BreakApart({ problem, onSolved, onWrong, onStep, setHint, setSpe
       if (n !== left + right) return onWrong(n)
       sfx.tradeWhoosh()
       setPhase('merged')
-      window.setTimeout(onSolved, 800)
+      onAward?.() // credit at acceptance; the merge animation follows
+      later(onSolved, 800)
     }
   }
 

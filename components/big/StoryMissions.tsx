@@ -12,6 +12,7 @@ import { checkSlot, mathCards, pickMathOk, slotHint, storyFor, type Story, type 
 import { PV, pvBg, pvText } from './pv'
 import { ReadAlongText, useReadAlong } from './ReadAlong'
 import type { ModeProps } from './types'
+import { useLater } from './useLater'
 
 // Story Missions (v2, replaces Block Builder). Plan: mellow-roaming-hoare.md §3.
 //   read   — picture first, the story read aloud with a word highlight, "Hear it again"
@@ -112,6 +113,7 @@ function GemFlight({ from }: { from: React.RefObject<HTMLElement | null> }) {
 export function StoryMissions(props: ModeProps) {
   const { problem, onSolved, onWrong, onStep, setHint, setSpeech, demo, onDemoDone, narrate, onNext } = props
   const t = useTranslations('bigMult')
+  const later = useLater()
   const story = useMemo(() => storyFor(problem), [problem])
   const level = levelOf(problem)
   const style = storyObjects(story, level)
@@ -186,7 +188,8 @@ export function StoryMissions(props: ModeProps) {
   useDemoStep(demo, goSlots, story.speak, (txt) => read(story.text, txt), onDemoDone)
 
   const tapChip = (n: number) => {
-    if (phase !== 'slots') return
+    // slotEach set = both slots full; the 500 ms move to "pick" is running (code-reviewer #3).
+    if (phase !== 'slots' || slotEach !== null) return
     if (slotGroups === null) {
       const r = checkSlot(story, 'groups', n)
       if (r !== 'ok') return onWrong(undefined, slotHint(story, 'groups', r) ?? undefined)
@@ -199,7 +202,7 @@ export function StoryMissions(props: ModeProps) {
     sfx.blockPop()
     setSlotEach(n)
     onStep('step')
-    window.setTimeout(() => setPhase('pick'), 500)
+    later(() => setPhase('pick'), 500)
   }
 
   const pickCard = (ok: boolean) => {
@@ -220,7 +223,8 @@ export function StoryMissions(props: ModeProps) {
   const toFinale = () => {
     setPhase('finale')
     read(answerSentence)
-    window.setTimeout(() => {
+    // Gems were already credited when BreakApart accepted the answer (onAward); this is the show.
+    later(() => {
       setSolved(true)
       onSolved()
     }, 1100)
@@ -233,7 +237,7 @@ export function StoryMissions(props: ModeProps) {
         data-testid={testId}
         data-active={active ? '1' : undefined}
         className={`w-[96px] h-[80px] rounded-2xl flex items-center justify-center text-4xl font-bold border-4
-          ${value === null ? 'border-dashed bg-white/70 text-gray-400' : 'bg-white text-gray-800 border-white shadow'}
+          ${value === null ? 'border-dashed bg-white/70 text-gray-500' : 'bg-white text-gray-800 border-white shadow'}
           ${active ? 'ring-4 ring-yellow-300' : ''}`}
         style={value === null ? { borderColor: 'var(--space-primary)' } : undefined}
         animate={active ? { scale: [1, 1.06, 1] } : { scale: 1 }}

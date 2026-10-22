@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useTranslations } from 'next-intl'
 import { KidButton } from '@/components/ui/KidButton'
@@ -12,6 +12,7 @@ import { flipHint, flipSplitSteps, type FlipStage } from './logic'
 import type { FlipInput } from '@/lib/math/flipSplit'
 import { PV, pvBg, pvText } from './pv'
 import type { ModeProps } from './types'
+import { useLater } from './useLater'
 
 // Flip & Split (v2, replaces Quick Guess). Plan: mellow-roaming-hoare.md §4.
 //   predict  — 3 × 42 as a labelled rectangle (3 wide, 42 tall). Will flipping change the answer?
@@ -28,10 +29,21 @@ type Phase = 'predict' | 'flip' | 'flipping' | 'side' | 'splitWay' | 'tensPart' 
 
 // Rectangle size: phone keeps the flipped rectangle + its side label inside 390 px; iPad gets more room.
 const size = () => (typeof window !== 'undefined' && window.innerWidth >= 768 ? { LONG: 340, SHORT: 150 } : { LONG: 236, SHORT: 112 })
+// The flipped rectangle sits beside a 60 px side label (+ 8 px gap) inside the card's padding.
+const LABEL_W = 68
+/** Same sizes as before when they fit; scaled down to the card's real width when they do not
+ *  (iPad Slide Over at 320 px, a rotation mid-game — hackerAI #16). */
+function fitSize(cardInner: number) {
+  const base = size()
+  const room = cardInner - LABEL_W - 4
+  if (room >= base.LONG || room <= 0) return base
+  const k = room / base.LONG
+  return { LONG: Math.floor(base.LONG * k), SHORT: Math.floor(base.SHORT * k) }
+}
 const stripes = (n: number, dir: 'rows' | 'cols') =>
   `repeating-linear-gradient(${dir === 'rows' ? 180 : 90}deg, transparent 0 calc(${100 / n}% - 2px), rgba(255,255,255,0.55) calc(${100 / n}% - 2px) ${100 / n}%)`
 
-export function FlipSplit({ problem, onSolved, onWrong, onStep, setHint, setSpeech, highlight, demo, onDemoDone, narrate }: ModeProps) {
+export function FlipSplit({ problem, onAward, onSolved, onWrong, onStep, setHint, setSpeech, highlight, demo, onDemoDone, narrate }: ModeProps) {
   const t = useTranslations('bigMult')
   const reduce = useReducedMotion()
   const { a, b } = problem
@@ -39,7 +51,25 @@ export function FlipSplit({ problem, onSolved, onWrong, onStep, setHint, setSpee
   const L = tens * b
   const R = ones * b
   const [phase, setPhase] = useState<Phase>('predict')
-  const [{ LONG, SHORT }] = useState(size)
+  const later = useLater()
+  const card = useRef<HTMLDivElement>(null)
+  const [{ LONG, SHORT }, setDims] = useState(size)
+  useLayoutEffect(() => {
+    const fit = () => {
+      const el = card.current
+      if (!el) return
+      const cs = getComputedStyle(el)
+      const inner = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+      const next = fitSize(inner)
+      setDims((d) => (d.LONG === next.LONG && d.SHORT === next.SHORT ? d : next))
+    }
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  }, [])
+  // Terminal guard: "Same answer!" ends the problem once, however fast it is tapped.
+  const doneRef = useRef(false)
+  const [done, setDone] = useState(false)
   const [prediction, setPrediction] = useState<'same' | 'different' | null>(null)
   const flipped = !['predict', 'flip', 'flipping'].includes(phase)
   const split = ['tensPart', 'onesPart', 'add', 'confirm'].includes(phase)
@@ -89,16 +119,18 @@ export function FlipSplit({ problem, onSolved, onWrong, onStep, setHint, setSpee
     onStep('step')
     setPhase('flip')
   }
+  // A prediction is a guess, not an error (hackerAI #11): no wrong sound, no shake, no miss —
+  // just "Let's test it!" and the Flip button.
   const pickDifferent = () => {
     if (phase !== 'predict') return
+    sfx.tap()
     setPrediction('different')
-    onWrong(undefined, mis('predict', 'different'))
   }
   const doFlip = () => {
     if (phase !== 'flip' && !(phase === 'predict' && prediction === 'different')) return
     sfx.tradeWhoosh()
     setPhase('flipping')
-    if (reduce) window.setTimeout(() => setPhase('side'), 450)
+    if (reduce) later(() => setPhase('side'), 450)
   }
   const tapSide = (side: number) => {
     if (phase !== 'side') return
@@ -126,11 +158,14 @@ export function FlipSplit({ problem, onSolved, onWrong, onStep, setHint, setSpee
     } else if (phase === 'add') {
       if (n !== L + R) return onWrong(n, mis('add', n))
       sfx.tradeWhoosh()
+      onAward?.() // the answer is in: credit now, the confirm card is the ceremony
       setPhase('confirm')
     }
   }
   const confirm = () => {
-    if (phase !== 'confirm') return
+    if (phase !== 'confirm' || doneRef.current) return
+    doneRef.current = true
+    setDone(true)
     onSolved()
   }
 
@@ -226,7 +261,7 @@ export function FlipSplit({ problem, onSolved, onWrong, onStep, setHint, setSpee
 
   return (
     <div className="grid gap-4 md:grid-cols-[1fr_auto] items-start" data-phase={phase} onPointerDown={unlockAudio}>
-      <div className="bg-white/85 rounded-3xl p-4 shadow-xl border-4 border-white/60 flex flex-col items-center gap-3 overflow-hidden">
+      <div ref={card} className="bg-white/85 rounded-3xl p-4 shadow-xl border-4 border-white/60 flex flex-col items-center gap-3 overflow-hidden">
         <p className="text-4xl md:text-5xl font-bold" style={{ color: 'var(--space-primary)' }} data-testid="flip-equation">
           {equation}
         </p>
@@ -282,6 +317,9 @@ export function FlipSplit({ problem, onSolved, onWrong, onStep, setHint, setSpee
               </KidButton>
             </div>
             {prediction === 'different' && (
+              <p className="prompt-pill dock-prompt text-center text-xl font-bold" role="status" data-testid="flip-test-it">{t('flipTestIt')}</p>
+            )}
+            {prediction === 'different' && (
               <KidButton aria-label={t('flipBtn')} onClick={doFlip} sound="pop" className="w-full min-h-[76px] text-2xl border-yellow-300" data-testid="flip-btn">
                 {t('flipBtn')}
               </KidButton>
@@ -328,7 +366,7 @@ export function FlipSplit({ problem, onSolved, onWrong, onStep, setHint, setSpee
         {phase === 'confirm' && (
           <>
             <p className="prompt-pill dock-prompt text-center text-2xl font-bold">{t('flipConfirm')}</p>
-            <KidButton aria-label={t('flipCheckBtn')} onClick={confirm} sound="chime" className="w-full min-h-[76px] text-2xl border-yellow-300" data-testid="flip-check">
+            <KidButton aria-label={t('flipCheckBtn')} onClick={confirm} sound="chime" disabled={done} className="w-full min-h-[76px] text-2xl border-yellow-300" data-testid="flip-check">
               {t('flipCheckBtn')}
             </KidButton>
           </>

@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useTranslations } from 'next-intl'
 import { sfx, unlockAudio } from '@/lib/audio/sfx'
 import { AnswerPad } from './AnswerPad'
 import { DEMO_GLOW, DemoFinger, useDemoStep } from './Demo'
+import { useLater } from './useLater'
 import { oopsFor, oopsPrompt, oopsWhy, replayOops } from './logic'
 import type { ModeProps } from './types'
 
@@ -18,11 +19,15 @@ import type { ModeProps } from './types'
 const BOUNCY: [number, number, number, number] = [0.34, 1.56, 0.64, 1]
 type Phase = 'find' | 'fix' | 'fixed'
 
-export function DragonOops({ problem, onSolved, onWrong, onStep, setHint, setSpeech, demo, onDemoDone, narrate }: ModeProps) {
+export function DragonOops({ problem, onAward, onSolved, onWrong, onStep, setHint, setSpeech, demo, onDemoDone, narrate }: ModeProps) {
   const t = useTranslations('bigMult')
+  const later = useLater()
+  const reduce = useReducedMotion() // html-validator minor 8: no scale/rotate pops when reduced
   const oops = useMemo(() => oopsFor(problem), [problem])
   const [phase, setPhase] = useState<Phase>('find')
   const [checked, setChecked] = useState<Set<number>>(() => new Set())
+  // A right row BELOW the oops that does not use the wrong value (hackerAI #9): neutral note.
+  const [elsewhere, setElsewhere] = useState(false)
   const bad = oops.steps[oops.wrongIndex]
   const why = useMemo(() => oopsWhy(oops), [oops])
   const prompt = oopsPrompt(bad)
@@ -51,7 +56,21 @@ export function DragonOops({ problem, onSolved, onWrong, onStep, setHint, setSpe
       onStep('step')
       return
     }
-    if (i > oops.wrongIndex) return onWrong(undefined, t('wrongOopsLater'))
+    if (i > oops.wrongIndex) {
+      // The row reads the same as in the fixed chain → it is right on its own (e.g. "2 × 3 = 6"
+      // after a slip in "40 × 3"). Not a miss: no wrong sound, no shake, no 🤔.
+      if (oops.steps[i].text === fixedSteps[i].text) {
+        if (!checked.has(i)) {
+          sfx.blockPop()
+          setChecked((c) => new Set(c).add(i))
+        }
+        setElsewhere(true)
+        return
+      }
+      // The row is built on the dragon's wrong number: look above first.
+      return onWrong(undefined, t('wrongOopsLater'))
+    }
+    setElsewhere(false)
     sfx.carryPlink()
     onStep('oops')
     setPhase('fix')
@@ -62,11 +81,14 @@ export function DragonOops({ problem, onSolved, onWrong, onStep, setHint, setSpe
     if (n !== oops.fix) return onWrong(undefined, n === bad.value ? t('wrongOopsDragon', { left: prompt }) : undefined)
     sfx.tradeWhoosh()
     setPhase('fixed')
-    window.setTimeout(onSolved, 1400)
+    onAward?.() // credit at acceptance; the sparkle replay follows
+    later(onSolved, 1400)
   }
 
   const demoTarget = useRef<HTMLButtonElement>(null)
-  useDemoStep(demo, () => (oops.wrongIndex > 0 ? tapRow(0) : undefined), t('demoOops'), narrate, onDemoDone)
+  // hackerAI #4: when the oops IS row 1 the dragon must not call it right — it looks, then hands
+  // over without a verdict.
+  useDemoStep(demo, () => (oops.wrongIndex > 0 ? tapRow(0) : undefined), oops.wrongIndex > 0 ? t('demoOops') : t('demoOopsLook'), narrate, onDemoDone)
 
   return (
     <div className="grid gap-4 md:grid-cols-[1fr_auto] items-start" data-phase={phase} onPointerDown={unlockAudio}>
@@ -97,7 +119,7 @@ export function DragonOops({ problem, onSolved, onWrong, onStep, setHint, setSpe
                   className={`relative w-full min-h-[64px] px-4 rounded-2xl flex items-center justify-between gap-3 text-2xl md:text-3xl font-bold shadow border-4 text-left
                     ${found ? 'bg-amber-50 border-amber-300 text-amber-900' : ok ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-white border-white text-gray-800'}
                     ${demo && i === 0 ? DEMO_GLOW : ''}`}
-                  whileTap={phase === 'find' ? { scale: 0.96 } : undefined}
+                  whileTap={phase === 'find' && !reduce ? { scale: 0.96 } : undefined}
                   aria-pressed={ok || found}
                   disabled={phase !== 'find' && !active}
                 >
@@ -107,7 +129,7 @@ export function DragonOops({ problem, onSolved, onWrong, onStep, setHint, setSpe
                       <motion.span
                         key={text}
                         data-testid={`oops-text-${i}`}
-                        initial={done && (isBad || after) ? { scale: 0.6, opacity: 0 } : false}
+                        initial={done && (isBad || after) ? (reduce ? { opacity: 0 } : { scale: 0.6, opacity: 0 }) : false}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ ease: BOUNCY, duration: 0.5, delay: done ? (i - oops.wrongIndex) * 0.25 : 0 }}
                       >
@@ -119,7 +141,7 @@ export function DragonOops({ problem, onSolved, onWrong, onStep, setHint, setSpe
                     {ok && <span>✓ {t('oopsChecked')}</span>}
                     {found && !done && <span>🔍 {t('oopsFound')}</span>}
                     {done && (isBad || after) && (
-                      <motion.span initial={{ scale: 0, rotate: -30 }} animate={{ scale: [0, 1.4, 1], rotate: 0 }} transition={{ duration: 0.6, delay: (i - oops.wrongIndex) * 0.25 }} data-testid="oops-sparkle">✨</motion.span>
+                      <motion.span initial={reduce ? { opacity: 0 } : { scale: 0, rotate: -30 }} animate={reduce ? { opacity: 1 } : { scale: [0, 1.4, 1], rotate: 0 }} transition={{ duration: reduce ? 0.2 : 0.6, delay: (i - oops.wrongIndex) * 0.25 }} data-testid="oops-sparkle">✨</motion.span>
                     )}
                   </span>
                 </motion.button>
@@ -128,7 +150,7 @@ export function DragonOops({ problem, onSolved, onWrong, onStep, setHint, setSpe
           })}
         </ol>
         {phase === 'fixed' && (
-          <motion.p className="text-center text-2xl font-bold text-emerald-700" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ ease: BOUNCY }} data-testid="oops-fixed">
+          <motion.p className="text-center text-2xl font-bold text-emerald-700" initial={reduce ? { opacity: 0 } : { scale: 0 }} animate={reduce ? { opacity: 1 } : { scale: 1 }} transition={{ ease: BOUNCY }} data-testid="oops-fixed">
             {t('oopsFixed')}
           </motion.p>
         )}
@@ -137,6 +159,11 @@ export function DragonOops({ problem, onSolved, onWrong, onStep, setHint, setSpe
 
       <div className="action-dock flex flex-col items-center gap-2 md:gap-3 md:w-[300px]">
         {phase === 'find' && <p className="prompt-pill dock-prompt text-center text-2xl font-bold" data-testid="oops-prompt">{t('oopsFind')} 👆</p>}
+        {phase === 'find' && elsewhere && (
+          <p className="text-center text-xl font-bold text-emerald-800 bg-emerald-50 border-2 border-emerald-300 rounded-2xl px-3 py-2" role="status" data-testid="oops-elsewhere">
+            ✓ {t('oopsElsewhere')}
+          </p>
+        )}
         {phase === 'fix' && (
           <>
             <p className="prompt-pill dock-prompt text-center text-3xl font-bold" data-testid="oops-question">{prompt}</p>
