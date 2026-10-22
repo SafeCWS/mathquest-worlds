@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:unit": "tsx --test lib/sounds/__tests__/*.test.ts lib/constants/__tests__/*.test.ts lib/auth/__tests__/*.test.ts",
+    "test:unit": "tsx --test lib/sounds/__tests__/*.test.ts lib/constants/__tests__/*.test.ts lib/auth/__tests__/*.test.ts lib/math/__tests__/*.test.ts lib/navigation/__tests__/*.test.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -28,7 +28,7 @@
     "zustand": "^5.0.10"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1",
+    "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/nodemailer": "8.0.2",
