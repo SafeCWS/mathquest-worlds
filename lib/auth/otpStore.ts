@@ -44,13 +44,15 @@
  */
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto'
 import { isIP } from 'node:net'
+import { normalizeEmail, parseAllowlist, wellFormedEmail } from './allowlist'
+
+export { normalizeEmail, parseAllowlist }
 
 export const CODE_TTL_MS = 10 * 60 * 1000
 export const MAX_WRONG_TRIES = 5
 export const RESEND_COOLDOWN_MS = 60 * 1000
 export const MAX_SENDS_PER_HOUR = 5
 export const SEND_WINDOW_MS = 60 * 60 * 1000
-const MAX_EMAIL_LENGTH = 254
 
 /** Per client IP: code requests per rolling hour, across all emails. */
 export const IP_MAX_REQUESTS_PER_HOUR = 10
@@ -100,14 +102,6 @@ export interface OtpStoreOptions {
    * block (getOtpStore fires the notice mail detached).
    */
   onLock?: (email: string, until: number) => void
-}
-
-export function normalizeEmail(raw: unknown): string {
-  return String(raw ?? '').toLowerCase().trim()
-}
-
-function wellFormedEmail(email: string): boolean {
-  return !!email && email.length <= MAX_EMAIL_LENGTH && email.includes('@')
 }
 
 export type IpSource = 'cf-connecting-ip' | 'x-forwarded-for-rightmost' | 'none'
@@ -182,29 +176,6 @@ export function clientIpFrom(headers: Headers | undefined | null): string | null
     console.info(`[otp] ip_source=${source} ${describeIpHeaders(headers)}`)
   }
   return ip
-}
-
-/**
- * Parse SIMPLE_AUTH_USERS (`[{"email": "...", "password": "..."}]`). Password
- * is ignored — only the email list matters for OTP. Malformed JSON, a
- * non-array, or junk entries yield an empty / partial set; this never throws.
- */
-export function parseAllowlist(json: string | undefined | null): Set<string> {
-  const out = new Set<string>()
-  if (!json || !json.trim()) return out
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(json)
-  } catch {
-    return out
-  }
-  if (!Array.isArray(parsed)) return out
-  for (const entry of parsed) {
-    if (!entry || typeof entry !== 'object') continue
-    const email = normalizeEmail((entry as { email?: unknown }).email)
-    if (wellFormedEmail(email)) out.add(email)
-  }
-  return out
 }
 
 /** Rolling-window timestamps per key, pruned on read. */
@@ -462,9 +433,10 @@ export const SWEEP_INTERVAL_MS = 60 * 1000
  * Why 'development' too: Next inlines process.env.NODE_ENV at compile time —
  * "development" under `next dev` (the Playwright webServer), "production"
  * under `next build`. A literal === 'test' could therefore never fire for
- * Playwright, while a production build compiles the caller below to
- * `{NODE_ENV:"production", …}`, so this hook is dead code on Render whatever
- * env vars the service carries (verified in .next/server/chunks at build).
+ * Playwright. In a production build the caller below receives the inlined
+ * literal `NODE_ENV:"production"` (seen in .next/server/chunks), so the hook
+ * is unreachable in production whatever env vars the service carries — the
+ * code is still present in the bundle; it just can never be selected.
  * Takes the env as an argument so the guard itself is unit-tested.
  */
 const TEST_HOOK_NODE_ENVS: ReadonlySet<string> = new Set(['test', 'development'])

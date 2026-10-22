@@ -120,10 +120,13 @@ describe('Edge safety of the middleware graph', () => {
     assert.doesNotMatch(src, /from ['"]@\/auth['"]/)
     assert.match(src, /from ['"]@\/lib\/auth\/config['"]/)
   })
-  it('lib/auth/config.ts imports nothing but next-auth types', () => {
+  it('lib/auth/config.ts imports only next-auth types and the node-free allowlist', () => {
     const imports = [...read('lib/auth/config.ts').matchAll(/^import .* from ['"]([^'"]+)['"]/gm)].map((x) => x[1])
-    assert.deepEqual(imports, ['next-auth'])
-    assert.match(read('lib/auth/config.ts'), /^import type /m)
+    assert.deepEqual(imports, ['next-auth', './allowlist'])
+    assert.match(read('lib/auth/config.ts'), /^import type .* from 'next-auth'/m)
+  })
+  it('lib/auth/allowlist.ts imports nothing (Edge-safe)', () => {
+    assert.doesNotMatch(read('lib/auth/allowlist.ts'), /^import /m)
   })
 })
 
