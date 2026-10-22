@@ -91,7 +91,9 @@ test.describe('answer-not-leaked — pre-quiz answer hiding', () => {
     // any other "= <number>" pattern. The MIN possible product (1x1=1) and
     // MAX (10x10=100) are both numeric, so we can grep for the negative
     // match across the whole page body.
-    const body = await page.locator('body').textContent()
+    // innerText = what the child can read. textContent would also scan the RSC
+    // <script> payload, which carries every i18n string (e.g. "Big crate = 100").
+    const body = await page.locator('body').innerText()
     expect(body).not.toMatch(/= \d+ /) // pre-quiz: NO "= 12 " etc.
   })
 
