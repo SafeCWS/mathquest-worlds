@@ -109,3 +109,33 @@ test('v2 picker + Flip & Split 42 × 3 + Story Missions slots by taps at 390 px'
   await expect(page.locator('[data-phase=pick]')).toHaveCount(1, { timeout: 10_000 })
   await noSidewaysScroll(page)
 })
+
+test('M1: Dragon Oops — the row being fixed stays above the answer sheet after Hint', async ({ page }) => {
+  await page.addInitScript(() => {
+    for (const m of ['split', 'column', 'story', 'flip', 'oops']) localStorage.setItem(`mq-big-walkthrough-${m}`, '1')
+  })
+  // html-validator repro (qa-v2 oopsscan 21x3-fix-hint-tier2): the oops on row 3 ("1 × 3 = 4");
+  // the slip is random, so reload until it is dealt.
+  await page.goto('/multiplication/big?mode=oops&a=21&b=3')
+  for (let i = 0; i < 40; i++) {
+    await expect(page.locator('[data-phase=find]')).toHaveCount(1, { timeout: 20_000 })
+    if ((await page.locator('[data-testid=oops-text-2]').textContent())?.trim() === '1 × 3 = 4') break
+    await page.reload()
+  }
+  await expect(page.locator('[data-testid=oops-text-2]')).toHaveText('1 × 3 = 4')
+  await page.locator('[data-testid=oops-row-0]').tap()
+  await page.locator('[data-testid=oops-row-1]').tap()
+  await page.locator('[data-testid=oops-row-2]').tap()
+  await expect(page.locator('[data-phase=fix]')).toHaveCount(1)
+  await page.waitForTimeout(1200) // the step's own re-frame has run
+  await page.locator('[data-testid=hint-btn]').tap()
+  await expect(page.locator('[data-testid=hint-bubble]')).toBeVisible()
+  await page.waitForTimeout(1500) // re-frame after the hint + the dragon's 2-line reply
+  const m = await page.evaluate(() => {
+    const row = document.querySelector('[data-testid=oops-row-2]')!.getBoundingClientRect()
+    const sheet = document.querySelector('.action-dock')!.getBoundingClientRect()
+    return { top: row.top, bottom: row.bottom, sheetTop: sheet.top }
+  })
+  expect(m.top).toBeGreaterThanOrEqual(0)
+  expect(m.bottom).toBeLessThanOrEqual(m.sheetTop)
+})

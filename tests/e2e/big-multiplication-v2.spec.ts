@@ -267,8 +267,8 @@ test.describe('/multiplication/big v2', () => {
     await resetCounts(page)
     await toggle.click()
     await expect(toggle).toHaveAttribute('data-voice', 'off')
-    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
-    await expect(toggle).toHaveAttribute('aria-label', 'Voice off — tap to turn on')
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false') // pressed = voice on
+    await expect(toggle).toHaveAttribute('aria-label', 'Voice')
     const c0 = await counts(page)
     expect(c0.cancel).toBeGreaterThanOrEqual(1)
     expect(c0.speak).toBe(0)
