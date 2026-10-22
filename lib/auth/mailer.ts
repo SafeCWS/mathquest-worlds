@@ -14,6 +14,7 @@
  * Node runtime only (nodemailer uses net/tls). Never import from middleware.
  */
 import nodemailer from 'nodemailer'
+import { getMailStats } from './mailStats'
 
 export const SMTP_USER = 'airecruiter@customworkforcesolutionsllc.com'
 export const SMTP_HOST = 'smtp.gmail.com'
@@ -91,6 +92,12 @@ export interface SendDeps {
  * rejection. Logs carry a masked address and an error class only.
  */
 async function deliver(to: string, build: () => OtpMail, kind: string, deps: SendDeps): Promise<SendOutcome> {
+  const outcome = await attempt(to, build, kind, deps)
+  getMailStats().record(outcome) // proof-of-life for /api/health (L104)
+  return outcome
+}
+
+async function attempt(to: string, build: () => OtpMail, kind: string, deps: SendDeps): Promise<SendOutcome> {
   const log = deps.log ?? console
   const pass = deps.pass ?? process.env.GMAIL_APP_PASSWORD
   const masked = maskEmail(to)

@@ -29,10 +29,19 @@ services:
       #   security find-generic-password -a mathquest-worlds -s simple-auth-users-json -w
       - key: AUTH_SECRET
         sync: false
-      # SIMPLE_AUTH_USERS is a JSON array of {email, password} objects.
-      # The orchestrator builds it inline by reading per-user passwords
-      # from Keychain (e.g. -s carolina-password, -s tatiana-password)
-      # and PUTs it to Render env vars via the Python pattern in
-      # feedback_render_env_vars_python.md (shell pipes drop keys).
+      # SIMPLE_AUTH_USERS is a JSON array of {email} objects — the family
+      # allowlist for email one-time-code sign-in. Only `email` is read; a
+      # `password` field, if still present, is ignored. Malformed JSON means
+      # nobody can sign in (operator-approved). Change it with a GET-merge-PUT
+      # (Render's env PUT is a full replacement), then redeploy.
       - key: SIMPLE_AUTH_USERS
         sync: false
+      # Gmail app password for the sign-in code mail, sent from the fleet
+      # SMTP user (airecruiter@). Keychain (cws-sdk, gmail-app-password).
+      # Never logged. Unset => codes are not sent (warned in the logs, and
+      # /api/health shows otpMail.lastOk=false).
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+      # Optional: TRUSTED_IP_HEADER = cf-connecting-ip (default when unset)
+      # or x-forwarded-for-rightmost. Read the one-time `[otp] ip_source=`
+      # log line before changing it. See lib/auth/otpStore.ts resolveClientIp.
