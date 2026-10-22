@@ -13,7 +13,7 @@
  * would see the default [1] — only Table 1 unlocked, then a flash to the
  * full set. Worse, the same race could redirect or hide the star counter.
  */
-import { test, expect } from '@playwright/test'
+import { test, expect } from './silence'
 import type { Page } from '@playwright/test'
 
 const MULT_KEY = 'mathquest-multiplication'

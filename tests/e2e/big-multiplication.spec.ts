@@ -14,11 +14,11 @@
  *
  * Auth is dev-mode permissive (same as answer-not-leaked.spec.ts). Synthetic data only.
  */
-import { test, expect } from '@playwright/test'
+import { test, expect } from './silence'
 import type { Page } from '@playwright/test'
 
 const BIG_KEY = 'mathquest-big-multiplication'
-const MODES = ['blocks', 'split', 'column', 'guess'] as const
+const MODES = ['split', 'column', 'story', 'flip', 'oops'] as const
 
 /** Every mode starts "walkthrough already seen" unless a test wants the demo. */
 async function skipWalkthroughs(page: Page) {

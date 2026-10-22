@@ -8,7 +8,7 @@
  *   'invalid' for every rejected code (one message, no tries-left — 2026-10-22).
  * The backend (lib/auth, app/api/otp) has its own tests. Synthetic email only.
  */
-import { test, expect } from '@playwright/test'
+import { test, expect } from './silence'
 import type { Page, Route } from '@playwright/test'
 
 const EMAIL = 'parent@example.com'

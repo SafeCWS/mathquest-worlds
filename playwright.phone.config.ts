@@ -6,6 +6,7 @@
  */
 import { defineConfig, devices } from '@playwright/test'
 import base, { AUTH_STATE } from './playwright.config'
+import { CHROMIUM_MUTE, FIREFOX_MUTE } from './tests/e2e/silence'
 
 const phone = { viewport: { width: 390, height: 844 }, hasTouch: true }
 
@@ -14,10 +15,11 @@ export default defineConfig({
   testMatch: /phone-cross-browser\.spec\.ts/,
   testIgnore: [],
   projects: [
-    { name: 'setup', testMatch: /auth\.setup\.ts/ },
-    { name: 'phone-chromium', use: { ...devices['Desktop Chrome'], ...phone, isMobile: true, storageState: AUTH_STATE }, dependencies: ['setup'] },
-    { name: 'phone-webkit', use: { ...devices['Desktop Safari'], ...phone, isMobile: true, storageState: AUTH_STATE }, dependencies: ['setup'] },
+    { name: 'setup', testMatch: /auth\.setup\.ts/, use: { launchOptions: CHROMIUM_MUTE } },
+    { name: 'phone-chromium', use: { ...devices['Desktop Chrome'], ...phone, isMobile: true, storageState: AUTH_STATE, launchOptions: CHROMIUM_MUTE }, dependencies: ['setup'] },
+    // WebKit has no mute flag: silence.ts's init script (speech + AudioContext stubs) covers it.
+    { name: 'phone-webkit', use: { ...devices['Desktop Safari'], ...phone, isMobile: true, storageState: AUTH_STATE, launchOptions: {} }, dependencies: ['setup'] },
     // Firefox has no isMobile emulation; touch + width are what matter here.
-    { name: 'phone-firefox', use: { ...devices['Desktop Firefox'], ...phone, storageState: AUTH_STATE }, dependencies: ['setup'] },
+    { name: 'phone-firefox', use: { ...devices['Desktop Firefox'], ...phone, storageState: AUTH_STATE, launchOptions: FIREFOX_MUTE }, dependencies: ['setup'] },
   ],
 })

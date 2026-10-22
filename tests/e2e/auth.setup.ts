@@ -4,7 +4,7 @@
  * Saved to AUTH_STATE so every chromium spec starts signed in.
  * Synthetic allowlist only (playwright.config.ts webServer env).
  */
-import { test as setup, expect } from '@playwright/test'
+import { test as setup, expect } from './silence'
 import { AUTH_STATE, E2E_EMAIL, E2E_OTP_CODE } from '../../playwright.config'
 
 setup('real sign-in with the email code lands signed in', async ({ page }) => {
