@@ -25,6 +25,9 @@ import {
   IP_MAX_REQUESTS_PER_HOUR,
   IP_MAX_FAILED_VERIFIES,
   IP_VERIFY_WINDOW_MS,
+  MAX_DAILY_FAILURES,
+  DAILY_FAILURE_WINDOW_MS,
+  LOCKOUT_MS,
   type RequestResult,
 } from '../otpStore'
 import { authorizeOtp } from '../authorize'
@@ -266,5 +269,102 @@ describe('resolveClientIp (behind Render’s Cloudflare zone)', () => {
       'headers_present=cf-connecting-ip,x-forwarded-for xff_rightmost_equals_cf_connecting_ip=false',
     )
     assert.equal(describeIpHeaders(h({})), 'headers_present=(none) xff_rightmost_equals_cf_connecting_ip=false')
+  })
+})
+
+describe('24-hour per-email failure lock (review SHOULD-4)', () => {
+  const locks: Array<{ email: string; until: number }> = []
+  let lockStore: OtpStore
+  beforeEach(() => {
+    locks.length = 0
+    lockStore = new OtpStore({
+      now: () => clock,
+      randomCode: () => 100000 + Math.floor(Math.random() * 899999),
+      onLock: (email, until) => locks.push({ email, until }),
+    })
+  })
+  /** n failed verifies on PARENT spread over fresh codes and many IPs (no IP limit trips). */
+  const fail = (n: number, st: OtpStore = lockStore) => {
+    let done = 0
+    let round = 0
+    while (done < n) {
+      clock += SEND_WINDOW_MS / 5 + 1 // stay under 5 sends/hour and past cooldown
+      st.requestCode(PARENT, ALLOW, `192.0.2.${round % 250}`)
+      for (let i = 0; i < 5 && done < n; i++, done++) {
+        st.verifyCode(PARENT, '000000', `10.${round}.${i}.1`)
+      }
+      round++
+    }
+  }
+
+  it(`${MAX_DAILY_FAILURES} failures in 24 h lock the email; the right code then fails; ONE notice`, () => {
+    fail(MAX_DAILY_FAILURES)
+    assert.equal(locks.length, 1)
+    assert.equal(locks[0].email, PARENT)
+    assert.equal(locks[0].until, clock + LOCKOUT_MS)
+    const r = lockStore.requestCode(PARENT, ALLOW, '198.51.100.1')
+    assert.equal(r.status, 'locked') // no code minted while locked
+    assert.equal(lockStore.verifyCode(PARENT, '000000', '198.51.100.2').ok, false)
+    fail(10) // more attempts while locked: still exactly one notice
+    assert.equal(locks.length, 1)
+  })
+
+  it(`${MAX_DAILY_FAILURES - 1} failures do not lock`, () => {
+    fail(MAX_DAILY_FAILURES - 1)
+    assert.equal(locks.length, 0)
+    clock += SEND_WINDOW_MS // fail() used this hour's 5 sends; the 29 failures stay inside 24 h
+    const r = lockStore.requestCode(PARENT, ALLOW, '198.51.100.1') as { status: string; code?: string }
+    assert.equal(r.status, 'sent')
+    assert.equal(lockStore.verifyCode(PARENT, r.code, '198.51.100.1').ok, true)
+  })
+
+  it('failures older than 24 h roll off', () => {
+    fail(MAX_DAILY_FAILURES - 1)
+    clock += DAILY_FAILURE_WINDOW_MS
+    fail(MAX_DAILY_FAILURES - 1)
+    assert.equal(locks.length, 0)
+  })
+
+  it('the lock lifts after 24 h and sign-in works again', () => {
+    fail(MAX_DAILY_FAILURES)
+    clock += LOCKOUT_MS
+    const r = lockStore.requestCode(PARENT, ALLOW, '198.51.100.1') as { code: string }
+    assert.equal(lockStore.verifyCode(PARENT, r.code, '198.51.100.1').ok, true)
+  })
+
+  it('signs in as "invalid" while locked, with exactly one HMAC per verify', () => {
+    fail(MAX_DAILY_FAILURES)
+    store = lockStore
+    assert.equal(signIn(PARENT, '123456', IP_A), 'invalid')
+    const counting = makeStore(CountingStore)
+    codes = Array.from({ length: 20 }, (_, i) => 200000 + i)
+    fail(MAX_DAILY_FAILURES, counting)
+    counting.hashes = 0
+    assert.equal(counting.verifyCode(PARENT, '000000', '198.51.100.3').ok, false)
+    assert.equal(counting.hashes, 1)
+  })
+
+  it('unlisted emails never enter the failure / lock maps', () => {
+    for (let i = 0; i < 200; i++) lockStore.verifyCode(STRANGER, '000000', `10.0.${i}.1`)
+    lockStore.assertBoundedBy(ALLOW)
+    assert.deepEqual(lockStore.lockSize(), { dailyFailures: 0, lockouts: 0 })
+    fail(MAX_DAILY_FAILURES)
+    lockStore.assertBoundedBy(ALLOW)
+    assert.deepEqual(lockStore.lockSize(), { dailyFailures: 1, lockouts: 1 })
+  })
+
+  it('IP-refused attempts do not count toward the email lock', () => {
+    lockStore.requestCode(PARENT, ALLOW, IP_A)
+    for (let i = 0; i < IP_MAX_FAILED_VERIFIES; i++) lockStore.verifyCode(`probe${i}@example.com`, '0', IP_C)
+    for (let i = 0; i < 100; i++) lockStore.verifyCode(PARENT, '000000', IP_C) // all refused by IP
+    assert.equal(locks.length, 0)
+    assert.equal(lockStore.lockSize().dailyFailures, 0)
+  })
+
+  it('the sweep clears expired locks and stale failure windows', () => {
+    fail(MAX_DAILY_FAILURES)
+    clock += LOCKOUT_MS + DAILY_FAILURE_WINDOW_MS
+    lockStore.sweepExpired()
+    assert.deepEqual(lockStore.lockSize(), { dailyFailures: 0, lockouts: 0 })
   })
 })

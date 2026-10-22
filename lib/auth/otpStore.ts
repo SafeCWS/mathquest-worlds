@@ -60,16 +60,27 @@ export const IP_VERIFY_WINDOW_MS = 10 * 60 * 1000
 /** Cap on tracked client IPs per rate-limit pool (oldest evicted; codes unaffected). */
 export const MAX_IP_ENTRIES = 5000
 
+/**
+ * Per allowlisted email: this many failed verifies (against a real code) in
+ * a rolling 24 h lock that email's sign-in for LOCKOUT_MS, and the family
+ * member gets ONE notice email. Keyed by allowlisted emails only; never evicted.
+ */
+export const MAX_DAILY_FAILURES = 30
+export const DAILY_FAILURE_WINDOW_MS = 24 * 60 * 60 * 1000
+export const LOCKOUT_MS = 24 * 60 * 60 * 1000
+
 export type RequestResult =
   | { status: 'sent'; code: string; expiresAt: number }
   | { status: 'not-allowed' }
   | { status: 'cooldown'; retryInSec: number }
   | { status: 'rate-limited'; retryInSec: number }
+  /** Allowlisted email under a 24 h failure lock: no code is minted. */
+  | { status: 'locked'; until: number }
 
 /** Internal only — the sign-in surface collapses every failure to 'invalid'. */
 export type VerifyResult =
   | { ok: true; email: string }
-  | { ok: false; reason: 'expired' | 'wrong' | 'burned' | 'none'; triesLeft?: number }
+  | { ok: false; reason: 'expired' | 'wrong' | 'burned' | 'none' | 'locked'; triesLeft?: number }
 
 interface Challenge {
   codeHash: Buffer
@@ -84,6 +95,11 @@ export interface OtpStoreOptions {
   randomCode?: () => number
   /** HMAC key. Defaults to 32 random bytes per process. */
   hashKey?: Buffer
+  /**
+   * Called ONCE when an email enters a 24 h failure lock. Must not throw or
+   * block (getOtpStore fires the notice mail detached).
+   */
+  onLock?: (email: string, until: number) => void
 }
 
 export function normalizeEmail(raw: unknown): string {
@@ -224,11 +240,16 @@ export class OtpStore {
   private readonly challenges = new Map<string, Challenge>()
   /** Keyed ONLY by allowlisted emails. */
   private readonly sendLog = new Map<string, number[]>()
+  /** Keyed ONLY by allowlisted emails (a real challenge must have existed). */
+  private readonly dailyFailures = new Map<string, number[]>()
+  /** Keyed ONLY by allowlisted emails: lock end, epoch ms. */
+  private readonly lockouts = new Map<string, number>()
   private readonly ipRequests = new Map<string, number[]>()
   private readonly ipFailures = new Map<string, number[]>()
   private readonly now: () => number
   private readonly randomCode: () => number
   private readonly hashKey: Buffer
+  private readonly onLock?: (email: string, until: number) => void
   /** Compared against when there is no challenge, so every path does the same work. */
   private readonly dummyHash: Buffer
 
@@ -237,6 +258,32 @@ export class OtpStore {
     this.randomCode = opts.randomCode ?? (() => randomInt(0, 1_000_000))
     this.hashKey = opts.hashKey ?? randomBytes(32)
     this.dummyHash = randomBytes(32)
+    this.onLock = opts.onLock
+  }
+
+  private isLocked(email: string, t: number): boolean {
+    const until = this.lockouts.get(email)
+    if (until === undefined) return false
+    if (t < until) return true
+    this.lockouts.delete(email)
+    return false
+  }
+
+  /** A failed verify against a REAL challenge (so `email` is allowlisted). */
+  private recordDailyFailure(email: string, t: number): void {
+    const hits = recentIn(this.dailyFailures, email, t, DAILY_FAILURE_WINDOW_MS)
+    hits.push(t)
+    this.dailyFailures.set(email, hits)
+    if (hits.length >= MAX_DAILY_FAILURES && !this.isLocked(email, t)) {
+      const until = t + LOCKOUT_MS
+      this.lockouts.set(email, until)
+      this.challenges.delete(email) // the pending code dies with the lock
+      try {
+        this.onLock?.(email, until)
+      } catch {
+        // a notifier failure must never change the sign-in outcome
+      }
+    }
   }
 
   protected hash(email: string, code: string): Buffer {
@@ -262,6 +309,7 @@ export class OtpStore {
     const email = normalizeEmail(rawEmail)
     // Unlisted or malformed: store NOTHING (no challenge, no send log).
     if (!wellFormedEmail(email) || !allowlist.has(email)) return { status: 'not-allowed' }
+    if (this.isLocked(email, t)) return { status: 'locked', until: this.lockouts.get(email) as number }
 
     const sends = this.recentSends(email, t)
     if (sends.length >= MAX_SENDS_PER_HOUR) {
@@ -306,11 +354,17 @@ export class OtpStore {
     // Over-limit IP: refused before the challenge is touched, so the email's
     // tries are untouched.
     if (clientIp && failures.length >= IP_MAX_FAILED_VERIFIES) return { ok: false, reason: 'burned' }
+    // 24 h failure lock: refused, not counted again (one notice per lock).
+    if (email && this.isLocked(email, t)) return fail({ ok: false, reason: 'locked' })
 
     if (!challenge) return fail({ ok: false, reason: 'none' })
-    if (challenge.tries >= MAX_WRONG_TRIES) return fail({ ok: false, reason: 'burned' })
+    if (challenge.tries >= MAX_WRONG_TRIES) {
+      this.recordDailyFailure(email, t)
+      return fail({ ok: false, reason: 'burned' })
+    }
     if (t >= challenge.expiresAt) {
       this.challenges.delete(email)
+      this.recordDailyFailure(email, t)
       return fail({ ok: false, reason: 'expired' })
     }
     if (equal && /^\d{6}$/.test(code)) {
@@ -319,6 +373,7 @@ export class OtpStore {
     }
     challenge.tries += 1
     const triesLeft = MAX_WRONG_TRIES - challenge.tries
+    this.recordDailyFailure(email, t)
     return fail(triesLeft <= 0 ? { ok: false, reason: 'burned', triesLeft: 0 } : { ok: false, reason: 'wrong', triesLeft })
   }
 
@@ -340,6 +395,13 @@ export class OtpStore {
       for (const key of [...map.keys()]) if (recentIn(map, key, t, windowMs).length === 0) removed++
     }
     prune(this.sendLog, SEND_WINDOW_MS)
+    prune(this.dailyFailures, DAILY_FAILURE_WINDOW_MS)
+    for (const [email, until] of this.lockouts) {
+      if (t >= until) {
+        this.lockouts.delete(email)
+        removed++
+      }
+    }
     prune(this.ipRequests, SEND_WINDOW_MS)
     prune(this.ipFailures, IP_VERIFY_WINDOW_MS)
     return removed
@@ -350,7 +412,12 @@ export class OtpStore {
    * send-log maps is on the allowlist. Throws otherwise.
    */
   assertBoundedBy(allowlist: ReadonlySet<string>): void {
-    for (const key of [...this.challenges.keys(), ...this.sendLog.keys()]) {
+    for (const key of [
+      ...this.challenges.keys(),
+      ...this.sendLog.keys(),
+      ...this.dailyFailures.keys(),
+      ...this.lockouts.keys(),
+    ]) {
       if (!allowlist.has(key)) throw new Error('otpStore invariant: an entry is not on the allowlist')
     }
   }
@@ -363,6 +430,11 @@ export class OtpStore {
   /** Test/diagnostic helper — stored per-email entries (challenges + send logs). */
   size(): { challenges: number; sendLogs: number } {
     return { challenges: this.challenges.size, sendLogs: this.sendLog.size }
+  }
+
+  /** Test/diagnostic helper — per-email failure windows and active locks. */
+  lockSize(): { dailyFailures: number; lockouts: number } {
+    return { dailyFailures: this.dailyFailures.size, lockouts: this.lockouts.size }
   }
 
   /** Test/diagnostic helper — tracked client IPs per pool. */
@@ -416,6 +488,13 @@ export function getOtpStore(): OtpStore {
         NODE_ENV: process.env.NODE_ENV,
         OTP_TEST_CODE: process.env.OTP_TEST_CODE,
       }),
+      // One notice per lock, detached. Dynamic import keeps nodemailer out of
+      // this module's static graph; sendLockNotice never rejects.
+      onLock: (email, until) => {
+        void import('./mailer')
+          .then((m) => m.sendLockNotice(email, until))
+          .catch(() => console.error('[otp-lock] notice task failed'))
+      },
     })
     const timer = setInterval(() => store.sweepExpired(), SWEEP_INTERVAL_MS)
     timer.unref?.() // never keeps the process (or a test run) alive

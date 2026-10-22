@@ -79,44 +79,88 @@ export interface Logger {
 
 export type SendOutcome = 'sent-465' | 'sent-587' | 'skipped-no-password' | 'failed'
 
+export interface SendDeps {
+  pass?: string
+  send?: SendFn
+  log?: Logger
+}
+
 /**
- * Send the code. Resolves (never rejects) with what happened, so a
- * fire-and-forget caller cannot produce an unhandled rejection.
+ * L92 delivery: 465 implicit TLS, then 587 STARTTLS. Resolves (never
+ * rejects), so a fire-and-forget caller cannot produce an unhandled
+ * rejection. Logs carry a masked address and an error class only.
  */
-export async function sendOtpMail(
-  to: string,
-  code: string,
-  ttlMinutes: number,
-  deps: { pass?: string; send?: SendFn; log?: Logger } = {},
-): Promise<SendOutcome> {
+async function deliver(to: string, build: () => OtpMail, kind: string, deps: SendDeps): Promise<SendOutcome> {
   const log = deps.log ?? console
   const pass = deps.pass ?? process.env.GMAIL_APP_PASSWORD
   const masked = maskEmail(to)
   if (!pass) {
-    log.warn(`[otp-mail] GMAIL_APP_PASSWORD unset; code not sent to ${masked}`)
+    log.warn(`[${kind}] GMAIL_APP_PASSWORD unset; not sent to ${masked}`)
     return 'skipped-no-password'
   }
   const send = deps.send ?? smtpSend
   let mail: OtpMail
   try {
-    mail = buildOtpMail(code, ttlMinutes)
+    mail = build()
   } catch {
-    log.error(`[otp-mail] refused to build mail for ${masked}: bad code shape`)
+    log.error(`[${kind}] refused to build mail for ${masked}`)
     return 'failed'
   }
   try {
     await send({ port: 465, secure: true, to, mail, pass })
     return 'sent-465'
   } catch (e) {
-    log.warn(`[otp-mail] 465 failed for ${masked} (${errName(e)}); trying 587`)
+    log.warn(`[${kind}] 465 failed for ${masked} (${errName(e)}); trying 587`)
   }
   try {
     await send({ port: 587, secure: false, to, mail, pass })
     return 'sent-587'
   } catch (e) {
-    log.error(`[otp-mail] 587 failed for ${masked} (${errName(e)}); code not delivered`)
+    log.error(`[${kind}] 587 failed for ${masked} (${errName(e)}); not delivered`)
     return 'failed'
   }
+}
+
+/** Send the sign-in code. */
+export function sendOtpMail(to: string, code: string, ttlMinutes: number, deps: SendDeps = {}): Promise<SendOutcome> {
+  return deliver(to, () => buildOtpMail(code, ttlMinutes), 'otp-mail', deps)
+}
+
+/**
+ * "Friday, October 23, 3:15 PM Central Time". The family is in Texas, so the
+ * unlock time is shown in US Central (DST-aware), never server UTC.
+ */
+export function formatCentral(epochMs: number): string {
+  const s = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(epochMs))
+  return `${s.replace(' at ', ', ')} Central Time`
+}
+
+/**
+ * The ONE notice sent when an email enters the 24 h failure lock. English
+ * only, no code. Copy per security review SHOULD-4 (2026-10-22).
+ */
+export function buildLockNoticeMail(until: number): OtpMail {
+  const when = formatCentral(until)
+  const subject = 'MathQuest sign-in is paused for your email'
+  const line = `Someone tried to sign in to MathQuest with your email. If it was you, wait until ${when}.`
+  const text = `${line}\n`
+  const html = `<!doctype html>
+<html><body style="margin:0;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;background:#ffffff">
+<p style="font-size:16px;margin:0">Someone tried to sign in to MathQuest with your email. If it was you, wait until <strong>${when}</strong>.</p>
+</body></html>`
+  return { subject, text, html }
+}
+
+/** Send the lock notice. Never rejects. */
+export function sendLockNotice(to: string, until: number, deps: SendDeps = {}): Promise<SendOutcome> {
+  return deliver(to, () => buildLockNoticeMail(until), 'otp-lock-mail', deps)
 }
 
 /**

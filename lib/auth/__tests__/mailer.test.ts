@@ -4,7 +4,7 @@
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildOtpMail, maskEmail, sendOtpMail, SMTP_USER } from '../mailer'
+import { buildLockNoticeMail, buildOtpMail, formatCentral, maskEmail, sendLockNotice, sendOtpMail, SMTP_USER } from '../mailer'
 
 const TO = 'parent@example.com'
 const FAKE_PASS = 'synthetic-test-pass'
@@ -112,5 +112,45 @@ describe('sendOtpMail', () => {
     assert.equal(called, false)
     assert.equal(r.lines.length, 1)
     assert.doesNotMatch(r.lines[0], /123456/)
+  })
+})
+
+describe('lock notice mail (24 h failure lock)', () => {
+  const UNTIL = Date.UTC(2026, 9, 23, 20, 15) // 3:15 PM Central (CDT)
+
+  it('formats the unlock time in Central time, English', () => {
+    assert.equal(formatCentral(UNTIL), 'Friday, October 23, 3:15 PM Central Time')
+  })
+
+  it('says what happened and when to try again; carries no code', () => {
+    const m = buildLockNoticeMail(UNTIL)
+    assert.equal(m.subject, 'MathQuest sign-in is paused for your email')
+    assert.match(
+      m.text,
+      /^Someone tried to sign in to MathQuest with your email\. If it was you, wait until Friday, October 23, 3:15 PM Central Time\./,
+    )
+    assert.match(m.html, /Someone tried to sign in to MathQuest with your email\./)
+    for (const part of [m.subject, m.text, m.html]) assert.doesNotMatch(part, /\b\d{6}\b/)
+  })
+
+  it('uses the same 465 → 587 fallback and never rejects', async () => {
+    const ports: number[] = []
+    const out = await sendLockNotice(TO, UNTIL, {
+      pass: FAKE_PASS,
+      send: async ({ port, mail }) => {
+        ports.push(port)
+        assert.equal(mail.subject, 'MathQuest sign-in is paused for your email')
+        if (port === 465) throw Object.assign(new Error('x'), { code: 'ECONNRESET' })
+      },
+      log: recorder().log,
+    })
+    assert.equal(out, 'sent-587')
+    assert.deepEqual(ports, [465, 587])
+  })
+
+  it('skips without a password, logging only the masked address', async () => {
+    const r = recorder()
+    assert.equal(await sendLockNotice(TO, UNTIL, { pass: '', log: r.log }), 'skipped-no-password')
+    assert.doesNotMatch(r.lines.join('\n'), /parent@example\.com/)
   })
 })
