@@ -276,7 +276,7 @@ describe('request-origin checks (review SHOULD-5): rejections look identical', (
       { 'content-type': 'application/json', 'sec-fetch-site': 'none' },
       { 'content-type': 'application/json', origin: 'https://mathquest.example', 'x-forwarded-host': 'mathquest.example' },
       { 'content-type': 'application/json', origin: 'https://mathquest.example', host: 'mathquest.example' },
-    ]) {
+    ] as Record<string, string>[]) {
       const o = await outcome(post(headers))
       assert.equal(o.mails, 1, JSON.stringify(headers))
     }
