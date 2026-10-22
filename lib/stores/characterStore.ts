@@ -1,4 +1,11 @@
 // Character customization state store
+//
+// Storage hardening (red-team round 2 M1, yokoten of 25ba930 / 5d0dcc1): hydration ALWAYS
+// finishes — corrupt JSON, blocked or full storage (see safeStorage.ts) — because `/`,
+// `/worlds`, `/wardrobe`, `/progress`, `/parent`, `/create-character` and `/preferences`
+// all sit on their loader until `_hasHydrated`. A tampered field falls back to its default
+// one by one (a bad avatarStyle or emotion would otherwise crash PresetAvatar), and a
+// character made this session is never un-made by a stale saved copy.
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import {
@@ -15,6 +22,7 @@ import {
   PRIMARY_COLORS
 } from '@/lib/constants/characterItems'
 import { CURRENT_SCHEMA_VERSION, migrate } from '@/lib/character/schema'
+import { safeJSONStorage } from './safeStorage'
 
 // Avatar styles available for selection
 export type AvatarStyle = 'explorer' | 'wizard' | 'astronaut' | 'pirate' | 'ninja' | 'fairy' | 'robot' | 'superhero' | 'unicorn' | 'scientist' | 'dragon' | 'mermaid'
@@ -118,6 +126,56 @@ const defaultCharacter = {
   effects: [],
   animationState: 'idle' as const,
   emotion: 'happy' as const
+}
+
+// --- Persisted shape + load-time sanitising -------------------------------------------
+
+const ANIMATION_STATES: readonly CharacterState['animationState'][] = ['idle', 'happy', 'dance', 'wave', 'jump']
+const EMOTIONS: readonly CharacterState['emotion'][] = ['neutral', 'happy', 'excited', 'thinking', 'sad', 'celebrating']
+const MAX_ACCESSORIES = 3 // same caps as toggleAccessory / toggleEffect
+const MAX_EFFECTS = 2
+const MAX_NAME_LENGTH = 40 // the input allows 20; generous so no real name is cut
+const MAX_ID_LENGTH = 64
+
+type PersistedCharacter = Pick<CharacterState, keyof typeof defaultCharacter>
+
+const PERSISTED_KEYS = Object.keys(defaultCharacter) as (keyof PersistedCharacter)[]
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === 'object' && !Array.isArray(v)
+const isId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= MAX_ID_LENGTH
+const oneOf = <T extends string>(allowed: readonly T[], v: unknown, fb: T): T =>
+  typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : fb
+const idList = (v: unknown, cap: number, fb: string[]): string[] =>
+  Array.isArray(v) ? [...new Set(v.filter(isId))].slice(0, cap) : fb
+
+/**
+ * Every persisted field, each either valid or taken from `fb`. Never throws.
+ * Exported for tests. Item ids are type/length-checked only (not against today's catalog),
+ * so a saved id from an older catalog is kept exactly as the original merge kept it.
+ */
+export function sanitizeCharacter(v: unknown, fb: PersistedCharacter): PersistedCharacter {
+  const s = isRecord(v) ? v : {}
+  const id = (k: 'bodyType' | 'skinTone' | 'hairStyle' | 'hairColor' | 'eyeShape' | 'eyeColor' | 'outfit' | 'petBuddy') =>
+    isId(s[k]) ? (s[k] as string) : fb[k]
+  return {
+    hasCreatedCharacter: typeof s.hasCreatedCharacter === 'boolean' ? s.hasCreatedCharacter : fb.hasCreatedCharacter,
+    characterName: typeof s.characterName === 'string' ? s.characterName.slice(0, MAX_NAME_LENGTH) : fb.characterName,
+    avatarStyle: oneOf(AVATAR_STYLES, s.avatarStyle, fb.avatarStyle),
+    primaryColor: oneOf(PRIMARY_COLORS as readonly string[], s.primaryColor, fb.primaryColor),
+    bodyType: id('bodyType'),
+    skinTone: id('skinTone'),
+    hairStyle: id('hairStyle'),
+    hairColor: id('hairColor'),
+    eyeShape: id('eyeShape'),
+    eyeColor: id('eyeColor'),
+    outfit: id('outfit'),
+    accessories: idList(s.accessories, MAX_ACCESSORIES, fb.accessories),
+    petBuddy: id('petBuddy'),
+    effects: idList(s.effects, MAX_EFFECTS, fb.effects),
+    animationState: oneOf(ANIMATION_STATES, s.animationState, fb.animationState),
+    emotion: oneOf(EMOTIONS, s.emotion, fb.emotion),
+  } as PersistedCharacter
 }
 
 export const useCharacterStore = create<CharacterState>()(
@@ -251,10 +309,28 @@ export const useCharacterStore = create<CharacterState>()(
       migrate: (persistedState, _version) => {
         const migrated = migrate(persistedState)
         const { schemaVersion: _sv, updatedAt: _ts, ...rest } = migrated
-        return rest as Partial<CharacterState>
+        return rest as PersistedCharacter // merge() sanitises every field
       },
-      onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true)
+      // Never throws (corrupt JSON / blocked / full storage → null or swallowed).
+      storage: safeJSONStorage<PersistedCharacter>(),
+      // Only the character fields — never `_hasHydrated`, never a key that could shadow an
+      // action. Same keys as before, so an existing save reads back unchanged.
+      partialize: (s) => {
+        const out: Record<string, unknown> = {}
+        for (const k of PERSISTED_KEYS) out[k] = s[k]
+        return out as PersistedCharacter
+      },
+      // Unknown keys are dropped; each bad field falls back to the live value. A character
+      // made this session (storage blocked, or another tab's stale copy) is never un-made.
+      merge: (persisted, current) => {
+        const live = sanitizeCharacter(current, defaultCharacter as PersistedCharacter)
+        const saved = sanitizeCharacter(persisted, live)
+        return { ...current, ...(live.hasCreatedCharacter && !saved.hasCreatedCharacter ? live : saved) }
+      },
+      // Success AND error: a failed rehydrate must never leave the page on its loader.
+      // `initial` (not useCharacterStore): the first hydrate runs inside create().
+      onRehydrateStorage: (initial) => () => {
+        initial.setHasHydrated(true)
       },
     }
   )
