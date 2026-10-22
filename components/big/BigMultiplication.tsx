@@ -558,14 +558,16 @@ export function BigMultiplication() {
   //   1. full bubble at the current scroll — below the targets first, else ABOVE them over the
   //      title / dragon rows;  2. compact bubble (Read it shrinks to a 🔊 icon), same;
   //   3. compact bubble with the smallest scroll that makes room;  4. the spot covering least.
-  // "Soft" context ([data-keep-clear="soft"], e.g. the Dragon Oops row above the oops) is kept clear
-  // through steps 1–3 first; only if that fails are 1–3 retried without it (round 3). Soft context
-  // never has to stay on screen, so it cannot push the bubble off-screen or onto a target.
+  // Soft context is kept clear when there is room, in two levels: "soft" (the Dragon Oops row above
+  // the oops, the story sentence) and "soft-2" (the row below the oops). Steps 1–3 run with both;
+  // if no spot exists, "soft-2" is given up, then "soft" (rounds 3–4). Soft context never has to
+  // stay on screen, so it cannot push the bubble off-screen or onto a target.
   // The bubble itself lets taps through (pointer-events only on ✕ and Read it).
   const playArea = useRef<HTMLDivElement>(null)
   const bubble = useRef<HTMLDivElement>(null)
   const [hintTop, setHintTop] = useState(0)
-  // Placement stage: 0 full + soft context, 1 compact + soft, 2 full, 3 compact (no soft context).
+  // Placement stage = softLevel × 2 + compact. softLevel 0 keeps "soft" + "soft-2" clear, 1 keeps
+  // "soft" only, 2 keeps none. Even stages = full bubble, odd = compact.
   const [stage, setStage] = useState(0)
   const compact = stage % 2 === 1
   const placedFor = useRef('')
@@ -602,17 +604,22 @@ export function BigMultiplication() {
       .filter(shown)
       .map((e) => ({ keep: e.dataset.keepClear === '1', b: rectOf(e) }))
       .filter(({ keep, b }) => b.width > 0 && b.height > 0 && (keep || b.height <= 200))
-    const soft = Array.from(box.querySelectorAll<HTMLElement>('[data-testid=mode-area] [data-keep-clear="soft"]'))
-      .filter(shown)
-      .map((e) => e.getBoundingClientRect())
-      .filter((b) => b.width > 0 && b.height > 0)
+    const softOf = (v: string) =>
+      Array.from(box.querySelectorAll<HTMLElement>(`[data-testid=mode-area] [data-keep-clear="${v}"]`))
+        .filter(shown)
+        .map((e) => e.getBoundingClientRect())
+        .filter((b) => b.width > 0 && b.height > 0)
+    const soft1 = softOf('soft')
+    const soft2 = softOf('soft-2')
+    const level = Math.floor(stage / 2)
+    const soft = [...(level < 2 ? soft1 : []), ...(level < 1 ? soft2 : [])]
     const avoid = [
       ...Array.from(box.querySelectorAll<HTMLElement>('[data-testid=demo-again], [data-testid=demo-banner], [data-testid=mode-area] button:not([disabled])'))
         .filter(shown)
         .map(rectOf)
         .filter((b) => b.width > 0 && b.height > 0 && b.height <= 200 * HINT_PULSE),
       ...targetEls.map((t) => t.b),
-      ...(stage < 2 ? soft : []),
+      ...soft,
     ]
       .filter((b) => b.right > left && b.left < right)
       .map((b) => ({ top: b.top + sy - HINT_CLEAR, bottom: b.bottom + sy + HINT_CLEAR }))
@@ -634,11 +641,18 @@ export function BigMultiplication() {
     }
     const spot = placeBubble({ ...input, allowScroll: false }) ?? (compact ? placeBubble(input) : null)
     // No spot at this stage: next stage (re-measured at the new size by the layout effect below).
-    // Stages 2–3 only exist when there is soft context to give up.
-    const last = soft.length ? 3 : 1
-    if (!spot && stage < last) {
-      setStage(stage + 1)
-      return
+    // Soft levels with nothing to give up are skipped.
+    if (!spot) {
+      let n = stage + 1
+      const skip = (st: number) => {
+        const lv = Math.floor(st / 2)
+        return (lv === 1 && soft2.length === 0) || (lv === 2 && soft1.length === 0)
+      }
+      while (n <= 5 && skip(n)) n += 1
+      if (n <= 5) {
+        setStage(n)
+        return
+      }
     }
     const y = spot ? spot.y : leastCovered(input)
     const top = y - (c.top + sy)

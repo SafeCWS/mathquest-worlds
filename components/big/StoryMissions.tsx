@@ -272,8 +272,10 @@ export function StoryMissions(props: ModeProps) {
       <div className="bg-white/85 rounded-3xl p-4 shadow-xl border-4 border-white/60 flex flex-col gap-3 items-center">
         {phase === 'read' && (
           <>
-            <div data-active="1"><Picture story={story} style={style} /></div>
-            <p className="text-2xl md:text-3xl font-bold text-gray-800 text-center leading-snug max-w-xl" data-testid="story-text">
+            {/* The hints point at the picture ("Look at the picture") and the story: the bubble keeps
+                the picture clear (hard) and the sentence clear when there is room (soft). */}
+            <div data-active="1" data-keep-clear="1"><Picture story={story} style={style} /></div>
+            <p className="text-2xl md:text-3xl font-bold text-gray-800 text-center leading-snug max-w-xl" data-testid="story-text" data-keep-clear="soft">
               <ReadAlongText text={story.text} word={word} />
             </p>
           </>
@@ -281,8 +283,9 @@ export function StoryMissions(props: ModeProps) {
 
         {phase === 'slots' && (
           <>
-            <Picture story={story} style={style} compact />
-            <p className="text-xl font-bold text-gray-700 text-center" data-testid="story-text">{story.text}</p>
+            {/* "Count the … in the picture" / "Look inside one group": picture hard, story soft. */}
+            <div data-keep-clear="1"><Picture story={story} style={style} compact /></div>
+            <p className="text-xl font-bold text-gray-700 text-center" data-testid="story-text" data-keep-clear="soft">{story.text}</p>
             <div className="flex items-end gap-4">
               {slot(t('storyHowManyGroups', v), slotGroups, slotGroups === null, 'slot-groups')}
               <span className="text-4xl font-bold text-gray-500 pb-5">×</span>
@@ -293,7 +296,8 @@ export function StoryMissions(props: ModeProps) {
 
         {phase === 'pick' && (
           <>
-            <p className="text-xl font-bold text-gray-700 text-center">{story.text}</p>
+            {/* "The story has … groups of …" (wrongPickPlus): keep the story clear when there is room. */}
+            <p className="text-xl font-bold text-gray-700 text-center" data-keep-clear="soft">{story.text}</p>
             <p className="text-2xl font-bold text-center" style={{ color: 'var(--space-primary)' }} data-active="1">
               {story.groups} {t('slotGroups')} · {story.each} {t('slotEach')}
             </p>

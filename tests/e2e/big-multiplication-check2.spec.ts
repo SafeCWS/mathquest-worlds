@@ -148,9 +148,15 @@ for (const vp of [PHONE, IPAD]) {
       // Round 3: the row just above the oops is the context the child re-reads — keep it clear too.
       const k = Number((await page.locator('[data-testid^=oops-row-][data-active="1"]').getAttribute('data-testid'))!.split('-').pop())
       const context = k > 0 ? [`[data-testid=oops-row-${k - 1}]`] : []
+      // Round 4: the row just below (soft too) — reported, since soft context may be given up.
+      const below = `[data-testid=oops-row-${k + 1}]`
       await pad(page, 1) // never right: every oops answer here is ≥ 2 digits
       await settle(page)
       expect(await bubbleHits(page, context), `after wrong (tier 2), oops row ${k}`).toEqual([])
+      if ((await page.locator(below).count()) > 0) {
+        const hb = (await bubbleHits(page, [below])).filter((x) => x.includes(below))
+        console.log(`OOPS-BELOW ${at} oops row ${k}: ${hb.length ? hb.join(', ') : 'clear'}`)
+      }
       await hintTo(page, 3)
       expect(await bubbleHits(page, context), 'tier 3').toEqual([])
       await hintTo(page, 1)
@@ -193,6 +199,28 @@ for (const vp of [PHONE, IPAD]) {
       expect(await bubbleHits(page, labels), 'tier 3').toEqual([])
       await hintTo(page, 1)
       expect(await bubbleHits(page, labels), 'tier 1').toEqual([])
+    })
+
+    test(`Story Missions slots, hint 1–3: clear of the picture the hint points at (${at})`, async ({ page }) => {
+      await page.goto('/multiplication/big?mode=story&a=42&b=3')
+      await phase(page, 'read')
+      // The read step's nudge is "Look at the picture…": same hard rule.
+      await hintTo(page, 1)
+      expect(await bubbleHits(page, ['[data-testid=story-picture]']), 'read step, tier 1').toEqual([])
+      await page.locator('[data-testid=hint-close]').click()
+      await page.locator('[data-testid=story-go]').click()
+      await phase(page, 'slots')
+      const sentence: string[] = []
+      for (let tier = 1; tier <= 3; tier++) {
+        await hintTo(page, tier)
+        // Hard: "Count the … in the picture" must never cover the picture.
+        expect(await bubbleHits(page, ['[data-testid=story-picture]']), `tier ${tier}`).toEqual([])
+        // Soft: the story sentence — reported, not asserted (it is given up when there is no room).
+        const hit = (await bubbleHits(page, ['[data-testid=story-text]'])).filter((x) => x.includes('story-text'))
+        sentence.push(`tier ${tier}: ${hit.length ? hit.join(', ') : 'clear'}`)
+      }
+      test.info().annotations.push({ type: 'story sentence', description: sentence.join(' · ') })
+      console.log(`STORY-SENTENCE ${at} ${sentence.join(' · ')}`)
     })
 
     test(`Break It Apart 78 × 8, hint 1–3: clear of the number to split (${at})`, async ({ page }) => {
