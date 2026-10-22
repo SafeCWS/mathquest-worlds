@@ -313,6 +313,15 @@ for (const vp of [PHONE, IPAD, { width: 320, height: 568 }]) {
   })
 }
 
+test('Escape closes the hint bubble, like ✕', async ({ page }) => {
+  await seen(page)
+  await page.goto('/multiplication/big?mode=column&a=78&b=8')
+  await phase(page, 'ones')
+  await hintTo(page, 1)
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-testid=hint-bubble]')).toHaveCount(0)
+})
+
 test('hackerAI LOW: resize 390 → 820 with a hint open on Flip re-places it off the rectangle', async ({ page }) => {
   await page.setViewportSize(PHONE)
   await seen(page)
