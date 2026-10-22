@@ -41,7 +41,7 @@ export function LanguageToggle() {
             type="button"
             onClick={() => setLocale(loc)}
             aria-pressed={isActive}
-            className={`px-2 py-0.5 rounded-full font-bold transition-colors ${
+            className={`min-w-[44px] min-h-[44px] px-3 rounded-full font-bold transition-colors ${
               isActive
                 ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow'
                 : 'text-gray-600 hover:bg-white/60'
