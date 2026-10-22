@@ -285,7 +285,7 @@ describe('sweepExpired (L99)', () => {
     store.sweepExpired()
     assert.deepEqual(store.size(), { challenges: 0, sendLogs: 1 })
     clock += 1
-    assert.equal(store.sweepExpired(), 2) // the send log + the client-IP request window
+    assert.equal(store.sweepExpired(), 1) // the send log (no client IP given, so no IP window)
     assert.deepEqual(store.size(), { challenges: 0, sendLogs: 0 })
   })
 

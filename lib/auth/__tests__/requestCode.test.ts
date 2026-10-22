@@ -241,7 +241,7 @@ describe('body size (finding 3) and client IP', () => {
     const from = (email: string, ip: string) =>
       new Request('http://localhost/api/otp/request', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-forwarded-for': `${ip}, 10.0.0.1` },
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.0.0.1, ${ip}` },
         body: JSON.stringify({ email }),
       })
     for (let i = 0; i < 11; i++) {

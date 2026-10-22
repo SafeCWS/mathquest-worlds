@@ -11,11 +11,13 @@ import assert from 'node:assert/strict'
 import {
   OtpStore,
   parseAllowlist,
+  resolveClientIp,
   clientIpFrom,
   CODE_TTL_MS,
   RESEND_COOLDOWN_MS,
   SEND_WINDOW_MS,
   MAX_CHALLENGE_ENTRIES,
+  MAX_SEND_LOG_ENTRIES,
   IP_MAX_REQUESTS_PER_HOUR,
   IP_MAX_FAILED_VERIFIES,
   IP_VERIFY_WINDOW_MS,
@@ -129,19 +131,46 @@ describe('decoy challenges (finding 1: enumeration via sign-in codes)', () => {
     assert.deepEqual(store.size(), { challenges: 0, sendLogs: 0 })
   })
 
-  it(`map cap: ${MAX_CHALLENGE_ENTRIES} entries, oldest decoys evicted first, real code survives`, () => {
-    const real = store.requestCode(PARENT, ALLOW, IP_A)
-    assert.equal(real.status, 'sent')
-    for (let i = 0; i < MAX_CHALLENGE_ENTRIES + 200; i++) {
-      // a different client IP each time so the IP limit is not what stops it
+  it(`map cap: ${MAX_CHALLENGE_ENTRIES} challenges, oldest evicted first whatever its kind`, () => {
+    const spray = (i: number) =>
       store.requestCode(`spray${i}@example.com`, ALLOW, `10.${(i >> 16) & 255}.${(i >> 8) & 255}.${i & 255}`)
-    }
+    for (let i = 0; i < MAX_CHALLENGE_ENTRIES + 200; i++) spray(i)
     const s = store.size()
-    assert.ok(s.challenges <= MAX_CHALLENGE_ENTRIES, `challenges ${s.challenges}`)
-    assert.ok(s.sendLogs <= MAX_CHALLENGE_ENTRIES, `sendLogs ${s.sendLogs}`)
-    assert.equal(store.hasChallenge('spray0@example.com'), false) // oldest decoy evicted
+    assert.equal(s.challenges, MAX_CHALLENGE_ENTRIES)
+    assert.ok(s.sendLogs <= MAX_SEND_LOG_ENTRIES)
+    // purely by age: the first 200 are gone, the next 500 remain
+    assert.equal(store.hasChallenge('spray199@example.com'), false)
+    assert.equal(store.hasChallenge('spray200@example.com'), true)
     assert.equal(store.hasChallenge(`spray${MAX_CHALLENGE_ENTRIES + 199}@example.com`), true)
-    assert.equal(store.verifyCode(PARENT, (real as { code: string }).code, IP_A).ok, true)
+  })
+
+  it('eviction is blind to listed vs unlisted: both answer none once evicted, in age order', () => {
+    store.requestCode(PARENT, ALLOW, IP_A) // oldest
+    store.requestCode(STRANGER, ALLOW, IP_B) // second oldest
+    for (let i = 0; i < MAX_CHALLENGE_ENTRIES - 2; i++) {
+      store.requestCode(`fill${i}@example.com`, ALLOW, `10.1.${(i >> 8) & 255}.${i & 255}`)
+    }
+    assert.equal(store.size().challenges, MAX_CHALLENGE_ENTRIES) // at the cap, nothing evicted yet
+    assert.equal(store.hasChallenge(PARENT), true)
+    store.requestCode('next1@example.com', ALLOW, '10.2.0.1')
+    assert.equal(store.hasChallenge(PARENT), false) // the listed one went first: it was oldest
+    assert.equal(store.hasChallenge(STRANGER), true)
+    store.requestCode('next2@example.com', ALLOW, '10.2.0.2')
+    assert.equal(store.hasChallenge(STRANGER), false)
+    assert.equal(outward(store.verifyCode(PARENT, '000000', IP_A)), 'none')
+    assert.equal(outward(store.verifyCode(STRANGER, '000000', IP_B)), 'none')
+  })
+
+  it('a re-request moves an email to the young end of the LRU', () => {
+    store.requestCode(PARENT, ALLOW, IP_A)
+    store.requestCode(STRANGER, ALLOW, IP_B)
+    clock += RESEND_COOLDOWN_MS
+    store.requestCode(PARENT, ALLOW, IP_A) // PARENT is now younger than STRANGER
+    for (let i = 0; i < MAX_CHALLENGE_ENTRIES - 1; i++) {
+      store.requestCode(`fill${i}@example.com`, ALLOW, `10.1.${(i >> 8) & 255}.${i & 255}`)
+    }
+    assert.equal(store.hasChallenge(STRANGER), false)
+    assert.equal(store.hasChallenge(PARENT), true)
   })
 
   it('the sweep clears expired decoys', () => {
@@ -219,19 +248,77 @@ describe('per-client-IP limits (finding 2: lockout DoS)', () => {
   })
 })
 
-describe('clientIpFrom', () => {
-  const h = (xff?: string) => new Headers(xff === undefined ? {} : { 'x-forwarded-for': xff })
-  it('takes the first hop of x-forwarded-for, trimmed', () => {
-    assert.equal(clientIpFrom(h('203.0.113.7, 10.0.0.1, 10.0.0.2')), '203.0.113.7')
-    assert.equal(clientIpFrom(h('  2001:db8::1 ')), '2001:db8::1')
+describe('resolveClientIp (trusted sources only)', () => {
+  const h = (o: Record<string, string>) => new Headers(o)
+  it('prefers true-client-ip, then cf-connecting-ip, then the RIGHT-MOST x-forwarded-for hop', () => {
+    assert.deepEqual(
+      resolveClientIp(h({ 'true-client-ip': '203.0.113.1', 'cf-connecting-ip': '203.0.113.2', 'x-forwarded-for': '203.0.113.3' })),
+      { ip: '203.0.113.1', source: 'true-client-ip' },
+    )
+    assert.deepEqual(resolveClientIp(h({ 'cf-connecting-ip': '2001:db8::2', 'x-forwarded-for': '203.0.113.3' })), {
+      ip: '2001:db8::2',
+      source: 'cf-connecting-ip',
+    })
+    assert.deepEqual(resolveClientIp(h({ 'x-forwarded-for': '203.0.113.9, 10.0.0.1, 198.51.100.7' })), {
+      ip: '198.51.100.7',
+      source: 'x-forwarded-for-rightmost',
+    })
   })
-  it("falls back to 'unknown' when missing, empty or junk", () => {
-    assert.equal(clientIpFrom(h()), 'unknown')
-    assert.equal(clientIpFrom(h('')), 'unknown')
-    assert.equal(clientIpFrom(h(' , 10.0.0.1')), 'unknown')
-    assert.equal(clientIpFrom(h('x'.repeat(200))), 'unknown')
-    assert.equal(clientIpFrom(h('<script>')), 'unknown')
-    assert.equal(clientIpFrom(undefined), 'unknown')
+  it('a spoofed left-most x-forwarded-for hop does not change the key', () => {
+    const a = resolveClientIp(h({ 'x-forwarded-for': '1.2.3.4, 198.51.100.7' }))
+    const b = resolveClientIp(h({ 'x-forwarded-for': '9.9.9.9, 8.8.8.8, 198.51.100.7' }))
+    assert.equal(a.ip, '198.51.100.7')
+    assert.equal(b.ip, a.ip)
+  })
+  it('an invalid trusted header falls through to the next source', () => {
+    assert.deepEqual(resolveClientIp(h({ 'true-client-ip': 'evil', 'cf-connecting-ip': '203.0.113.2' })), {
+      ip: '203.0.113.2',
+      source: 'cf-connecting-ip',
+    })
+  })
+  it('missing / garbage everywhere ⇒ no IP (never a shared bucket)', () => {
+    const cases: Record<string, string>[] = [{}, { 'x-forwarded-for': '' }, { 'x-forwarded-for': '10.0.0.1, junk' }, { 'true-client-ip': '<script>' }, { 'x-forwarded-for': 'x'.repeat(200) }]
+    for (const o of cases) {
+      assert.deepEqual(resolveClientIp(h(o)), { ip: null, source: 'none' }, JSON.stringify(o))
+    }
+    assert.deepEqual(resolveClientIp(undefined), { ip: null, source: 'none' })
+  })
+  it('clientIpFrom logs the source once per process, never the IP value', () => {
+    const lines: string[] = []
+    const orig = console.info
+    console.info = (m: string) => lines.push(String(m))
+    try {
+      clientIpFrom(h({ 'cf-connecting-ip': '203.0.113.77' }))
+      clientIpFrom(h({ 'cf-connecting-ip': '203.0.113.78' }))
+    } finally {
+      console.info = orig
+    }
+    assert.ok(lines.length <= 1, `logged ${lines.length} times`)
+    for (const l of lines) {
+      assert.match(l, /ip_source=/)
+      assert.doesNotMatch(l, /203\.0\.113/)
+    }
+  })
+})
+
+describe('no usable client IP ⇒ per-IP limits skipped, per-email rules intact', () => {
+  it('requests are not IP-limited, but the per-email cooldown still applies', () => {
+    for (let i = 0; i < IP_MAX_REQUESTS_PER_HOUR + 10; i++) {
+      assert.equal(reqShape(store.requestCode(`kid${i}@example.com`, ALLOW, null)), 'issued')
+    }
+    assert.equal(reqShape(store.requestCode('kid0@example.com', ALLOW, null)).startsWith('cooldown'), true)
+    assert.deepEqual(store.ipSize(), { requests: 0, failures: 0 })
+  })
+  it('two IP-less clients never share state: one failing a lot does not block the other', () => {
+    const real = store.requestCode(PARENT, ALLOW, null)
+    for (let i = 0; i < IP_MAX_FAILED_VERIFIES + 5; i++) store.verifyCode(`probe${i}@example.com`, '000000', null)
+    assert.equal(store.verifyCode(PARENT, (real as { code: string }).code, null).ok, true)
+    assert.deepEqual(store.ipSize(), { requests: 0, failures: 0 })
+  })
+  it('the per-email 5-try burn still holds without an IP', () => {
+    store.requestCode(PARENT, ALLOW, null)
+    const out = Array.from({ length: 5 }, () => outward(store.verifyCode(PARENT, '000000', null)))
+    assert.deepEqual(out, ['wrong_4', 'wrong_3', 'wrong_2', 'wrong_1', 'burned'])
   })
 })
 
