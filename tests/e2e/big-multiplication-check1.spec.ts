@@ -225,6 +225,26 @@ test.describe('Big Multiplication — CHECK round 1 regressions', () => {
     })
   }
 
+  test('hint never covers a glowing step cell — Step-by-Step 78 × 8 tens step, wrong answer (1180 px)', async ({ page }) => {
+    await page.setViewportSize({ width: 1180, height: 820 })
+    await seen(page)
+    await page.goto('/multiplication/big?mode=column&a=78&b=8')
+    await phase(page, 'ones')
+    await pad(page, 64)
+    await phase(page, 'tens')
+    await pad(page, 54) // wrong → the hint opens at tier 2
+    await expect(page.locator('[data-testid=hint-bubble]')).toBeVisible()
+    await page.waitForTimeout(1100)
+    const hit = await page.evaluate(() => {
+      const b = document.querySelector('[data-testid=hint-bubble]')!.getBoundingClientRect()
+      return [...document.querySelectorAll('[data-testid=mode-area] [data-active="1"]')]
+        .map((e) => e.getBoundingClientRect())
+        .filter((r) => r.width > 0 && r.height <= 200)
+        .filter((r) => r.left < b.right && b.left < r.right && r.top < b.bottom && b.top < r.bottom).length
+    })
+    expect(hit).toBe(0)
+  })
+
   test('hackerAI #11: predicting "Different" is not an error — no hint, no 🤔, "Let\'s test it!"', async ({ page }) => {
     await seen(page)
     await page.goto('/multiplication/big?mode=flip&a=21&b=3')

@@ -523,10 +523,12 @@ export function BigMultiplication() {
 
   const hintText = !ladder || tier === 0 ? '' : tier === 1 ? ladder.nudge : tier === 2 ? misconception ?? ladder.step : ladder.worked
 
-  // Hint placement (hackerAI #8 / html-validator M2): the bubble never sits on a target the child
-  // has to tap. It starts at the top of the play area and slides down past every enabled button
-  // (and "Show me again") its width overlaps. On phone the fixed answer sheet is a floor, never an
-  // obstacle. The bubble itself lets taps through (pointer-events only on ✕ and Read it).
+  // Hint placement (hackerAI #8 / html-validator M2): the bubble never sits on what the child has
+  // to tap or look at. It starts at the top of the play area and slides down past every enabled
+  // button, "Show me again", and every glowing step cell ([data-active], up to 200 px tall — the
+  // whole-picture wrappers are bigger and are not targets). On phone the fixed answer sheet is a
+  // floor: if no clear spot fits above it, the spot covering the least wins. The bubble itself lets
+  // taps through (pointer-events only on ✕ and Read it).
   const playArea = useRef<HTMLDivElement>(null)
   const bubble = useRef<HTMLDivElement>(null)
   const [hintTop, setHintTop] = useState(0)
@@ -546,15 +548,19 @@ export function BigMultiplication() {
     const floor = dockFixed && dock ? dock.getBoundingClientRect().top - c.top : Infinity
     const GAP = 8
     const avoid = Array.from(
-      box.querySelectorAll<HTMLElement>('[data-testid=demo-again], [data-testid=demo-banner], [data-testid=mode-area] button:not([disabled]), [data-testid=mode-area] [data-hint-avoid]'),
+      box.querySelectorAll<HTMLElement>('[data-testid=demo-again], [data-testid=demo-banner], [data-testid=mode-area] button:not([disabled]), [data-testid=mode-area] [data-active="1"]'),
     )
       .filter((e) => !(dockFixed && dock?.contains(e)))
       .map((e) => e.getBoundingClientRect())
-      .filter((b) => b.width > 0 && b.height > 0 && b.right > left && b.left < right)
+      .filter((b) => b.width > 0 && b.height > 0 && b.height <= 200 && b.right > left && b.left < right)
       .map((b) => ({ top: b.top - c.top, bottom: b.bottom - c.top }))
-    const clear = (y: number) => avoid.every((b) => y + h + GAP <= b.top || y >= b.bottom + GAP)
+    const covered = (y: number) =>
+      avoid.reduce((sum, b) => sum + Math.max(0, Math.min(y + h + GAP, b.bottom + GAP) - Math.max(y, b.top)), 0)
     const candidates = [0, ...avoid.map((b) => b.bottom + GAP)].sort((x, y) => x - y)
-    const y = candidates.find((v) => clear(v) && v + h <= floor) ?? candidates.find(clear) ?? 0
+    const fits = candidates.filter((v) => v + h <= floor)
+    const y =
+      fits.find((v) => covered(v) === 0) ??
+      (fits.length ? fits.reduce((best, v) => (covered(v) < covered(best) ? v : best), fits[0]) : 0)
     setHintTop((cur) => (Math.abs(cur - y) < 1 ? cur : y))
   }, [])
   useLayoutEffect(() => {
