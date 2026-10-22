@@ -303,3 +303,53 @@ describe('request-origin checks (review SHOULD-5): rejections look identical', (
     }
   })
 })
+
+describe('rejection log line (review LOW, L104)', () => {
+  const LINE = /^\[otp-request\] rejected reason=(content_type|sec_fetch|origin|body_size|malformed)$/
+
+  async function linesFor(r: Request): Promise<string[]> {
+    const h = harness()
+    const lines: string[] = []
+    const orig = { warn: console.warn, error: console.error, info: console.info }
+    console.warn = (m: string) => lines.push(String(m))
+    console.error = (m: string) => lines.push(String(m))
+    console.info = () => {}
+    try {
+      await (await handleRequestCode(r, h.deps)).text()
+      await new Promise((res) => setImmediate(res))
+    } finally {
+      Object.assign(console, orig)
+    }
+    return lines.filter((l) => l.startsWith('[otp-request]'))
+  }
+  const post = (headers: Record<string, string>, body = '{"email":"parent@example.com"}') =>
+    new Request('http://localhost/api/otp/request', { method: 'POST', headers, body })
+  const JSON_CT = { 'content-type': 'application/json' }
+
+  it('one line per rejection, reason class only, no address / IP / header value', async () => {
+    const cases: Array<[Request, string]> = [
+      [post({ 'content-type': 'text/plain' }), 'content_type'],
+      [post({}), 'content_type'],
+      [post({ ...JSON_CT, 'sec-fetch-site': 'cross-site' }), 'sec_fetch'],
+      [post({ ...JSON_CT, origin: 'https://evil.example', 'cf-connecting-ip': '203.0.113.9' }), 'origin'],
+      [post({ ...JSON_CT, 'content-length': '99999' }), 'body_size'],
+      [post(JSON_CT, JSON.stringify({ email: 'x'.repeat(5000) + '@example.com' })), 'body_size'],
+      [post(JSON_CT, '{not json'), 'malformed'],
+      [post(JSON_CT, 'null'), 'malformed'],
+    ]
+    for (const [r, reason] of cases) {
+      const lines = await linesFor(r)
+      assert.deepEqual(lines, [`[otp-request] rejected reason=${reason}`], reason)
+      for (const l of lines) {
+        assert.match(l, LINE)
+        assert.doesNotMatch(l, /@|evil|203\.0\.113|text\/plain/)
+      }
+    }
+  })
+
+  it('a valid request logs nothing from this path (listed or not)', async () => {
+    assert.deepEqual(await linesFor(post(JSON_CT)), [])
+    assert.deepEqual(await linesFor(post(JSON_CT, '{"email":"stranger@example.com"}')), [])
+    assert.deepEqual(await linesFor(post({ ...JSON_CT, origin: 'http://localhost' })), [])
+  })
+})

@@ -40,8 +40,18 @@ export interface RequestCodeDeps {
   sendMail?: (to: string, code: string, ttlMinutes: number) => Promise<unknown>
 }
 
-/** Thrown to skip straight to the public answer; never logged. */
-class SilentReject extends Error {}
+export type RejectReason = 'content_type' | 'sec_fetch' | 'origin' | 'body_size' | 'malformed'
+
+/**
+ * Thrown to skip straight to the public answer. The client is never told;
+ * the server logs ONE line with the reason class only (L104) — no email, no
+ * IP, no header value — so the line cannot reveal who is on the list.
+ */
+class SilentReject extends Error {
+  constructor(readonly reason: RejectReason) {
+    super(reason)
+  }
+}
 
 const realSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
@@ -95,19 +105,19 @@ export async function readCappedBody(req: Request, cap = MAX_BODY_BYTES): Promis
  * cross-site posts; Sec-Fetch-Site and Origin close the rest. Host-only
  * comparison: TLS ends at the proxy, so the scheme seen here can differ.
  * A rejected request is NOT told so — the caller answers the public body
- * after the same floor and sends nothing.
+ * after the same floor, sends nothing, and logs only the reason class.
  */
-export function isAcceptableOrigin(req: Request): boolean {
+export function originRejection(req: Request): RejectReason | null {
   const type = (req.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
-  if (type !== 'application/json') return false
-  if ((req.headers.get('sec-fetch-site') ?? '').toLowerCase() === 'cross-site') return false
+  if (type !== 'application/json') return 'content_type'
+  if ((req.headers.get('sec-fetch-site') ?? '').toLowerCase() === 'cross-site') return 'sec_fetch'
   const origin = req.headers.get('origin')
-  if (origin === null) return true // non-browser or same-origin navigation without Origin
+  if (origin === null) return null // non-browser or same-origin navigation without Origin
   let originHost: string
   try {
     originHost = new URL(origin).host.toLowerCase()
   } catch {
-    return false // includes the literal "null" origin
+    return 'origin' // includes the literal "null" origin
   }
   const ownHost = (
     req.headers.get('x-forwarded-host')?.split(',')[0] ??
@@ -116,19 +126,21 @@ export function isAcceptableOrigin(req: Request): boolean {
   )
     .trim()
     .toLowerCase()
-  return originHost === ownHost
+  return originHost === ownHost ? null : 'origin'
 }
 
+/** The email field, or a SilentReject for an over-cap or malformed body. */
 async function readEmail(req: Request): Promise<unknown> {
   const raw = await readCappedBody(req)
-  if (raw === null) return ''
+  if (raw === null) throw new SilentReject('body_size')
+  let body: unknown
   try {
-    const body: unknown = JSON.parse(raw)
-    if (body && typeof body === 'object') return (body as { email?: unknown }).email
+    body = JSON.parse(raw)
   } catch {
-    // Malformed body is treated like an unknown email: same answer, nothing stored.
+    throw new SilentReject('malformed')
   }
-  return ''
+  if (!body || typeof body !== 'object') throw new SilentReject('malformed')
+  return (body as { email?: unknown }).email
 }
 
 export async function handleRequestCode(req: Request, deps: RequestCodeDeps = {}): Promise<Response> {
@@ -137,7 +149,8 @@ export async function handleRequestCode(req: Request, deps: RequestCodeDeps = {}
   const sleep = deps.sleep ?? realSleep
 
   try {
-    if (!isAcceptableOrigin(req)) throw new SilentReject()
+    const rejected = originRejection(req)
+    if (rejected) throw new SilentReject(rejected)
     const email = await readEmail(req)
     const store = deps.store ?? getOtpStore()
     const allowlist = parseAllowlist(
@@ -157,7 +170,8 @@ export async function handleRequestCode(req: Request, deps: RequestCodeDeps = {}
   } catch (e) {
     // A rejected origin and any unexpected failure answer with the same body
     // and timing; only the unexpected case is worth a log line.
-    if (!(e instanceof SilentReject)) console.error('[otp-request] unexpected error; answered with the public body')
+    if (e instanceof SilentReject) console.warn(`[otp-request] rejected reason=${e.reason}`)
+    else console.error('[otp-request] unexpected error; answered with the public body')
   }
 
   const remaining = TIMING_FLOOR_MS - (now() - start)
