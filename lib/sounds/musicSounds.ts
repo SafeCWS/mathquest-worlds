@@ -10,7 +10,13 @@ class MusicManager {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('mathquest-music-settings')
+      // Safari "Block All Cookies" throws on ANY localStorage access — at module load.
+      let saved: string | null = null
+      try {
+        saved = localStorage.getItem('mathquest-music-settings')
+      } catch {
+        // storage blocked: use defaults
+      }
       if (saved) {
         try {
           const settings = JSON.parse(saved)
@@ -60,10 +66,14 @@ class MusicManager {
 
   private saveSettings() {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('mathquest-music-settings', JSON.stringify({
-        musicEnabled: this._musicEnabled,
-        volume: this._volume
-      }))
+      try {
+        localStorage.setItem('mathquest-music-settings', JSON.stringify({
+          musicEnabled: this._musicEnabled,
+          volume: this._volume
+        }))
+      } catch {
+        // quota full / storage blocked: settings just aren't remembered
+      }
     }
   }
 

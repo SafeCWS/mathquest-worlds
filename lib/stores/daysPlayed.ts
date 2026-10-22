@@ -23,7 +23,12 @@ export function markPlayedToday(now = new Date()): void {
   if (typeof window === 'undefined') return
   const days = new Set(read())
   days.add(dayKey(now))
-  window.localStorage.setItem(KEY, JSON.stringify([...days].sort().slice(-400)))
+  // Runs first in onSolved: a full or blocked storage must never stop the celebration.
+  try {
+    window.localStorage.setItem(KEY, JSON.stringify([...days].sort().slice(-400)))
+  } catch {
+    // streak simply doesn't advance this time
+  }
 }
 
 /** Pure for tests: streak length from a set of day keys. */

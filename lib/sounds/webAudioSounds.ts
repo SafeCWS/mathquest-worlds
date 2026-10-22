@@ -10,7 +10,13 @@ class WebAudioSoundManager {
   constructor() {
     if (typeof window !== 'undefined') {
       // Load saved settings
-      const saved = localStorage.getItem('mathquest-sound-settings')
+      // Safari "Block All Cookies" throws on ANY localStorage access — at module load.
+      let saved: string | null = null
+      try {
+        saved = localStorage.getItem('mathquest-sound-settings')
+      } catch {
+        // storage blocked: use defaults
+      }
       if (saved) {
         try {
           const settings = JSON.parse(saved)
@@ -62,10 +68,14 @@ class WebAudioSoundManager {
 
   private saveSettings() {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('mathquest-sound-settings', JSON.stringify({
-        soundEnabled: this._soundEnabled,
-        volume: this._volume
-      }))
+      try {
+        localStorage.setItem('mathquest-sound-settings', JSON.stringify({
+          soundEnabled: this._soundEnabled,
+          volume: this._volume
+        }))
+      } catch {
+        // quota full / storage blocked: settings just aren't remembered
+      }
     }
   }
 
