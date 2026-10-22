@@ -196,7 +196,7 @@ export function FlipSplit({ problem, onAward, onSolved, onWrong, onStep, setHint
         {n}
       </motion.button>
     ) : (
-      <span data-testid={testId} className={`min-w-[48px] text-center text-3xl font-bold ${active ? 'ring-4 ring-yellow-300 rounded-xl bg-white px-2' : ''}`} style={{ color: 'var(--space-primary)' }}>{n}</span>
+      <span data-testid={testId} data-keep-clear="1" className={`min-w-[48px] text-center text-3xl font-bold ${active ? 'ring-4 ring-yellow-300 rounded-xl bg-white px-2' : ''}`} style={{ color: 'var(--space-primary)' }}>{n}</span>
     )
 
   const wide = (
@@ -205,8 +205,9 @@ export function FlipSplit({ problem, onAward, onSolved, onWrong, onStep, setHint
       <div className="flex items-center gap-2" style={{ marginLeft: 68 }}>
         {split ? (
           <span className="flex text-2xl font-bold" style={{ width: LONG }}>
-            <span style={{ width: `${leftPct}%`, ...pvText('tens') }} className="text-center">{tens}</span>
-            <span style={{ width: `${100 - leftPct}%`, ...pvText('ones') }} className="text-center">{ones}</span>
+            {/* Side labels stay readable: the hint bubble never covers them (data-keep-clear, round 3). */}
+            <span style={{ width: `${leftPct}%`, ...pvText('tens') }} className="text-center" data-keep-clear="1">{tens}</span>
+            <span style={{ width: `${100 - leftPct}%`, ...pvText('ones') }} className="text-center" data-keep-clear="1">{ones}</span>
           </span>
         ) : (
           <span style={{ width: LONG }} className="flex justify-center">{sideLabel(a, 'side-a', phase === 'splitWay')}</span>

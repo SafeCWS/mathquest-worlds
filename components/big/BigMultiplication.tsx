@@ -29,7 +29,7 @@ import { BIG_MODES, isBigMode, type BigMode, type HintLadder, type MascotEvent, 
 const BOUNCY: [number, number, number, number] = [0.34, 1.56, 0.64, 1]
 // Hint bubble placement (see placeHint): 12 px of air around targets, the visible band between the
 // fixed top buttons and the phone answer sheet — same edges ensureActiveVisible frames to.
-const HINT_CLEAR = 12
+const HINT_CLEAR = 13 // 12 px of air + 1 px of slack for sub-pixel layout (round 3: a 1 px miss at max scroll)
 const HINT_CEIL = 92
 const HINT_FLOOR_GAP = 10
 const HINT_PULSE = 1.15 // largest glow pulse on a step cell (ColumnSteps carry bubble)
@@ -558,11 +558,16 @@ export function BigMultiplication() {
   //   1. full bubble at the current scroll — below the targets first, else ABOVE them over the
   //      title / dragon rows;  2. compact bubble (Read it shrinks to a 🔊 icon), same;
   //   3. compact bubble with the smallest scroll that makes room;  4. the spot covering least.
+  // "Soft" context ([data-keep-clear="soft"], e.g. the Dragon Oops row above the oops) is kept clear
+  // through steps 1–3 first; only if that fails are 1–3 retried without it (round 3). Soft context
+  // never has to stay on screen, so it cannot push the bubble off-screen or onto a target.
   // The bubble itself lets taps through (pointer-events only on ✕ and Read it).
   const playArea = useRef<HTMLDivElement>(null)
   const bubble = useRef<HTMLDivElement>(null)
   const [hintTop, setHintTop] = useState(0)
-  const [compact, setCompact] = useState(false)
+  // Placement stage: 0 full + soft context, 1 compact + soft, 2 full, 3 compact (no soft context).
+  const [stage, setStage] = useState(0)
+  const compact = stage % 2 === 1
   const placedFor = useRef('')
   const placeHint = useCallback(() => {
     const box = playArea.current
@@ -597,12 +602,17 @@ export function BigMultiplication() {
       .filter(shown)
       .map((e) => ({ keep: e.dataset.keepClear === '1', b: rectOf(e) }))
       .filter(({ keep, b }) => b.width > 0 && b.height > 0 && (keep || b.height <= 200))
+    const soft = Array.from(box.querySelectorAll<HTMLElement>('[data-testid=mode-area] [data-keep-clear="soft"]'))
+      .filter(shown)
+      .map((e) => e.getBoundingClientRect())
+      .filter((b) => b.width > 0 && b.height > 0)
     const avoid = [
       ...Array.from(box.querySelectorAll<HTMLElement>('[data-testid=demo-again], [data-testid=demo-banner], [data-testid=mode-area] button:not([disabled])'))
         .filter(shown)
         .map(rectOf)
         .filter((b) => b.width > 0 && b.height > 0 && b.height <= 200 * HINT_PULSE),
       ...targetEls.map((t) => t.b),
+      ...(stage < 2 ? soft : []),
     ]
       .filter((b) => b.right > left && b.left < right)
       .map((b) => ({ top: b.top + sy - HINT_CLEAR, bottom: b.bottom + sy + HINT_CLEAR }))
@@ -623,8 +633,11 @@ export function BigMultiplication() {
       allowScroll: compact,
     }
     const spot = placeBubble({ ...input, allowScroll: false }) ?? (compact ? placeBubble(input) : null)
-    if (!spot && !compact) {
-      setCompact(true) // re-measured at the new height by the layout effect below
+    // No spot at this stage: next stage (re-measured at the new size by the layout effect below).
+    // Stages 2–3 only exist when there is soft context to give up.
+    const last = soft.length ? 3 : 1
+    if (!spot && stage < last) {
+      setStage(stage + 1)
       return
     }
     const y = spot ? spot.y : leastCovered(input)
@@ -634,16 +647,16 @@ export function BigMultiplication() {
       const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       window.scrollTo({ top: spot.scroll, behavior: reduce ? 'auto' : 'smooth' })
     }
-  }, [compact])
+  }, [stage, compact])
   useLayoutEffect(() => {
     if (tier === 0 || !hintText) return
     // A new hint (tier or text) starts from the full bubble again.
     const key = `${tier}-${hintText}`
     if (placedFor.current !== key) {
       placedFor.current = key
-      if (compact) {
+      if (stage !== 0) {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- layout measurement: the bubble must be re-measured at full size before paint.
-        setCompact(false)
+        setStage(0)
         return
       }
     }
@@ -655,7 +668,7 @@ export function BigMultiplication() {
       ids.forEach((id) => window.clearTimeout(id))
       window.removeEventListener('resize', placeHint)
     }
-  }, [tier, hintText, compact, placeHint])
+  }, [tier, hintText, stage, placeHint])
   // A tap anywhere outside the bubble (and the Hint / voice buttons) closes it; the tap still
   // reaches what it was aimed at.
   useEffect(() => {

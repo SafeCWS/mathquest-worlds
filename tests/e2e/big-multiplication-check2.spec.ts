@@ -79,13 +79,12 @@ async function bubbleHits(page: Page, extra: string[] = []): Promise<string[]> {
       }
       // 2. The picture the step is about.
       for (const sel of extra) {
-        const e = document.querySelector(sel)
-        if (!e) {
-          out.push(`missing ${sel}`)
-          continue
+        const els = Array.from(document.querySelectorAll(sel))
+        if (!els.length) out.push(`missing ${sel}`)
+        for (const e of els) {
+          const r = e.getBoundingClientRect()
+          if (r.width > 0 && hit(r, CLEAR)) out.push(`target ${sel} "${(e.textContent ?? '').trim()}" ${pct(r)}%`)
         }
-        const r = e.getBoundingClientRect()
-        if (hit(r, CLEAR)) out.push(`target ${sel} ${pct(r)}%`)
       }
       // 3. Every enabled, visible button on the page except the bubble's own and the fixed top row.
       for (const e of document.querySelectorAll<HTMLElement>('button:not([disabled]), [data-testid=demo-again]')) {
@@ -146,13 +145,16 @@ for (const vp of [PHONE, IPAD]) {
         await page.waitForTimeout(300)
       }
       await phase(page, 'fix')
+      // Round 3: the row just above the oops is the context the child re-reads — keep it clear too.
+      const k = Number((await page.locator('[data-testid^=oops-row-][data-active="1"]').getAttribute('data-testid'))!.split('-').pop())
+      const context = k > 0 ? [`[data-testid=oops-row-${k - 1}]`] : []
       await pad(page, 1) // never right: every oops answer here is ≥ 2 digits
       await settle(page)
-      expect(await bubbleHits(page), 'after wrong (tier 2)').toEqual([])
+      expect(await bubbleHits(page, context), `after wrong (tier 2), oops row ${k}`).toEqual([])
       await hintTo(page, 3)
-      expect(await bubbleHits(page), 'tier 3').toEqual([])
+      expect(await bubbleHits(page, context), 'tier 3').toEqual([])
       await hintTo(page, 1)
-      expect(await bubbleHits(page), 'tier 1').toEqual([])
+      expect(await bubbleHits(page, context), 'tier 1').toEqual([])
     })
 
     test(`Step-by-Step 78 × 8, hint 1–3: clear of the glowing 8 (${at})`, async ({ page }) => {
@@ -171,6 +173,26 @@ for (const vp of [PHONE, IPAD]) {
         await hintTo(page, tier)
         expect(await bubbleHits(page, ['[data-testid=flip-rect]']), `tier ${tier}`).toEqual([])
       }
+    })
+
+    test(`Flip & Split 42 × 3 after a wrong answer, hint 1–3: clear of the side labels 40 | 2 and 3 (${at})`, async ({ page }) => {
+      await page.goto('/multiplication/big?mode=flip&a=42&b=3')
+      await phase(page, 'predict')
+      await page.locator('[data-testid=predict-same]').click()
+      await page.locator('[data-testid=flip-btn]').click()
+      await phase(page, 'side')
+      await page.locator('[data-testid=side-a]').click({ force: true })
+      await page.locator('[data-testid=way-right]').click()
+      await phase(page, 'tensPart')
+      await pad(page, 12) // 4 × 3 — the "forgot the zero" slip → hint tier 2
+      await settle(page)
+      // Structural selectors (exist with or without data-keep-clear): the split labels + the 3.
+      const labels = ['[data-testid=mode-area] span.flex.text-2xl.font-bold > span.text-center', '[data-testid=side-b]']
+      expect(await bubbleHits(page, labels), 'after wrong (tier 2)').toEqual([])
+      await hintTo(page, 3)
+      expect(await bubbleHits(page, labels), 'tier 3').toEqual([])
+      await hintTo(page, 1)
+      expect(await bubbleHits(page, labels), 'tier 1').toEqual([])
     })
 
     test(`Break It Apart 78 × 8, hint 1–3: clear of the number to split (${at})`, async ({ page }) => {

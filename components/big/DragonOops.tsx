@@ -116,6 +116,9 @@ export function DragonOops({ problem, onAward, onSolved, onWrong, onStep, setHin
                   data-obj="step"
                   data-state={found ? (done ? 'fixed' : 'found') : ok ? 'ok' : 'open'}
                   data-active={(phase === 'fix' && isBad) || (phase === 'find' && i === nextRow) ? '1' : undefined}
+                  // The row just above the oops is what the child re-reads to fix it: the hint keeps
+                  // it clear when there is room ("soft" — dropped before the bubble would cover a target).
+                  data-keep-clear={phase === 'fix' && i === oops.wrongIndex - 1 ? 'soft' : undefined}
                   className={`relative w-full min-h-[64px] px-4 rounded-2xl flex items-center justify-between gap-3 text-2xl md:text-3xl font-bold shadow border-4 text-left
                     ${found ? 'bg-amber-50 border-amber-300 text-amber-900' : ok ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-white border-white text-gray-800'}
                     ${demo && i === 0 ? DEMO_GLOW : ''}`}
