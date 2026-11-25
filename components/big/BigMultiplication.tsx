@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { AnimatePresence, motion, useAnimate } from 'motion/react'
+import { AnimatePresence, motion, useAnimate, useIsPresent } from 'motion/react'
 import { useLocale, useTranslations } from 'next-intl'
 import { KidButton } from '@/components/ui/KidButton'
 import { sfx } from '@/lib/audio/sfx'
@@ -12,16 +12,27 @@ import { daysPlayedStreak, markPlayedToday } from '@/lib/stores/daysPlayed'
 import { cancelSpeech } from '@/lib/sounds/speechUtils'
 import { BIG_LEVELS, drawProblem, emptyDeck, levelOf, nextProblem, type BigLevel, type BigProblem, type DeckState, type Difficulty } from '@/lib/math/twoDigitProblems'
 import { GAMES_TO_UNLOCK, PROBLEMS_PER_GAME, useBigMultStore } from '@/lib/stores/bigMultStore'
-import { BlockBuilder } from './BlockBuilder'
 import { BreakApart } from './BreakApart'
 import { ColumnSteps } from './ColumnSteps'
-import { QuickGuess } from './QuickGuess'
-import { speakFor } from './speech'
+import { DragonOops } from './DragonOops'
+import { FlipSplit } from './FlipSplit'
+import { GEMS_PER_PROBLEM, useHoardStore } from './logic'
+import { ReadAlongText, useReadAlong } from './ReadAlong'
+import { StoryMissions } from './StoryMissions'
+import { useLater } from './useLater'
+import { leastCovered, placeBubble, type PlaceInput } from './hintPlacement'
+import { isVoiceOn, setVoiceOn, speakFor } from './speech'
 import { markWalkthroughSeen, resetWalkthrough, walkthroughSeen } from './Demo'
 import { PV_TEXT } from './pv'
 import { BIG_MODES, isBigMode, type BigMode, type HintLadder, type MascotEvent, type ModeProps } from './types'
 
 const BOUNCY: [number, number, number, number] = [0.34, 1.56, 0.64, 1]
+// Hint bubble placement (see placeHint): 12 px of air around targets, the visible band between the
+// fixed top buttons and the phone answer sheet — same edges ensureActiveVisible frames to.
+const HINT_CLEAR = 13 // 12 px of air + 1 px of slack for sub-pixel layout (round 3: a 1 px miss at max scroll)
+const HINT_CEIL = 92
+const HINT_FLOOR_GAP = 10
+const HINT_PULSE = 1.15 // largest glow pulse on a step cell (ColumnSteps carry bubble)
 
 // Review/test deep link (?level=3&mode=column&a=78&b=8) — development only, never in production.
 const DEEP_LINK_ENABLED = process.env.NODE_ENV !== 'production'
@@ -33,21 +44,56 @@ function useMounted(): boolean {
 }
 
 const LEVEL_STYLE: Record<BigLevel, string> = {
-  1: 'from-green-600 to-emerald-700 border-green-200',
-  2: 'from-sky-600 to-blue-700 border-sky-200',
-  3: 'from-purple-600 to-fuchsia-700 border-purple-200',
+  // One shade darker than the prototype so white text clears 4.5:1 (html-validator M3).
+  1: 'from-green-700 to-emerald-800 border-green-200',
+  2: 'from-sky-700 to-blue-800 border-sky-200',
+  3: 'from-purple-700 to-fuchsia-800 border-purple-200',
 }
-const MODE_META: Record<BigMode, { emoji: string; style: string; title: string; desc: string }> = {
-  blocks: { emoji: '🧱', style: 'from-orange-600 to-orange-700 border-orange-200', title: 'modeBlocks', desc: 'modeBlocksDesc' },
-  split: { emoji: '✂️', style: 'from-pink-600 to-pink-700 border-pink-200', title: 'modeSplit', desc: 'modeSplitDesc' },
-  column: { emoji: '🪜', style: 'from-teal-600 to-cyan-700 border-teal-200', title: 'modeColumn', desc: 'modeColumnDesc' },
-  guess: { emoji: '🎯', style: 'from-indigo-500 to-violet-700 border-indigo-200', title: 'modeGuess', desc: 'modeGuessDesc' },
+// v2: the two favorites first, then the two new games, then the optional extra.
+const MODE_META: Record<BigMode, { emoji: string; style: string; title: string; desc: string; extra?: boolean }> = {
+  split: { emoji: '✂️', style: 'from-pink-700 to-pink-800 border-pink-200', title: 'modeSplit', desc: 'modeSplitDesc' },
+  column: { emoji: '🪜', style: 'from-teal-700 to-cyan-800 border-teal-200', title: 'modeColumn', desc: 'modeColumnDesc' },
+  story: { emoji: '📖', style: 'from-orange-700 to-orange-800 border-orange-200', title: 'modeStory', desc: 'modeStoryDesc' },
+  flip: { emoji: '🔄', style: 'from-indigo-600 to-violet-800 border-indigo-200', title: 'modeFlip', desc: 'modeFlipDesc' },
+  oops: { emoji: '🐉', style: 'from-emerald-700 to-teal-800 border-emerald-200', title: 'modeOops', desc: 'modeOopsDesc', extra: true },
 }
 const MODE_COMPONENT: Record<BigMode, (p: ModeProps) => React.ReactElement> = {
-  blocks: BlockBuilder,
   split: BreakApart,
   column: ColumnSteps,
-  guess: QuickGuess,
+  story: StoryMissions,
+  flip: FlipSplit,
+  oops: DragonOops,
+}
+// Story Missions and Flip & Split show the problem inside the game (the story / the rectangle):
+// the header must not give "42 × 3" away before the child has built it.
+const HIDE_PROBLEM: readonly BigMode[] = ['story', 'flip']
+
+/** Wraps the hint bubble's buttons: once the bubble is leaving (exit animation, or an exit that
+ *  never completes) its ✕ / Read it stop catching taps, so they can never sit invisibly on a target. */
+function LiveTaps({ children }: { children: React.ReactNode }) {
+  const present = useIsPresent()
+  return <span className={present ? 'contents' : 'contents [&_button]:pointer-events-none'}>{children}</span>
+}
+
+/** 💎 N — the dragon's hoard. Gems are earned for finishing a problem, never lost. */
+function HoardChip({ gems, label, big }: { gems: number; label: string; big?: boolean }) {
+  return (
+    <motion.span
+      key={gems}
+      className={`inline-flex items-center gap-1 bg-white/90 rounded-full shadow font-bold ${big ? 'text-xl px-4 py-1' : 'text-base px-3 py-0.5'}`}
+      style={{ color: 'var(--space-primary)' }}
+      initial={{ scale: 1.25 }}
+      animate={{ scale: 1 }}
+      transition={{ ease: BOUNCY, duration: 0.5 }}
+      role="img"
+      aria-label={label}
+      data-testid="hoard-chip"
+      data-gems={gems}
+    >
+      <span aria-hidden="true">💎</span>
+      <span data-testid="hoard-count">{gems}</span>
+    </motion.span>
+  )
 }
 
 /** Fixed, always-visible back button — same spot in portrait and landscape. */
@@ -104,14 +150,45 @@ function Pips({ done }: { done: number }) {
 
 function Celebration({ text, sub, cta, onNext, extra }: { text: string; sub: string; cta: string; onNext: () => void; extra?: string | null }) {
   const bits = ['✨', '⭐', '🌟', '💫', '🎉', '✨', '⭐', '🌟']
+  // Modal focus trap (hackerAI #17) — same hand-rolled Tab cycle as components/ui/SlideOver.tsx.
+  const dialog = useRef<HTMLDivElement>(null)
+  // L1: while it fades out after Next, the full-screen overlay must not swallow the first tap on
+  // the new problem (same trick as LiveTaps).
+  const present = useIsPresent()
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !dialog.current) return
+      const f = Array.from(dialog.current.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'))
+      if (!f.length) return
+      const first = f[0]
+      const last = f[f.length - 1]
+      const inside = dialog.current.contains(document.activeElement)
+      if (e.shiftKey && (document.activeElement === first || !inside)) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && (document.activeElement === last || !inside)) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
   return (
-    <motion.div className="fixed inset-0 z-40 flex items-center justify-center bg-black/25 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+    <motion.div
+      className={`fixed inset-0 z-40 flex items-center justify-center bg-black/25 p-4 ${present ? '' : 'pointer-events-none'}`}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      data-testid="celebration-overlay"
+    >
       <motion.div
         className="relative game-card max-w-md w-full text-center"
         initial={{ scale: 0.3, rotate: -6 }}
         animate={{ scale: 1, rotate: 0 }}
         transition={{ ease: BOUNCY, duration: 0.55 }}
         data-testid="celebration"
+        ref={dialog}
         role="dialog"
         aria-modal="true"
         aria-label={text}
@@ -143,18 +220,23 @@ function Celebration({ text, sub, cta, onNext, extra }: { text: string; sub: str
   )
 }
 
-// Phone (≤ 480 px): after every step change, scroll so the step's active cells ([data-active]:
-// the glowing digit, the carry bubble, the piece being solved) sit fully between the fixed top
-// controls and the bottom answer sheet. iPad never scrolls here (the pad is a side column).
-function ensureActiveVisible(): void {
-  if (typeof window === 'undefined' || window.innerWidth > 480) return
+// Phone (≤ 480 px wide, or a short landscape screen ≤ 500 px tall): after every step change, scroll
+// so the step's active cells ([data-active]: the glowing digit, the carry bubble, the piece being
+// solved) sit fully between the fixed top controls and the answer sheet (when it is a fixed bottom
+// sheet) or the screen bottom. iPad never scrolls here (the pad is a side column).
+// While a hint bubble is open its placement owns the scroll (it keeps the same cells in view), so
+// this stands aside — two smooth scrolls racing is what stranded a replacement hint (round 5).
+function ensureActiveVisible(force = false): void {
+  if (typeof window === 'undefined' || (window.innerWidth > 480 && window.innerHeight > 500)) return
+  if (!force && document.querySelector('[data-testid=hint-bubble]')) return
   const els = Array.from(document.querySelectorAll<HTMLElement>('[data-testid=mode-area] [data-active="1"]'))
   if (!els.length) return
   const rects = els.map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0)
   if (!rects.length) return
   const top = Math.min(...rects.map((r) => r.top))
   const bottom = Math.max(...rects.map((r) => r.bottom))
-  const dock = document.querySelector('.action-dock')?.getBoundingClientRect()
+  const dockEl = document.querySelector<HTMLElement>('[data-testid=mode-area] .action-dock')
+  const dock = dockEl && getComputedStyle(dockEl).position === 'fixed' ? dockEl.getBoundingClientRect() : null
   const floor = (dock && dock.height > 0 ? dock.top : window.innerHeight) - 10
   const ceiling = 92 // below the fixed Back / 🔊 / Hint buttons
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -169,6 +251,9 @@ export function BigMultiplication() {
   const locale = useLocale()
   const params = useSearchParams()
   const { _hasHydrated, gamesDone, recordGameComplete, isUnlocked } = useBigMultStore()
+  const gems = useHoardStore((s) => s.gems)
+  const addGems = useHoardStore((s) => s.add)
+  const hoardHydrated = useHoardStore((s) => s._hasHydrated)
   const mounted = useMounted()
 
   // Development-only deep link for review/screenshots/e2e: ?level=3&mode=column&a=78&b=8
@@ -203,7 +288,16 @@ export function BigMultiplication() {
   const [highlight, setHighlight] = useState<StepHighlight | null>(null)
   const [speech, setSpeechText] = useState('')
   const [shakeScope, animateShake] = useAnimate<HTMLDivElement>()
-  const [celebrate, setCelebrate] = useState<null | { gameDone: boolean; unlocked: BigLevel | null }>(null)
+  // `serial` names the problem being played: it changes on a new game / next problem, NOT on
+  // "Show me again" (same problem). Credit and the celebration are keyed by it, exactly once.
+  const [serial, setSerial] = useState(0)
+  const [awardedSerial, setAwardedSerial] = useState(-1)
+  const [celebrate, setCelebrate] = useState<null | { serial: number; gameDone: boolean; unlocked: BigLevel | null }>(null)
+  const live = useRef<{ serial: number; mode: BigMode | null }>({ serial: 0, mode: deepLink.mode })
+  const award = useRef<null | { serial: number; gameDone: boolean; unlocked: BigLevel | null }>(null)
+  const presented = useRef(-1)
+  const focusPromptNext = useRef(false)
+  const nextFor = useRef(-1) // one Next per problem: a double tap never skips a problem
   const [mascot, setMascot] = useState<{ text: string; mood: 'happy' | 'think' | 'party'; key: number }>({ text: '', mood: 'happy', key: 0 })
   // Quiet adaptivity (never shown): first-try run and misses on the current step.
   const missesOnStep = useRef(0)
@@ -213,6 +307,9 @@ export function BigMultiplication() {
   const stepStreak = useRef(0)
   // Read once on the client; nothing renders `days` before the mounted gate below.
   const [days, setDays] = useState(() => (typeof window === 'undefined' ? 0 : daysPlayedStreak()))
+  // Voice on/off (localStorage mq-big-voice). Read on the client only; nothing renders it
+  // before the mounted gate below, so there is no SSR mismatch.
+  const [voiceOn, setVoiceState] = useState(() => (typeof window === 'undefined' ? true : isVoiceOn()))
   // First-time walkthrough per mode (localStorage `mq-big-walkthrough-<mode>`).
   const [demo, setDemo] = useState(false)
   const demoRef = useRef(false)
@@ -220,9 +317,23 @@ export function BigMultiplication() {
     demoRef.current = demo
   }, [demo])
 
+  // What is on screen right now — a deferred onSolved from an earlier problem (or after Back)
+  // compares against this and is ignored (code-reviewer #2 / hackerAI #7).
+  useLayoutEffect(() => {
+    live.current = { serial, mode }
+  }, [serial, mode])
+
   const say = useCallback((text: string, mood: 'happy' | 'think' | 'party' = 'happy') => {
     setMascot((m) => ({ text, mood, key: m.key + 1 }))
   }, [])
+  // Every delayed thing the shell starts (re-frame scrolls, the level-up / streak chimes) goes
+  // through `later`, so Back / a new game / Next clears it: no stray chime after leaving.
+  const later = useLater()
+  // Phone: re-frame the active cells once a layout change (hint, mascot line) has settled (M1).
+  const reframe = useCallback(() => {
+    later(ensureActiveVisible, 450)
+    later(ensureActiveVisible, 1000)
+  }, [later])
 
   useEffect(() => {
     const onResize = () => ensureActiveVisible()
@@ -233,15 +344,14 @@ export function BigMultiplication() {
   // eslint-disable-next-line react-hooks/preserve-manual-memoization -- React Compiler is not enabled in this app; this useCallback IS the memoization (mode effects list it as a dependency).
   const setHint = useCallback((l: HintLadder) => {
     // New step: re-frame the work on phone once the step's entry animations have settled.
-    window.setTimeout(ensureActiveVisible, 450)
-    window.setTimeout(ensureActiveVisible, 1000)
+    reframe()
     // New step: close the ladder, forget the step's misses.
     setLadder(l)
     setTier(0)
     setMisconception(null)
     setHighlight(null)
     missesOnStep.current = 0
-  }, [])
+  }, [reframe])
   const setSpeech = useCallback((txt: string) => setSpeechText(txt), [])
 
   useEffect(() => () => cancelSpeech(), [])
@@ -264,17 +374,34 @@ export function BigMultiplication() {
 
   const startGame = (m: BigMode) => {
     if (!isUnlocked(level)) return
+    later.clear()
+    setCelebrate(null) // never carry a celebration (or its answer) into a new game — hackerAI #1
+    setDemo(false) // the effect below turns it back on only if this mode's walkthrough is unseen
+    setTier(0)
     setMode(m)
     setProblem(deal(level))
     setServed(1)
     setSolvedInGame(0)
+    setSerial((x) => x + 1)
     setProblemKey((k) => k + 1)
     resetProblemTrackers()
   }
 
+  // Back from a game: stop the voice, drop any celebration / walkthrough / open hint.
+  // A walkthrough left mid-way is NOT marked seen (hackerAI #12): it runs again next time.
+  const leaveGame = () => {
+    cancelSpeech()
+    later.clear() // a queued level-up / streak chime or re-frame scroll never outlives the game
+    setCelebrate(null)
+    setDemo(false)
+    setTier(0)
+    setMode(null)
+    setProblem(null)
+  }
+
   const onWrong = useCallback(
     // eslint-disable-next-line react-hooks/preserve-manual-memoization -- React Compiler is not enabled in this app; this useCallback IS the memoization (modes call it from effects).
-    (finalAnswer?: number) => {
+    (finalAnswer?: number, modeHint?: string) => {
       sfx.wrong()
       stepStreak.current = 0
       if (shakeScope.current) void animateShake(shakeScope.current, { x: [0, -12, 12, -8, 8, 0] }, { duration: 0.45 })
@@ -282,13 +409,15 @@ export function BigMultiplication() {
       missesOnStep.current += 1
       if (missesOnStep.current >= 2) struggled.current = true // next problem: easier, same level
       // Known error pattern first (lib/math/stepScripts), else the current step's tier-2 hint.
-      const mh = problem && finalAnswer !== undefined ? misconceptionHint(problem.a, problem.b, finalAnswer, locale) : null
-      setMisconception(mh ? mh.text : null)
+      // A mode's own misconception hint (Flip & Split, Dragon Oops, Story Missions) wins.
+      const mh = modeHint ? null : problem && finalAnswer !== undefined ? misconceptionHint(problem.a, problem.b, finalAnswer, locale) : null
+      setMisconception(modeHint ?? (mh ? mh.text : null))
       setHighlight(mh ? mh.highlight : null)
       setTier((cur) => (cur >= 2 ? cur : 2)) // progress is never touched
       say(t('mascotWrong'), 'think')
+      reframe()
     },
-    [animateShake, shakeScope, problem, locale, say, t],
+    [animateShake, shakeScope, problem, locale, say, t, reframe],
   )
 
   const onStep = useCallback(
@@ -300,37 +429,65 @@ export function BigMultiplication() {
         sfx.streak(stepStreak.current)
         say(t('mascotStreak', { n: stepStreak.current }), 'party')
       } else {
-        say(event === 'trade' ? t('mascotTrade') : t('mascotStep'), 'happy')
+        say(event === 'trade' ? t('mascotTrade') : event === 'oops' ? t('mascotOops') : t('mascotStep'), 'happy')
       }
     },
     [say, t],
   )
 
-  const onSolved = useCallback(() => {
+  // The answer was accepted: record gems + game progress NOW, exactly once per problem (`serial`),
+  // so a reload or Back during the finale animation keeps the credit (hackerAI #13) and a double
+  // tap / repeated call never doubles it (code-reviewer #1 / hackerAI #10).
+  const onAward = useCallback(() => {
+    if (live.current.serial !== serial || !live.current.mode) return null // stale: earlier problem / after Back
+    if (award.current?.serial === serial) return award.current
     markPlayedToday()
     setDays(daysPlayedStreak())
     firstTryRun.current = problemHadMiss.current ? 0 : firstTryRun.current + 1
     const n = solvedInGame + 1
     setSolvedInGame(n)
-    say(t('mascotSolved'), 'party')
+    setAwardedSerial(serial)
+    addGems(GEMS_PER_PROBLEM) // the hoard only ever grows
+    let unlocked: BigLevel | null = null
     if (n >= PROBLEMS_PER_GAME) {
+      // `wasLocked` reads this render's store snapshot (before the write); `nowOpen` must read
+      // getState() because recordGameComplete() just changed the store and this closure is stale.
       const wasLocked = level < 3 && !isUnlocked((level + 1) as BigLevel)
       recordGameComplete(level)
       const nowOpen = level < 3 && useBigMultStore.getState().isUnlocked((level + 1) as BigLevel)
-      const unlocked = wasLocked && nowOpen
+      if (wasLocked && nowOpen) unlocked = (level + 1) as BigLevel
+    }
+    award.current = { serial, gameDone: n >= PROBLEMS_PER_GAME, unlocked }
+    return award.current
+  }, [serial, solvedInGame, level, isUnlocked, recordGameComplete, addGems])
+
+  // The mode's finale is over: sounds, the dragon's line, the celebration — once per problem.
+  const onSolved = useCallback(() => {
+    const a = onAward()
+    if (!a || presented.current === serial) return
+    presented.current = serial
+    say(t('mascotSolved'), 'party')
+    if (a.gameDone) {
       // levelUp() is the long one — never in the same tick as correct().
-      if (unlocked) window.setTimeout(() => sfx.levelUp(), 0)
+      if (a.unlocked) later(() => sfx.levelUp(), 0)
       else sfx.correct()
-      setCelebrate({ gameDone: true, unlocked: unlocked ? ((level + 1) as BigLevel) : null })
+      setCelebrate({ serial, gameDone: true, unlocked: a.unlocked })
     } else {
       sfx.correct()
       stepStreak.current += 1
-      if (stepStreak.current >= 2) window.setTimeout(() => sfx.streak(stepStreak.current), 350)
-      setCelebrate({ gameDone: false, unlocked: null })
+      if (stepStreak.current >= 2) {
+        const n = stepStreak.current
+        later(() => sfx.streak(n), 350)
+      }
+      // Story Missions shows its own finale ("126 gems in all!" + Next story).
+      if (mode !== 'story') setCelebrate({ serial, gameDone: false, unlocked: null })
     }
-  }, [solvedInGame, level, isUnlocked, recordGameComplete, say, t])
+  }, [onAward, serial, say, t, mode, later])
 
   const next = () => {
+    if (nextFor.current === serial) return
+    nextFor.current = serial
+    later.clear() // the celebration's chime belongs to the problem being left
     const wasDone = celebrate?.gameDone
     setCelebrate(null)
     if (wasDone) {
@@ -348,9 +505,27 @@ export function BigMultiplication() {
     struggled.current = false
     setProblem(deal(level, difficulty))
     setServed((x) => x + 1)
+    setSerial((x) => x + 1)
     setProblemKey((k) => k + 1)
     resetProblemTrackers()
+    focusPromptNext.current = true // keyboard / switch users land on the new step (hackerAI #17)
   }
+
+  // After Next: move focus from the closed dialog to the new step's prompt.
+  useEffect(() => {
+    if (!focusPromptNext.current) return
+    focusPromptNext.current = false
+    const id = window.setTimeout(() => {
+      const el =
+        document.querySelector<HTMLElement>('[data-testid=mode-area] .dock-prompt') ??
+        document.querySelector<HTMLElement>('[data-testid=mode-area] button[data-active="1"]') ??
+        document.querySelector<HTMLElement>('[data-testid=problem]')
+      if (!el) return
+      if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1')
+      el.focus({ preventScroll: true })
+    }, 120)
+    return () => window.clearTimeout(id)
+  }, [problemKey])
 
   const endDemo = useCallback(() => {
     setDemo(false)
@@ -358,6 +533,7 @@ export function BigMultiplication() {
     say(t('yourTurn'), 'party')
   }, [mode, say, t])
   const narrate = useCallback((text: string) => speakFor(locale, text), [locale])
+  const hintReader = useReadAlong(narrate)
   const showAgain = () => {
     if (!mode) return
     resetWalkthrough(mode)
@@ -375,17 +551,215 @@ export function BigMultiplication() {
       return nt
     })
     say(t('mascotHint'), 'happy')
+    reframe()
   }
 
   const hintText = !ladder || tier === 0 ? '' : tier === 1 ? ladder.nudge : tier === 2 ? misconception ?? ladder.step : ladder.worked
+
+  // Hint placement (hackerAI #8 / html-validator M1+M2, CHECK round 2): the bubble never sits on
+  // what the child has to tap or look at — enabled buttons, "Show me again", every glowing step
+  // cell ([data-active], up to 200 px tall) and the picture the step is about ([data-keep-clear]),
+  // with 12 px of air. It must also sit fully on screen, below the fixed top buttons and (phone)
+  // above the answer sheet, with the step's targets still in view. Search order (hintPlacement.ts):
+  //   1. full bubble at the current scroll — below the targets first, else ABOVE them over the
+  //      title / dragon rows;  2. compact bubble (Read it shrinks to a 🔊 icon), same;
+  //   3. compact bubble with the smallest scroll that makes room;  4. the spot covering least.
+  // Soft context is kept clear when there is room, in two levels: "soft" (the Dragon Oops row above
+  // the oops, the story sentence) and "soft-2" (the row below the oops). Steps 1–3 run with both;
+  // if no spot exists, "soft-2" is given up, then "soft" (rounds 3–4). Soft context never has to
+  // stay on screen, so it cannot push the bubble off-screen or onto a target.
+  // The bubble itself lets taps through (pointer-events only on ✕ and Read it).
+  const playArea = useRef<HTMLDivElement>(null)
+  const bubble = useRef<HTMLDivElement | null>(null)
+  // The outgoing bubble (AnimatePresence exit) unmounts AFTER its replacement mounted: a plain shared
+  // ref was set to null then, so every later re-placement saw no bubble and gave up (round 5 root
+  // cause). This ref only clears itself if it still points at its own node.
+  const setBubble = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return
+    bubble.current = el
+    return () => {
+      if (bubble.current === el) bubble.current = null
+    }
+  }, [])
+  const [hintTop, setHintTop] = useState(0)
+  // Placement stage = softLevel × 2 + compact. softLevel 0 keeps "soft" + "soft-2" clear, 1 keeps
+  // "soft" only, 2 keeps none. Even stages = full bubble, odd = compact.
+  const [stage, setStage] = useState(0)
+  const compact = stage % 2 === 1
+  const placedFor = useRef('')
+  const placeHint = useCallback(() => {
+    const box = playArea.current
+    const bub = bubble.current
+    if (!box || !bub) return
+    const sy = window.scrollY
+    const c = box.getBoundingClientRect()
+    const r = bub.getBoundingClientRect()
+    const w = bub.offsetWidth
+    const h = bub.offsetHeight
+    const cx = (r.left + r.right) / 2
+    const left = cx - w / 2
+    const right = cx + w / 2
+    const dock = box.querySelector<HTMLElement>('.action-dock')
+    const dockFixed = !!dock && getComputedStyle(dock).position === 'fixed'
+    const topRow = Array.from(document.querySelectorAll<HTMLElement>('[data-testid=back-btn], [data-testid=hint-btn]'))
+      .map((e) => e.getBoundingClientRect().bottom)
+    const ceil = Math.max(HINT_CEIL, ...topRow.map((b) => b + 8))
+    const floor = (dockFixed && dock ? dock.getBoundingClientRect().top : window.innerHeight) - HINT_FLOOR_GAP
+    const page = (b: DOMRect) => ({ top: b.top + sy, bottom: b.bottom + sy })
+    const shown = (e: HTMLElement) => !(dockFixed && dock?.contains(e))
+    // Glowing cells pulse (scale up to 1.15): place against the pulse's largest extent, not the
+    // frame we happened to measure. Centre ± half the untransformed height × HINT_PULSE.
+    const rectOf = (e: HTMLElement): DOMRect => {
+      const b = e.getBoundingClientRect()
+      if (b.height > 200 || !e.offsetHeight) return b
+      const half = Math.max(b.height / 2, (e.offsetHeight / 2) * HINT_PULSE)
+      const mid = (b.top + b.bottom) / 2
+      return new DOMRect(b.left, mid - half, b.width, half * 2)
+    }
+    const targetEls = Array.from(box.querySelectorAll<HTMLElement>('[data-testid=mode-area] [data-active="1"], [data-testid=mode-area] [data-keep-clear="1"]'))
+      .filter(shown)
+      .map((e) => ({ keep: e.dataset.keepClear === '1', b: rectOf(e) }))
+      .filter(({ keep, b }) => b.width > 0 && b.height > 0 && (keep || b.height <= 200))
+    const softOf = (v: string) =>
+      Array.from(box.querySelectorAll<HTMLElement>(`[data-testid=mode-area] [data-keep-clear="${v}"]`))
+        .filter(shown)
+        .map((e) => e.getBoundingClientRect())
+        .filter((b) => b.width > 0 && b.height > 0)
+    const soft1 = softOf('soft')
+    const soft2 = softOf('soft-2')
+    const level = Math.floor(stage / 2)
+    const soft = [...(level < 2 ? soft1 : []), ...(level < 1 ? soft2 : [])]
+    const avoid = [
+      ...Array.from(box.querySelectorAll<HTMLElement>('[data-testid=demo-again], [data-testid=demo-banner], [data-testid=mode-area] button:not([disabled])'))
+        .filter(shown)
+        .map(rectOf)
+        .filter((b) => b.width > 0 && b.height > 0 && b.height <= 200 * HINT_PULSE),
+      ...targetEls.map((t) => t.b),
+      ...soft,
+    ]
+      .filter((b) => b.right > left && b.left < right)
+      .map((b) => ({ top: b.top + sy - HINT_CLEAR, bottom: b.bottom + sy + HINT_CLEAR }))
+    const targets = targetEls.length
+      ? targetEls.map((t) => page(t.b)).reduce((u, b) => ({ top: Math.min(u.top, b.top), bottom: Math.max(u.bottom, b.bottom) }))
+      : null
+    const main = box.closest('main')
+    const input: PlaceInput = {
+      h,
+      playTop: c.top + sy,
+      scrollY: sy,
+      contentBottom: (main ?? box).getBoundingClientRect().bottom + sy,
+      viewportH: window.innerHeight,
+      ceil,
+      floor,
+      avoid,
+      targets,
+      allowScroll: compact,
+    }
+    const spot = placeBubble({ ...input, allowScroll: false }) ?? (compact ? placeBubble(input) : null)
+    // No spot at this stage: next stage (re-measured at the new size by the layout effect below).
+    // Soft levels with nothing to give up are skipped.
+    if (!spot) {
+      let n = stage + 1
+      const skip = (st: number) => {
+        const lv = Math.floor(st / 2)
+        return (lv === 1 && soft2.length === 0) || (lv === 2 && soft1.length === 0)
+      }
+      while (n <= 5 && skip(n)) n += 1
+      if (n <= 5) {
+        setStage(n)
+        return
+      }
+    }
+    // Nothing fits anywhere: the least-covering spot, and the step's cells framed as usual.
+    if (!spot) ensureActiveVisible(true)
+    const y = spot ? spot.y : leastCovered(input)
+    const top = y - (c.top + sy)
+    setHintTop((cur) => (Math.abs(cur - top) < 1 ? cur : top))
+    if (spot && Math.abs(spot.scroll - sy) >= 1) {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      window.scrollTo({ top: spot.scroll, behavior: reduce ? 'auto' : 'smooth' })
+    }
+  }, [stage, compact])
+  useLayoutEffect(() => {
+    if (tier === 0 || !hintText) {
+      placedFor.current = '' // closed: the next hint (even the same one) starts from scratch
+      return
+    }
+    // A new hint (tier or text) starts from the full bubble again.
+    const key = `${tier}-${hintText}`
+    if (placedFor.current !== key) {
+      placedFor.current = key
+      if (stage !== 0) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- layout measurement: the bubble must be re-measured at full size before paint.
+        setStage(0)
+        return
+      }
+    }
+    placeHint()
+    // Effect-owned (cleared whenever the hint changes or closes, incl. Back): after step animations.
+    const ids = [window.setTimeout(placeHint, 450), window.setTimeout(placeHint, 1000)]
+    // Once a scroll (the step's re-frame, the child, our own) or a resize (incl. across the 767 px
+    // breakpoint, where the sheet stops being fixed) has SETTLED, place again from scratch: full
+    // bubble first, every soft level back on (round 5).
+    let settle = 0
+    const fresh = () => (stage !== 0 ? setStage(0) : placeHint())
+    const onScroll = () => {
+      window.clearTimeout(settle)
+      settle = window.setTimeout(fresh, 150)
+    }
+    const onResize = () => {
+      window.clearTimeout(settle)
+      settle = window.setTimeout(fresh, 250)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onResize)
+    return () => {
+      ids.forEach((id) => window.clearTimeout(id))
+      window.clearTimeout(settle)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onResize)
+    }
+  }, [tier, hintText, stage, placeHint])
+  // Escape closes the bubble, like ✕.
+  useEffect(() => {
+    if (tier === 0) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      hintReader.stop()
+      setTier(0)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [tier, hintReader])
+  // A tap anywhere outside the bubble (and the Hint / voice buttons) closes it; the tap still
+  // reaches what it was aimed at.
+  useEffect(() => {
+    if (tier === 0) return
+    const onDown = (e: PointerEvent) => {
+      const el = e.target as Element | null
+      if (!el || el.closest('[data-testid=hint-bubble], [data-testid=hint-btn], [data-testid=voice-toggle]')) return
+      hintReader.stop()
+      setTier(0)
+    }
+    document.addEventListener('pointerdown', onDown, true)
+    return () => document.removeEventListener('pointerdown', onDown, true)
+  }, [tier, hintReader])
   const readAloud = () => {
-    // Speak the open hint when there is one, otherwise the current prompt.
-    speakFor(locale, hintText || speech)
+    // Speak the open hint when there is one (word highlight follows), otherwise the current prompt.
+    if (hintText) hintReader.read(hintText)
+    else speakFor(locale, speech)
+  }
+  const toggleVoice = () => {
+    const next = !voiceOn
+    setVoiceOn(next) // muting cancels a sentence in progress (and every read-along highlight)
+    if (!next) hintReader.stop()
+    setVoiceState(next)
+    if (next) speakFor(locale, hintText || speech) // turning on reads the current step once
   }
 
   // L155 / SP-29: never paint locks or progress before the persisted store has hydrated —
   // a returning kid with Level 2 open must not see it flash locked.
-  if (!mounted || !_hasHydrated) {
+  if (!mounted || !_hasHydrated || !hoardHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-green-300 via-teal-300 to-cyan-400" data-testid="big-loading">
         <motion.div
@@ -415,6 +789,9 @@ export function BigMultiplication() {
           >
             <span className="prompt-pill text-4xl md:text-5xl font-bold px-6 py-2">🏗️ {t('title')}</span>
           </motion.h1>
+          <p className="text-center -mt-3 mb-4">
+            <HoardChip gems={gems} label={t('hoardLabel', { n: gems })} big />
+          </p>
           {days > 0 && (
             <p className="text-center -mt-3 mb-5" data-testid="days-streak">
               <span className="inline-block bg-white/85 text-emerald-700 font-bold text-lg rounded-full px-4 py-1 shadow">{t('daysStreak', { n: days })}</span>
@@ -442,7 +819,7 @@ export function BigMultiplication() {
                   aria-disabled={!open}
                   data-testid={`level-${l}`}
                   className={`relative min-h-[120px] rounded-3xl p-4 text-left border-4 shadow-xl flex flex-col gap-1
-                    ${open ? `bg-gradient-to-br ${LEVEL_STYLE[l]}` : 'bg-gray-500/70 border-gray-300/60 cursor-not-allowed'}
+                    ${open ? `bg-gradient-to-br ${LEVEL_STYLE[l]}` : 'bg-gray-600/90 border-gray-300/60 cursor-not-allowed'}
                     ${selected && open ? 'ring-4 ring-yellow-300 ring-offset-2' : ''}`}
                   initial={{ opacity: 0, scale: 0.4 }}
                   animate={{ opacity: 1, scale: selected ? 1.03 : 1 }}
@@ -453,14 +830,14 @@ export function BigMultiplication() {
                     <span className="text-2xl font-bold text-white drop-shadow">{t(`level${l}`)}</span>
                     <span className="text-2xl" aria-hidden="true">{open ? (gamesDone[l] >= GAMES_TO_UNLOCK ? '👑' : '⭐') : '🔒'}</span>
                   </span>
-                  <span className="text-white/95 font-semibold">{t(`level${l}Desc`)}</span>
+                  <span className="text-white font-semibold">{t(`level${l}Desc`)}</span>
                   {open ? (
                     <span className="flex items-center gap-2 mt-auto">
                       <Pips done={Math.min(gamesDone[l], GAMES_TO_UNLOCK)} />
-                      <span className="text-white/90 text-sm font-bold">{t('gamesDone', { done: Math.min(gamesDone[l], GAMES_TO_UNLOCK) })}</span>
+                      <span className="text-white text-sm font-bold">{t('gamesDone', { done: Math.min(gamesDone[l], GAMES_TO_UNLOCK) })}</span>
                     </span>
                   ) : (
-                    <span className="text-sm font-bold mt-auto bg-white/90 text-gray-800 rounded-full px-2 py-0.5 self-start">{t('locked', { n: l - 1 })}</span>
+                    <span className="text-sm font-bold mt-auto bg-white/90 text-gray-800 rounded-full px-2 py-0.5 self-start [text-wrap:balance]">{t('locked', { n: l - 1 })}</span>
                   )}
                 </motion.button>
               )
@@ -468,7 +845,7 @@ export function BigMultiplication() {
           </div>
 
           <h2 className="mb-3"><span className="prompt-pill text-2xl font-bold">{t('pickMode')}</span></h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4" data-testid="mode-grid">
             {BIG_MODES.map((m, i) => {
               const meta = MODE_META[m]
               return (
@@ -480,17 +857,23 @@ export function BigMultiplication() {
                     startGame(m)
                   }}
                   data-testid={`mode-${m}`}
-                  className={`min-h-[140px] rounded-3xl p-4 bg-gradient-to-br ${meta.style} border-4 shadow-xl
-                              flex flex-col items-center justify-center gap-1 text-center`}
+                  className={`relative min-h-[140px] rounded-3xl p-4 bg-gradient-to-br ${meta.style} ${meta.extra ? 'border-dashed' : ''} border-4 shadow-xl
+                              flex flex-col items-center justify-center gap-1 text-center overflow-hidden`}
                   initial={{ opacity: 0, scale: 0.3, y: 30 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   transition={{ delay: 0.25 + i * 0.07, ease: BOUNCY, duration: 0.5 }}
                   whileHover={{ scale: 1.05, y: -4 }}
                   whileTap={{ scale: 0.9 }}
                 >
+                  {meta.extra && (
+                    <span className="absolute top-2 -right-8 rotate-45 w-[120px] text-center bg-yellow-300 text-gray-900 text-sm font-bold py-0.5 shadow" data-testid="new-ribbon">
+                      {t('newRibbon')}
+                    </span>
+                  )}
+                  {meta.extra && <span className="absolute top-2 left-3 text-xs font-bold uppercase tracking-wide text-white bg-black/35 rounded-full px-2">{t('extraLabel')}</span>}
                   <span className="text-5xl" aria-hidden="true">{meta.emoji}</span>
                   <span className="text-2xl font-bold text-white drop-shadow">{t(meta.title)}</span>
-                  <span className="text-white/90 font-semibold">{t(meta.desc)}</span>
+                  <span className="text-white font-semibold">{t(meta.desc)}</span>
                 </motion.button>
               )
             })}
@@ -505,16 +888,18 @@ export function BigMultiplication() {
   const meta = MODE_META[mode]
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-300 via-teal-300 to-cyan-400 relative no-x-scroll" data-screen={`game-${mode}`}>
-      <BackButton label={t('back')} onClick={() => { cancelSpeech(); setMode(null); setProblem(null) }} />
+      <BackButton label={t('back')} onClick={leaveGame} />
       <div className="fixed z-50 right-3 flex gap-2" style={{ top: 'calc(var(--safe-area-inset-top) + 12px)' }}>
         <KidButton
           variant="soft"
-          aria-label={t('readAloud')}
-          onClick={readAloud}
+          aria-label={t('voiceLabel')}
+          aria-pressed={voiceOn}
+          onClick={toggleVoice}
           className="min-w-[60px] text-2xl rounded-full"
-          data-testid="read-aloud"
+          data-testid="voice-toggle"
+          data-voice={voiceOn ? 'on' : 'off'}
         >
-          🔊
+          <span aria-hidden="true">{voiceOn ? '🔊' : '🔇'}</span>
         </KidButton>
         <KidButton
           aria-label={t('hint')}
@@ -529,13 +914,18 @@ export function BigMultiplication() {
         </KidButton>
       </div>
 
-      <main className="max-w-6xl mx-auto px-3 sm:px-4 pt-[80px] pb-6 has-dock">
+      {/* Phone: the title pill gets its own row below the fixed Back / voice / Hint buttons. */}
+      <main className="max-w-6xl mx-auto px-3 sm:px-4 pt-[96px] sm:pt-[80px] pb-6 has-dock">
         {/* Compact header (QA M5/M6): one line of context, then problem + companion side by side. */}
         <div className="flex flex-col items-center gap-2 mb-2">
-          <p className="prompt-pill text-base font-bold">
-            {meta.emoji} {t(meta.title)} · {t(`level${level}`)} · {t('problemOf', { n: solvedInGame + 1, total: PROBLEMS_PER_GAME })}
-          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <h1 className="prompt-pill text-base font-bold">
+              {meta.emoji} {t(meta.title)} · {t(`level${level}`)} · {t('problemOf', { n: Math.min(PROBLEMS_PER_GAME, solvedInGame + (awardedSerial === serial ? 0 : 1)), total: PROBLEMS_PER_GAME })}
+            </h1>
+            <HoardChip gems={gems} label={t('hoardLabel', { n: gems })} />
+          </div>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+            {!HIDE_PROBLEM.includes(mode) && (
             <motion.p
               key={problemKey}
               className="bg-white/95 rounded-3xl px-5 py-1 shadow-lg text-5xl md:text-6xl font-bold"
@@ -550,8 +940,10 @@ export function BigMultiplication() {
               {' × '}
               {problem.b}
             </motion.p>
+            )}
             {/* Companion — reacts to the PROCESS (a trade, a step, asking for a hint), never to speed. */}
-            <div className="flex items-center gap-2 min-h-[52px]" aria-live="polite" data-testid="mascot">
+            {/* Fixed height (2 lines max): a new dragon line never shoves the play area (M1). */}
+            <div className="flex items-center gap-2 h-[68px]" aria-live="polite" data-testid="mascot">
               <motion.span
                 key={`m-${mascot.key}`}
                 className="text-4xl"
@@ -566,7 +958,7 @@ export function BigMultiplication() {
                 {mascot.text && (
                   <motion.span
                     key={`b-${mascot.key}`}
-                    className="bg-white/95 text-gray-800 font-bold text-base md:text-lg rounded-2xl px-3 py-1.5 shadow-md border-2 border-white max-w-[220px]"
+                    className="bg-white/95 text-gray-800 font-bold text-base md:text-lg leading-snug rounded-2xl px-3 py-1.5 shadow-md border-2 border-white max-w-[220px] line-clamp-2"
                     initial={{ scale: 0.5, opacity: 0, x: -10 }}
                     animate={{ scale: 1, opacity: 1, x: 0 }}
                     exit={{ opacity: 0 }}
@@ -584,37 +976,70 @@ export function BigMultiplication() {
         {/* Screen-reader channel for the hint ladder (QA m5): one persistent live region. */}
         <p className="sr-only" aria-live="polite">{tier > 0 ? hintText : ''}</p>
 
-        <div className="relative">
-        {/* Hint OVERLAYS the play area instead of pushing the pad below the fold (QA M5/M6). */}
+        <div className="relative" ref={playArea}>
+        {/* Hint OVERLAYS the play area instead of pushing the pad below the fold (QA M5/M6),
+            placed clear of every target (placeHint). */}
         <AnimatePresence>
           {tier > 0 && hintText && (
             <motion.div
               key={`${tier}-${hintText}`}
-              className="absolute z-30 left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 top-0 w-[min(36rem,calc(100%-0.5rem))] md:w-[calc(100%-324px)] bg-amber-50 border-4 border-amber-300 text-amber-900
-                         rounded-3xl pl-5 pr-14 py-3 text-lg md:text-xl font-bold text-center shadow-xl"
+              ref={setBubble}
+              className={`absolute z-30 left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 w-[min(36rem,calc(100%-0.5rem))] md:w-[calc(100%-324px)] bg-amber-50 border-4 border-amber-300 text-amber-900
+                         rounded-3xl pl-5 pr-16 font-bold text-center shadow-xl pointer-events-none
+                         ${compact ? 'py-2 text-base md:text-lg leading-snug' : 'py-3 text-lg md:text-xl'}`}
+              style={{ top: hintTop }}
               data-tier={tier}
+              data-compact={compact ? '1' : '0'}
               initial={{ scale: 0.6, opacity: 0, y: -10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.8, opacity: 0 }}
               transition={{ ease: BOUNCY, duration: 0.4 }}
               data-testid="hint-bubble"
             >
-              <span className="block text-sm font-bold text-amber-800 mb-1">{t('hintTier', { n: tier })}</span>
-              💡 {hintText}
+              <LiveTaps>
+              <span className={`block text-base font-bold text-amber-800 ${compact ? 'leading-tight' : 'mb-1'}`}>{t('hintTier', { n: tier })}</span>
+              💡 <ReadAlongText text={hintText} word={hintReader.word} />
+              {/* Compact (tight phone layouts): Read it shrinks to a 56 px 🔊 at the end of the text
+                  instead of its own row; the negative margin keeps it from growing the line. */}
+              {voiceOn && compact && (
+                <button
+                  type="button"
+                  onClick={readAloud}
+                  aria-label={t('readIt')}
+                  className="pointer-events-auto inline-flex align-middle items-center justify-center w-[56px] h-[56px] -my-4 ml-1 rounded-full text-2xl hover:bg-amber-100"
+                  data-testid="hint-read-it"
+                >
+                  <span aria-hidden="true">🔊</span>
+                </button>
+              )}
+              {voiceOn && !compact && (
+                <button
+                  type="button"
+                  onClick={readAloud}
+                  className="pointer-events-auto mt-1 mx-auto flex items-center gap-1 min-h-[56px] px-4 rounded-full text-base font-bold text-amber-900 underline underline-offset-4 hover:bg-amber-100"
+                  data-testid="hint-read-it"
+                >
+                  <span aria-hidden="true">🔊</span> {t('readIt')}
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setTier(0)}
+                onClick={() => {
+                  hintReader.stop()
+                  setTier(0)
+                }}
                 aria-label={t('hintClose')}
-                className="absolute top-1 right-1 w-[48px] h-[48px] rounded-full text-2xl text-amber-900 hover:bg-amber-100"
+                className="pointer-events-auto absolute top-1 right-1 w-[56px] h-[56px] rounded-full text-2xl text-amber-900 hover:bg-amber-100"
                 data-testid="hint-close"
               >
                 ✕
               </button>
+              </LiveTaps>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <div className="flex justify-center mb-2 min-h-[48px]">
+        <div className="flex justify-center mb-2 min-h-[56px]">
           {demo ? (
             <div className="flex items-center gap-3 bg-white/95 rounded-full pl-5 pr-2 py-1 shadow-lg" data-testid="demo-banner" role="status">
               <span className="text-lg font-bold" style={{ color: 'var(--space-primary)' }}>🐉 {t('demoTitle')}</span>
@@ -623,7 +1048,7 @@ export function BigMultiplication() {
               </KidButton>
             </div>
           ) : (
-            <button type="button" onClick={showAgain} className="min-h-[48px] px-4 rounded-full bg-white/85 text-base font-bold shadow" style={{ color: 'var(--space-primary)' }} data-testid="demo-again">
+            <button type="button" onClick={showAgain} className="min-h-[56px] px-5 rounded-full bg-white/85 text-base font-bold shadow" style={{ color: 'var(--space-primary)' }} data-testid="demo-again">
               {t('demoAgain')}
             </button>
           )}
@@ -642,13 +1067,16 @@ export function BigMultiplication() {
             demo={demo}
             onDemoDone={endDemo}
             narrate={narrate}
+            onAward={onAward}
+            onNext={next}
+            replay={awardedSerial === serial}
           />
         </div>
         </div>
       </main>
 
       <AnimatePresence>
-        {celebrate && (
+        {celebrate && celebrate.serial === serial && (
           <Celebration
             text={t('correct')}
             sub={`${problem.a} × ${problem.b} = ${problem.a * problem.b}`}

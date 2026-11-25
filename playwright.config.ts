@@ -20,6 +20,7 @@
  */
 import { randomBytes } from 'node:crypto'
 import { defineConfig, devices } from '@playwright/test'
+import { CHROMIUM_MUTE } from './tests/e2e/silence'
 
 // E2E_PORT lets the suite run beside another dev server (default 3000).
 const PORT = Number(process.env.E2E_PORT ?? 3000)
@@ -54,6 +55,9 @@ export default defineConfig({
     // Trace on first retry, screenshot on failure — the standard Playwright
     // debugging triple. Keeps the success case fast and the failure case
     // diagnosable without us reaching for `--debug`.
+    // Silent runs (operator ruling 2026-10-22): Chromium --mute-audio here; every spec also
+    // imports { test } from tests/e2e/silence.ts, which stubs speechSynthesis + AudioContext.
+    launchOptions: CHROMIUM_MUTE,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

@@ -6,12 +6,11 @@ services:
     region: oregon
     plan: starter
     branch: main
-    # DELIBERATE deviation from CLAUDE.md default autoDeploy=no.
-    # Manual deploy IS the bug we're fixing (stale out/ on GitHub Pages
-    # caused 404s on newly-linked game modes). Starter tier is single-
-    # developer scope (one family game, no prod traffic) so the
-    # "pause before prod" safety isn't applicable here.
-    autoDeploy: yes
+    # Fleet default: deploys only via `ship` (operator decision 2026-11-25).
+    # The April 2026 reason for autoDeploy=yes (stale out/ on GitHub Pages)
+    # ended with the move to Render. Invite-only challenges and chat make
+    # surprise restarts on every merge a real cost now.
+    autoDeploy: no
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV

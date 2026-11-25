@@ -1,7 +1,13 @@
 // Multiplication mastery state store
 // Follows the exact Zustand + persist pattern from progressStore.ts
+//
+// Storage hardening (yokoten of the Big Multiplication red-team round 1): hydration ALWAYS
+// finishes (corrupt JSON, blocked or full storage — see safeStorage.ts), a saved value is
+// sanitised on load, and neither a rehydrate nor a saved-version change ever lowers stars,
+// attempts, unlocks or the speed high score.
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { safeJSONStorage } from './safeStorage'
 
 export type GameMode = 'explorer' | 'match' | 'memory' | 'dice' | 'missing' | 'speed'
   | 'array' | 'groups' | 'dragmatch' | 'numberline' | 'flip' | 'fingers'
@@ -131,6 +137,75 @@ function computeSpeedUnlock(tables: Record<number, TableMastery>): boolean {
 }
 
 const DEFAULT_UNLOCKED = [1]
+const MAX_TABLE = 10
+const MAX_STARS_PER_MODE = 3
+const MAX_COUNT = 1_000_000
+
+function count(v: unknown, max = MAX_COUNT): number {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.min(max, Math.floor(v)) : 0
+}
+
+function isTable(n: number): boolean {
+  return Number.isInteger(n) && n >= 1 && n <= MAX_TABLE
+}
+
+function sanitizeTable(tableNumber: number, v: unknown): TableMastery {
+  const src = v !== null && typeof v === 'object' ? (v as Record<string, unknown>) : {}
+  const scoresIn = src.modeScores !== null && typeof src.modeScores === 'object' ? (src.modeScores as Record<string, unknown>) : {}
+  const modeScores = createDefaultModeScores()
+  for (const mode of ALL_MODES) {
+    const m = scoresIn[mode] !== null && typeof scoresIn[mode] === 'object' ? (scoresIn[mode] as Record<string, unknown>) : {}
+    modeScores[mode] = { attempts: count(m.attempts), bestStars: count(m.bestStars, MAX_STARS_PER_MODE) }
+  }
+  const totalStars = computeTotalStars(modeScores)
+  return { tableNumber, explored: src.explored === true, modeScores, totalStars, mastered: totalStars >= 9 }
+}
+
+type PersistedMultiplication = Pick<MultiplicationState, 'tables' | 'unlockedTables' | 'speedChallengeUnlocked' | 'speedHighScore'>
+
+/** Whatever was saved → a well-formed state: tables 1–10, whole-number scores, stars 0–3. */
+export function sanitizeMultiplication(v: unknown): PersistedMultiplication {
+  const src = v !== null && typeof v === 'object' ? (v as Record<string, unknown>) : {}
+  const tablesIn = src.tables !== null && typeof src.tables === 'object' ? (src.tables as Record<string, unknown>) : {}
+  const tables: Record<number, TableMastery> = {}
+  for (const key of Object.keys(tablesIn)) {
+    const n = Number(key)
+    if (isTable(n)) tables[n] = sanitizeTable(n, tablesIn[key])
+  }
+  const unlockedIn = Array.isArray(src.unlockedTables) ? src.unlockedTables : []
+  const unlocked = unlockedIn.filter((t): t is number => typeof t === 'number' && isTable(t))
+  return {
+    tables,
+    unlockedTables: computeUnlocks(tables, unlocked),
+    speedChallengeUnlocked: src.speedChallengeUnlocked === true || computeSpeedUnlock(tables),
+    speedHighScore: count(src.speedHighScore),
+  }
+}
+
+/** Field-by-field max of two sanitised states — progress never goes down. */
+function maxProgress(a: PersistedMultiplication, b: PersistedMultiplication): PersistedMultiplication {
+  const tables: Record<number, TableMastery> = {}
+  for (const key of new Set([...Object.keys(a.tables), ...Object.keys(b.tables)])) {
+    const n = Number(key)
+    const x = a.tables[n] ?? createDefaultTableMastery(n)
+    const y = b.tables[n] ?? createDefaultTableMastery(n)
+    const modeScores = createDefaultModeScores()
+    for (const mode of ALL_MODES) {
+      modeScores[mode] = {
+        attempts: Math.max(x.modeScores[mode].attempts, y.modeScores[mode].attempts),
+        bestStars: Math.max(x.modeScores[mode].bestStars, y.modeScores[mode].bestStars),
+      }
+    }
+    const totalStars = computeTotalStars(modeScores)
+    tables[n] = { tableNumber: n, explored: x.explored || y.explored, modeScores, totalStars, mastered: totalStars >= 9 }
+  }
+  return {
+    tables,
+    unlockedTables: computeUnlocks(tables, [...a.unlockedTables, ...b.unlockedTables]),
+    speedChallengeUnlocked: a.speedChallengeUnlocked || b.speedChallengeUnlocked || computeSpeedUnlock(tables),
+    speedHighScore: Math.max(a.speedHighScore, b.speedHighScore),
+  }
+}
 
 export const useMultiplicationStore = create<MultiplicationState>()(
   persist(
@@ -231,8 +306,17 @@ export const useMultiplicationStore = create<MultiplicationState>()(
     {
       name: 'mathquest-multiplication',
       version: 1,
-      onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true)
+      storage: safeJSONStorage<MultiplicationState>(),
+      // Any other saved version (older OR newer): keep the progress; merge() takes the max.
+      migrate: (persisted) => sanitizeMultiplication(persisted) as unknown as MultiplicationState,
+      merge: (persisted, current) => ({
+        ...current,
+        ...maxProgress(sanitizeMultiplication(current), sanitizeMultiplication(persisted)),
+      }),
+      // Success AND error: a failed rehydrate must never leave the grid on its loader.
+      // `initial` (not useMultiplicationStore): the first hydrate runs inside create().
+      onRehydrateStorage: (initial) => () => {
+        initial.setHasHydrated(true)
       },
     }
   )

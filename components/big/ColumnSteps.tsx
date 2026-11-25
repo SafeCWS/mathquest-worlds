@@ -10,6 +10,7 @@ import { AnswerPad } from './AnswerPad'
 import { PV, pvBg, pvText } from './pv'
 import type { ModeProps } from './types'
 import { DEMO_GLOW, DemoFinger, useDemoStep } from './Demo'
+import { useLater } from './useLater'
 
 // Step-by-Step Column — classic vertical layout, ONE glowing step at a time, ONES FIRST.
 // 78 × 8:
@@ -40,8 +41,9 @@ function Cell({ children, glow, style, testId, active }: { children?: React.Reac
   )
 }
 
-export function ColumnSteps({ problem, onSolved, onWrong, onStep, setHint, setSpeech, highlight, demo, onDemoDone, narrate }: ModeProps) {
+export function ColumnSteps({ problem, onAward, onSolved, onWrong, onStep, setHint, setSpeech, highlight, demo, onDemoDone, narrate }: ModeProps) {
   const t = useTranslations('bigMult')
+  const later = useLater()
   const locale = useLocale()
   const s = columnSteps(problem)
   const { a, b } = problem
@@ -64,14 +66,15 @@ export function ColumnSteps({ problem, onSolved, onWrong, onStep, setHint, setSp
 
   const finish = () => {
     setPhase('done')
-    window.setTimeout(onSolved, 800)
+    onAward?.() // credit at acceptance; the answer row animates, then the shell celebrates
+    later(onSolved, 800)
   }
 
   const answer = (n: number) => {
     if (phase === 'ones') {
       if (n !== s.onesProduct) return onWrong()
       onStep('step')
-      if (s.carry > 0) window.setTimeout(() => sfx.carryPlink(), 450)
+      if (s.carry > 0) later(() => sfx.carryPlink(), 450)
       setPhase('tens')
     } else if (phase === 'tens') {
       if (n !== s.tensProduct) return onWrong()
@@ -203,7 +206,7 @@ export function ColumnSteps({ problem, onSolved, onWrong, onStep, setHint, setSp
             <motion.div key="add" className="flex flex-col items-center gap-2" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               {(phase === 'carryTap' || phase === 'tensAdd') && (
                 <p className="text-[22px] font-bold rounded-full px-4 py-1 bg-white border-4" style={{ borderColor: PV.carry, color: 'var(--space-primary)' }} data-testid="carry-note">
-                  {t('carryEcho', { product: s.onesProduct, carry: s.carry, write: s.onesWrite })}
+                  {t('carryEcho', { product: s.onesProduct, carry: s.carry, write: s.onesWrite, tensValue: s.carry * 10 })}
                 </p>
               )}
               {(phase === 'carryTap' || phase === 'tensAdd') && (
@@ -216,7 +219,7 @@ export function ColumnSteps({ problem, onSolved, onWrong, onStep, setHint, setSp
                       {s.carry}
                     </motion.span>
                   ) : (
-                    <span className="w-[48px] h-[48px] rounded-full border-4 border-dashed flex items-center justify-center text-gray-400" style={{ borderColor: PV.carry }}>?</span>
+                    <span className="w-[48px] h-[48px] rounded-full border-4 border-dashed flex items-center justify-center text-gray-500" style={{ borderColor: PV.carry }}>?</span>
                   )}
                 </p>
               )}

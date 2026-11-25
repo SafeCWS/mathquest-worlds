@@ -1,6 +1,11 @@
 // Game preferences state store
+//
+// Storage hardening (red-team round 2 M1 yokoten): /preferences waits on `_hasHydrated`, so
+// hydration ALWAYS finishes (corrupt JSON, blocked or full storage — see safeStorage.ts) and
+// each tampered field falls back to its default on load.
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { safeJSONStorage } from './safeStorage'
 
 export type SoundPreference = 'on' | 'off' | 'music-only' | 'sfx-only'
 export type AnimationPreference = 'full' | 'reduced' | 'minimal'
@@ -63,6 +68,42 @@ const defaultPreferences = {
   reduceMotion: false
 }
 
+const OPERATIONS: readonly MathOperation[] = ['counting', 'addition', 'subtraction', 'multiplication', 'division']
+const GAME_STYLES: readonly GameStyle[] = ['tap', 'drag', 'mixed']
+const SOUND_PREFS: readonly SoundPreference[] = ['on', 'off', 'music-only', 'sfx-only']
+const ANIMATION_PREFS: readonly AnimationPreference[] = ['full', 'reduced', 'minimal']
+
+type PersistedPreferences = typeof defaultPreferences
+
+const oneOf = <T extends string>(allowed: readonly T[], v: unknown, fb: T): T =>
+  typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : fb
+const bool = (v: unknown, fb: boolean): boolean => (typeof v === 'boolean' ? v : fb)
+const volume = (v: unknown, fb: number): number =>
+  typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : fb
+
+/** Every persisted preference, each either valid or taken from `fb`. Never throws. */
+export function sanitizePreferences(v: unknown, fb: PersistedPreferences): PersistedPreferences {
+  const s = v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {}
+  const ops = Array.isArray(s.operations)
+    ? [...new Set(s.operations.filter((o): o is MathOperation => (OPERATIONS as readonly unknown[]).includes(o)))]
+    : null
+  return {
+    operations: ops && ops.length > 0 ? ops : fb.operations,
+    gameStyle: oneOf(GAME_STYLES, s.gameStyle, fb.gameStyle),
+    soundPreference: oneOf(SOUND_PREFS, s.soundPreference, fb.soundPreference),
+    musicVolume: volume(s.musicVolume, fb.musicVolume),
+    sfxVolume: volume(s.sfxVolume, fb.sfxVolume),
+    animationPreference: oneOf(ANIMATION_PREFS, s.animationPreference, fb.animationPreference),
+    showHints: bool(s.showHints, fb.showHints),
+    showTimer: bool(s.showTimer, fb.showTimer),
+    largeText: bool(s.largeText, fb.largeText),
+    highContrast: bool(s.highContrast, fb.highContrast),
+    reduceMotion: bool(s.reduceMotion, fb.reduceMotion),
+  }
+}
+
+const PREF_KEYS = Object.keys(defaultPreferences) as (keyof PersistedPreferences)[]
+
 export const useGamePreferencesStore = create<GamePreferencesState>()(
   persist(
     (set) => ({
@@ -105,8 +146,22 @@ export const useGamePreferencesStore = create<GamePreferencesState>()(
     {
       name: 'mathquest-preferences',
       version: 1,
-      onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true)
+      storage: safeJSONStorage<PersistedPreferences>(),
+      partialize: (s) => {
+        const out: Record<string, unknown> = {}
+        for (const k of PREF_KEYS) out[k] = s[k]
+        return out as PersistedPreferences
+      },
+      // Any other saved version (older OR newer): keep the (sanitised) preferences.
+      migrate: (persisted) => sanitizePreferences(persisted, defaultPreferences),
+      merge: (persisted, current) => ({
+        ...current,
+        ...sanitizePreferences(persisted, sanitizePreferences(current, defaultPreferences)),
+      }),
+      // Success AND error: a failed rehydrate must never leave the page on its loader.
+      // `initial` (not useGamePreferencesStore): the first hydrate runs inside create().
+      onRehydrateStorage: (initial) => () => {
+        initial.setHasHydrated(true)
       }
     }
   )

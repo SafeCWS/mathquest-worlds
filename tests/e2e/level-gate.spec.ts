@@ -24,7 +24,7 @@
  *
  * Pre-seeding pattern documented inline.
  */
-import { test, expect } from '@playwright/test'
+import { test, expect } from './silence'
 import type { Page } from '@playwright/test'
 
 const STORAGE_KEY = 'mathquest-progress'

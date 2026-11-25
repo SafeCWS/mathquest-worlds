@@ -15,7 +15,7 @@
  * Pre-seeding pattern lifted from level-gate.spec.ts. Auth is dev-mode
  * permissive so we don't need a fake login flow.
  */
-import { test, expect } from '@playwright/test'
+import { test, expect } from './silence'
 import type { Page } from '@playwright/test'
 
 const STORAGE_KEY = 'mathquest-progress'

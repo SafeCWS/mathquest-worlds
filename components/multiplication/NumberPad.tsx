@@ -67,7 +67,7 @@ export default function NumberPad({
         aria-live="polite"
         aria-label={`${displayLabel}: ${display || '—'}`}
       >
-        {display || <span className="text-gray-300 text-2xl">...</span>}
+        {display || <span className="text-gray-500 text-2xl">...</span>}
       </motion.div>
 
       {/* Keypad grid: 1-9 in 3x3, then backspace-0-submit */}
@@ -108,7 +108,7 @@ export default function NumberPad({
           className={`np-key w-[64px] h-[64px] rounded-2xl text-[32px] font-bold flex items-center justify-center border-2
                      ${display
                        ? 'bg-gradient-to-b from-teal-600 to-emerald-700 border-teal-500 text-white shadow-[0_3px_0_rgb(4_120_87)]'
-                       : 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'}`}
+                       : 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed'}`}
           whileTap={display ? { scale: 0.9 } : {}}
           whileHover={display ? { scale: 1.05 } : {}}
           onClick={handleSubmit}

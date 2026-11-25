@@ -17,7 +17,7 @@
  *  - The level-gate logic — see `level-gate.spec.ts`.
  *  - Any specific kid-facing copy or visuals — those would create churn.
  */
-import { test, expect } from '@playwright/test'
+import { test, expect } from './silence'
 
 test.describe('smoke — basic routing + render health', () => {
   test('/ renders without 500 (auth-aware)', async ({ page }) => {
