@@ -85,6 +85,7 @@ function HoardChip({ gems, label, big }: { gems: number; label: string; big?: bo
       initial={{ scale: 1.25 }}
       animate={{ scale: 1 }}
       transition={{ ease: BOUNCY, duration: 0.5 }}
+      role="img"
       aria-label={label}
       data-testid="hoard-chip"
       data-gems={gems}

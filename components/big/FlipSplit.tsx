@@ -130,7 +130,9 @@ export function FlipSplit({ problem, onAward, onSolved, onWrong, onStep, setHint
     if (phase !== 'flip' && !(phase === 'predict' && prediction === 'different')) return
     sfx.tradeWhoosh()
     setPhase('flipping')
-    if (reduce) later(() => setPhase('side'), 450)
+    // Fallback timer on BOTH paths: if the 1.6 s rotate's onAnimationComplete never fires,
+    // the Flip button would stay disabled forever. Functional update = harmless when it did fire.
+    later(() => setPhase((p) => (p === 'flipping' ? 'side' : p)), reduce ? 450 : 1800)
   }
   const tapSide = (side: number) => {
     if (phase !== 'side') return
